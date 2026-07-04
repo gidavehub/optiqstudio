@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# credentials
+firebase-key.json
+
+# scratch & secondary dependencies
+/scratch/
+**/node_modules/
+.claude/
+
+
