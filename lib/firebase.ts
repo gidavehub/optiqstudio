@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBP89Y8cwi8NiCLB7CmjnkQTlJ3pn2aDdI",
@@ -10,7 +11,8 @@ const firebaseConfig = {
   storageBucket: "davelabs-tools",
   messagingSenderId: "951694748196",
   appId: "1:951694748196:web:c225fccb65cf80c75b06b1",
-  measurementId: "G-DX5M7SJF4X"
+  measurementId: "G-DX5M7SJF4X",
+  databaseURL: "https://davelabs-tools-default-rtdb.firebaseio.com"
 };
 
 // Initialize Firebase for Client-side
@@ -18,4 +20,5 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const rtdb = getDatabase(app);
 export default app;

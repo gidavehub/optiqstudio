@@ -26,7 +26,8 @@ import {
   limit,
   getDocs,
 } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { auth, db, rtdb } from "../lib/firebase";
+import { ref, onValue } from "firebase/database";
 
 export interface Profile {
   credits: number;
