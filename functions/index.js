@@ -319,25 +319,28 @@ exports.modemPayCheckout = onRequest(
       const apiKey = MODEMPAY_API_KEY.value().trim();
 
       const body = {
-        amount,
-        currency: "USD",
-        title,
-        description: title,
-        customer_email: email,
-        customer_name: name,
-        metadata: {
-          uid,
-          kind,
-          packId: packId || "",
-          planId: selectedPlanId,
-          credits: String(credits),
-        },
-        return_url: `${appUrl}/dashboard/billing?status=success`,
-        cancel_url: `${appUrl}/dashboard/billing?status=cancelled`,
-        callback_url: `https://us-east4-davelabs-tools.cloudfunctions.net/modemWebhook`,
+        data: {
+          amount,
+          currency: "USD",
+          title,
+          description: title,
+          customer_email: email,
+          customer_name: name,
+          metadata: {
+            uid,
+            kind,
+            packId: packId || "",
+            planId: selectedPlanId,
+            credits: String(credits),
+          },
+          return_url: `${appUrl}/dashboard/billing?status=success`,
+          cancel_url: `${appUrl}/dashboard/billing?status=cancelled`,
+          callback_url: `https://us-east4-davelabs-tools.cloudfunctions.net/modemWebhook`,
+          from_sdk: false
+        }
       };
 
-      const modemRes = await fetch("https://api.modempay.com/v1/payment-intents", {
+      const modemRes = await fetch("https://api.modempay.com/v1/payments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -362,7 +365,7 @@ exports.modemPayCheckout = onRequest(
 
 // --- OPTIQ CLIENT API CLOUD FUNCTIONS REPLACING NEXT.JS API ENDPOINTS ---
 
-const STORAGE_BUCKET = "davelabs-tools.firebasestorage.app";
+const STORAGE_BUCKET = "davelabs-tools";
 
 async function getAccessToken() {
   const auth = new GoogleAuth({ scopes: "https://www.googleapis.com/auth/cloud-platform" });

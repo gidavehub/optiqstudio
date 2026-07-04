@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBP89Y8cwi8NiCLB7CmjnkQTlJ3pn2aDdI",
   authDomain: "davelabs-tools.firebaseapp.com",
   projectId: "davelabs-tools",
-  storageBucket: "davelabs-tools.firebasestorage.app",
+  storageBucket: "davelabs-tools",
   messagingSenderId: "951694748196",
   appId: "1:951694748196:web:c225fccb65cf80c75b06b1",
   measurementId: "G-DX5M7SJF4X"

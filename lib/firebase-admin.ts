@@ -12,7 +12,7 @@ import { getStorage } from "firebase-admin/storage";
  */
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
-export const STORAGE_BUCKET = `${PROJECT_ID}.firebasestorage.app`;
+export const STORAGE_BUCKET = PROJECT_ID;
 
 let app;
 if (getApps().length === 0) {
