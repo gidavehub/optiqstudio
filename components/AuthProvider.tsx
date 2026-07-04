@@ -83,11 +83,11 @@ const CREDIT_PACKS = [
 ];
 
 const COSTS = {
-  videoPerSecond: { omni: 12, "omni-fast": 5 } as Record<string, number>,
-  image: 5,
-  ttsPer100Chars: 1,
-  ttsMinimum: 5,
-  characterSheet: 15,
+  videoPerSecond: { omni: 30, "omni-fast": 15 } as Record<string, number>,
+  image: 50,
+  ttsPer100Chars: 10,
+  ttsMinimum: 15,
+  characterSheet: 150,
 };
 
 interface AuthContextValue {

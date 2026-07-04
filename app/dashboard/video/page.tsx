@@ -1,16 +1,25 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Clapperboard,
   Download,
   ImagePlus,
   Loader2,
+  Maximize,
+  Pause,
+  Play,
   Sparkles,
   Volume2,
   VolumeX,
   X,
+  MoreVertical,
+  Trash2,
+  ChevronLeft,
+  Settings,
+  Flame,
+  DollarSign
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 
@@ -26,10 +35,153 @@ const ASPECTS = ["16:9", "9:16"] as const;
 const DURATIONS = [4, 6, 8, 10] as const;
 const RESOLUTIONS = ["720p", "1080p"] as const;
 
+interface CustomVideoPlayerProps {
+  src: string;
+  aspect: "16:9" | "9:16";
+}
+
+function CustomVideoPlayer({ src, aspect }: CustomVideoPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const togglePlay = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    const nextMute = !videoRef.current.muted;
+    videoRef.current.muted = nextMute;
+    setIsMuted(nextMute);
+  };
+
+  const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
+    setCurrentTime(videoRef.current.currentTime);
+  };
+
+  const handleLoadedMetadata = () => {
+    if (!videoRef.current) return;
+    setDuration(videoRef.current.duration);
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!videoRef.current) return;
+    const val = parseFloat(e.target.value);
+    videoRef.current.currentTime = val;
+    setCurrentTime(val);
+  };
+
+  const handleFullscreen = () => {
+    if (!videoRef.current) return;
+    if (!document.fullscreenElement) {
+      videoRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+  };
+
+  useEffect(() => {
+    setIsPlaying(true);
+  }, [src]);
+
+  return (
+    <div className="group relative w-full overflow-hidden rounded-xl border border-neutral-800 bg-black shadow-2xl">
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        loop={false}
+        onEnded={handleEnded}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onClick={togglePlay}
+        className="w-full object-cover cursor-pointer"
+        style={{ aspectRatio: aspect === "9:16" ? "9/16" : "16/9" }}
+      />
+      
+      {/* Control overlay — stark monochrome glassmorphism */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
+        
+        {/* Progress seek bar */}
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={0}
+            max={duration || 100}
+            step={0.1}
+            value={currentTime}
+            onChange={handleSeek}
+            className="w-full h-1 bg-white/25 rounded-lg appearance-none cursor-pointer accent-white hover:h-1.5 transition-all"
+            style={{
+              background: `linear-gradient(to right, #ffffff ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(255, 255, 255, 0.2) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`
+            }}
+          />
+        </div>
+
+        {/* Action controls */}
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={togglePlay}
+              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+            >
+              {isPlaying ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" />}
+            </button>
+
+            <span className="text-[11px] font-mono text-neutral-300">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleMute}
+              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+
+            <button
+              onClick={handleFullscreen}
+              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+            >
+              <Maximize size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VideoWorkspace() {
   const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
+  // Active inputs
   const [prompt, setPrompt] = useState(searchParams.get("prompt") ?? "");
   const model = "omni";
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("16:9");
@@ -39,28 +191,55 @@ function VideoWorkspace() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
 
+  // States
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeItem, setActiveItem] = useState<HistoryItem | null>(null);
   const [phase, setPhase] = useState<"idle" | "generating" | "done" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
+
+  const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
   const perSecond = pricing?.costs.videoPerSecond?.[model] ?? (model === "omni" ? 12 : 5);
   const cost = perSecond * duration;
 
+  // Load list of all projects and videos
   const loadHistory = useCallback(() => {
     apiFetch<{ items: HistoryItem[] }>("/api/generations?type=video")
-      .then((d) => setHistory(d.items))
+      .then((d) => {
+        setHistory(d.items);
+      })
       .catch(() => {});
   }, [apiFetch]);
 
   useEffect(() => {
     loadHistory();
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      // Clean up all active generation polls on unmount
+      Object.values(pollRefs.current).forEach((interval) => clearInterval(interval));
     };
   }, [loadHistory]);
+
+  // Click-away listener for popover menu
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setOpenedMenuId(null);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, []);
+
+  // Resume background polling on page load for any item in rendering state
+  useEffect(() => {
+    history.forEach((item) => {
+      if (item.status === "rendering" && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
+        startSingleGenerationPolling(item.id, item.prompt);
+      }
+    });
+  }, [history]);
 
   const attachImage = (file: File) => {
     const reader = new FileReader();
@@ -88,16 +267,94 @@ function VideoWorkspace() {
     }
   };
 
+  // Triggers polling for a single specific background rendering item
+  const startSingleGenerationPolling = (id: string, initialPrompt: string) => {
+    if (pollRefs.current[id]) clearInterval(pollRefs.current[id]);
+
+    pollRefs.current[id] = setInterval(async () => {
+      try {
+        const status = await apiFetch<{
+          status: string;
+          videoUrl?: string;
+          error?: string;
+        }>(`/api/video/status?id=${id}`);
+
+        if (status.status === "succeeded") {
+          clearInterval(pollRefs.current[id]);
+          delete pollRefs.current[id];
+          
+          // Refresh lists & update active item view if applicable
+          loadHistory();
+          void refreshProfile();
+
+          setHistory((prev) => 
+            prev.map((item) => 
+              item.id === id 
+                ? { ...item, status: "succeeded", videoUrl: status.videoUrl ?? null } 
+                : item
+            )
+          );
+
+          setActiveItem((prev) => {
+            if (prev && prev.id === id) {
+              return { ...prev, status: "succeeded", videoUrl: status.videoUrl ?? null };
+            }
+            return prev;
+          });
+        } else if (status.status === "failed") {
+          clearInterval(pollRefs.current[id]);
+          delete pollRefs.current[id];
+          
+          loadHistory();
+          void refreshProfile();
+
+          setHistory((prev) => 
+            prev.map((item) => 
+              item.id === id 
+                ? { ...item, status: "failed" } 
+                : item
+            )
+          );
+
+          setActiveItem((prev) => {
+            if (prev && prev.id === id) {
+              return { ...prev, status: "failed" };
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Ignore status query glitches
+      }
+    }, 5000);
+  };
+
+  // Submit Prompt (Google Flow Style: Creates dynamic card container on the screen instantly)
   const generate = async () => {
     if (!prompt.trim() || phase === "generating") return;
+    
     setPhase("generating");
     setError(null);
-    setResultUrl(null);
+
+    // Create a temporary local skeleton item to give instantaneous visual feedback
+    const tempId = `temp_${Date.now()}`;
+    const tempItem: HistoryItem = {
+      id: tempId,
+      status: "rendering",
+      prompt: prompt,
+      videoUrl: null,
+      createdAt: new Date().toISOString()
+    };
+
+    setHistory((prev) => [tempItem, ...prev]);
+    const originalPrompt = prompt;
+    setPrompt(""); // Clear input bar immediately for next flow action
+
     try {
       const start = await apiFetch<{ id: string }>("/api/video/generate", {
         method: "POST",
         body: JSON.stringify({
-          prompt,
+          prompt: originalPrompt,
           model,
           aspectRatio: aspect,
           durationSeconds: duration,
@@ -108,202 +365,551 @@ function VideoWorkspace() {
           imageMimeType: image?.mimeType,
         }),
       });
-      void refreshProfile();
 
-      pollRef.current = setInterval(async () => {
-        try {
-          const status = await apiFetch<{
-            status: string;
-            videoUrl?: string;
-            error?: string;
-          }>(`/api/video/status?id=${start.id}`);
-          if (status.status === "succeeded") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setResultUrl(status.videoUrl ?? null);
-            setPhase("done");
-            loadHistory();
-            void refreshProfile();
-          } else if (status.status === "failed") {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setError(status.error ?? "Generation failed");
-            setPhase("failed");
-            void refreshProfile();
-          }
-        } catch {
-          // transient poll errors are fine — keep polling
-        }
-      }, 6000);
+      setImage(null);
+      void refreshProfile();
+      setPhase("idle");
+
+      // Replace temp skeleton with the actual API item
+      setHistory((prev) => 
+        prev.map((item) => 
+          item.id === tempId ? { ...item, id: start.id, status: "rendering" } : item
+        )
+      );
+
+      // Spin up polling thread for this item
+      startSingleGenerationPolling(start.id, originalPrompt);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
       setPhase("failed");
+      // Remove temp skeleton
+      setHistory((prev) => prev.filter((item) => item.id !== tempId));
+      void refreshProfile();
+    }
+  };
+
+  // Delete video project via API
+  const deleteProject = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenedMenuId(null);
+    try {
+      await apiFetch(`/api/generations?id=${id}`, {
+        method: "DELETE"
+      });
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      if (activeItem?.id === id) {
+        setActiveItem(null);
+      }
+      void refreshProfile();
+    } catch {
+      // Optimistic delete
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
+
+  // Click to open detail model panel
+  const handleOpenDetailModal = (item: HistoryItem) => {
+    setActiveItem(item);
+  };
+
+  // Edit / Refine existing generation in Omni
+  const handleEditPromptInOmni = async () => {
+    if (!activeItem || !prompt.trim() || phase === "generating") return;
+    setPhase("generating");
+    setError(null);
+    
+    const originalEditPrompt = prompt;
+    setPrompt(""); // Clear prompt box
+
+    // Create a temporary local skeleton item to give instantaneous visual feedback
+    const tempId = `temp_${Date.now()}`;
+    const tempItem: HistoryItem = {
+      id: tempId,
+      status: "rendering",
+      prompt: `[EDIT] ${originalEditPrompt}`,
+      videoUrl: null,
+      createdAt: new Date().toISOString()
+    };
+
+    // Add to main viewport history and show it as active immediately
+    setHistory((prev) => [tempItem, ...prev]);
+    setActiveItem(tempItem);
+
+    try {
+      const start = await apiFetch<{ id: string }>("/api/video/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          prompt: `Modify video: ${originalEditPrompt}. Context base: ${activeItem.prompt}`,
+          model,
+          aspectRatio: aspect,
+          durationSeconds: duration,
+          resolution,
+          generateAudio: audioOn,
+          negativePrompt: negativePrompt || undefined,
+          imageBase64: image?.base64,
+          imageMimeType: image?.mimeType,
+        }),
+      });
+
+      setImage(null);
+      void refreshProfile();
+      setPhase("idle");
+
+      // Replace temp skeleton with the actual API item
+      setHistory((prev) => 
+        prev.map((item) => 
+          item.id === tempId ? { ...item, id: start.id, status: "rendering" } : item
+        )
+      );
+      
+      // Update activeItem to have the real ID so we poll correctly
+      setActiveItem((prev) => prev && prev.id === tempId ? { ...prev, id: start.id } : prev);
+
+      // Spin up polling thread for this item
+      startSingleGenerationPolling(start.id, originalEditPrompt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Edit failed");
+      setPhase("failed");
+      // Remove temp skeleton
+      setHistory((prev) => prev.filter((item) => item.id !== tempId));
+      setActiveItem(null); // Go back to library on failure
       void refreshProfile();
     }
   };
 
   return (
-    <div className="flex h-full">
-      {/* Settings rail */}
-      <aside className="w-64 shrink-0 space-y-6 overflow-y-auto border-r border-line p-5">
-        <div>
-          <p className="eyebrow mb-2">Model</p>
-          <div className="rounded-lg border border-white/15 bg-surface-2 px-3 py-2.5">
-            <p className="text-sm font-medium text-white">Gemini Omni Flash</p>
-            <p className="text-[11px] text-neutral-400">Highest fidelity, native audio</p>
+    <div className="flex h-full bg-black text-white">
+      
+      {/* Settings & Financial Comparison Rail */}
+      <aside className="w-68 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-[#070707] flex flex-col justify-between">
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 pb-2 border-b border-neutral-900">
+            <Settings size={15} className="text-neutral-400 animate-pulse" />
+            <span className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
+              WORKSPACE CONFIG
+            </span>
+          </div>
+
+          <div>
+            <p className="eyebrow mb-2">Engine Model</p>
+            <div className="rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2.5">
+              <p className="text-sm font-medium text-white flex items-center gap-2">
+                <Flame size={14} className="text-neutral-300" />
+                Gemini Omni Flash
+              </p>
+              <p className="text-[11px] text-neutral-400 mt-0.5">Highest fidelity, native audio sync</p>
+            </div>
+          </div>
+
+          <Segmented label="Aspect ratio" options={ASPECTS} value={aspect} onChange={setAspect} />
+          <Segmented
+            label="Duration"
+            options={DURATIONS}
+            value={duration}
+            onChange={setDuration}
+            render={(d) => `${d}s`}
+          />
+          <Segmented label="Resolution" options={RESOLUTIONS} value={resolution} onChange={setResolution} />
+
+          <div>
+            <p className="eyebrow mb-2">Native Audio Track</p>
+            <button
+              onClick={() => setAudioOn(!audioOn)}
+              className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2.5 text-sm hover:border-neutral-700 transition-colors"
+            >
+              <span>{audioOn ? "Synthesize on-the-fly" : "Silent render"}</span>
+              {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} className="text-neutral-500" />}
+            </button>
+          </div>
+
+          <div>
+            <p className="eyebrow mb-2">Negative restrictions</p>
+            <textarea
+              rows={1}
+              value={negativePrompt}
+              onChange={(e) => setNegativePrompt(e.target.value)}
+              placeholder="Blurry, low-fps, artifacts…"
+              className="w-full resize-none rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2 text-xs placeholder:text-neutral-600 focus:border-neutral-700 font-mono"
+            />
           </div>
         </div>
 
-        <Segmented label="Aspect ratio" options={ASPECTS} value={aspect} onChange={setAspect} />
-        <Segmented
-          label="Duration"
-          options={DURATIONS}
-          value={duration}
-          onChange={setDuration}
-          render={(d) => `${d}s`}
-        />
-        <Segmented label="Resolution" options={RESOLUTIONS} value={resolution} onChange={setResolution} />
-
-        <div>
-          <p className="eyebrow mb-2">Audio</p>
-          <button
-            onClick={() => setAudioOn(!audioOn)}
-            className="flex w-full items-center justify-between rounded-lg border border-line bg-surface px-3 py-2.5 text-sm hover:border-white/20 transition-colors"
-          >
-            <span>{audioOn ? "Native audio on" : "Silent"}</span>
-            {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} className="text-neutral-500" />}
-          </button>
-        </div>
-
-        <div>
-          <p className="eyebrow mb-2">Negative prompt</p>
-          <textarea
-            rows={2}
-            value={negativePrompt}
-            onChange={(e) => setNegativePrompt(e.target.value)}
-            placeholder="What to avoid…"
-            className="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2 text-xs placeholder:text-neutral-600 focus:border-white/40"
-          />
-        </div>
-
-        <div className="rounded-lg border border-line bg-surface px-3 py-2.5 text-xs text-neutral-400">
-          This run: <span className="text-white font-medium">{cost} credits</span>
-          <br />
-          Balance: {profile ? profile.credits.toLocaleString() : "—"}
+        {/* ── HIGH-END PIPELINE VALUE ADVISORY ── */}
+        <div className="border-t border-neutral-900 pt-5 mt-auto">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign size={14} className="text-neutral-300" />
+            <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
+              Pipeline Costs Breakdown
+            </span>
+          </div>
+          <div className="bg-[#040405] rounded-xl p-3.5 border border-neutral-900 text-[11px] space-y-2.5">
+            <div className="flex justify-between items-center text-neutral-400">
+              <span>Standard HeyGen Route:</span>
+              <span className="line-through text-red-500 font-mono font-medium">$800+</span>
+            </div>
+            <div className="flex justify-between items-center font-semibold text-white">
+              <span>Optiq Custom Path:</span>
+              <span className="text-green-400 font-mono">$350</span>
+            </div>
+            <p className="text-[10px] text-neutral-500 leading-normal border-t border-neutral-900 pt-2 font-sans">
+              <strong>Direct Savings of $450+.</strong> By sidestepping HeyGen subscriptions, we only require an additional **$180** in Optiq Studio credits to completely generate all remaining 3D scenes and WAVs.
+            </p>
+          </div>
+          
+          <div className="rounded-lg border border-neutral-900 bg-[#0d0d0e]/50 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between">
+            <span>Run Cost: <strong className="text-white font-semibold">{cost} cr</strong></span>
+            <span>Balance: <strong className="text-neutral-200">{profile ? profile.credits.toLocaleString() : "—"}</strong></span>
+          </div>
         </div>
       </aside>
 
-      {/* Stage */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        <div className="flex flex-1 items-center justify-center p-8">
-          {phase === "generating" ? (
-            <div className="text-center">
-              <Loader2 size={26} className="mx-auto animate-spin text-neutral-400" />
-              <p className="mt-4 text-sm text-neutral-300">Rendering your shot…</p>
-              <p className="mt-1 text-xs text-neutral-600">
-                Gemini Omni Flash is composing frames and sound. This usually takes one to three minutes.
-              </p>
+      {/* Main Viewport Stage */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
+        
+        {/* Dynamic Canvas Area (Dynamic blurred nodes appear directly here) */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+          
+          {/* Header navigation bar */}
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
+            <div>
+              <span className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest block">
+                CREATIVE FLOW
+              </span>
+              <h2 className="text-[18px] font-bold tracking-tight text-white mt-1">
+                {activeItem ? "Detailed View & Omni Editing" : "All Projects & Stills"}
+              </h2>
             </div>
-          ) : resultUrl ? (
-            <div className={`w-full ${aspect === "9:16" ? "max-w-sm" : "max-w-3xl"}`}>
-              <video src={resultUrl} controls autoPlay loop className="w-full rounded-xl border border-line" />
-              <div className="mt-3 flex justify-end">
-                <a
-                  href={resultUrl}
-                  download
-                  className="flex items-center gap-2 rounded-full border border-line px-4 py-2 text-xs hover:bg-surface-2 transition-colors"
-                >
-                  <Download size={13} /> Download MP4
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-neutral-600">
-              <Clapperboard size={28} className="mx-auto" />
-              <p className="mt-3 text-sm">Describe a shot below to begin.</p>
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <div className="mx-8 mb-3 rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-2.5 text-xs text-red-300">
-            {error}
-          </div>
-        )}
-
-        {/* Prompt bar */}
-        <div className="border-t border-line p-5">
-          {image && (
-            <div className="mb-3 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.preview} alt="Reference" className="h-14 w-14 rounded-lg object-cover border border-line" />
-              <button onClick={() => setImage(null)} className="text-neutral-500 hover:text-white">
-                <X size={14} />
+            
+            {activeItem && (
+              <button
+                onClick={() => setActiveItem(null)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-800 bg-[#0d0d0e]/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
+              >
+                <ChevronLeft size={14} />
+                Back to Projects
               </button>
-              <span className="text-xs text-neutral-500">First-frame reference attached</span>
-            </div>
-          )}
-          <div className="flex items-end gap-3 rounded-2xl border border-line bg-surface p-3">
-            <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach first-frame image">
-              <ImagePlus size={17} />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && attachImage(e.target.files[0])}
-              />
-            </label>
-            <textarea
-              rows={2}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="A slow dolly through a rain-soaked neon market at night…"
-              className="flex-1 resize-none bg-transparent py-1 text-sm placeholder:text-neutral-600"
-            />
-            <button
-              onClick={enhance}
-              disabled={enhancing || !prompt.trim()}
-              title="Enhance prompt"
-              className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
-            >
-              {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            </button>
-            <button
-              onClick={generate}
-              disabled={phase === "generating" || !prompt.trim()}
-              className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40"
-            >
-              {phase === "generating" ? "Generating…" : `Generate · ${cost}`}
-            </button>
+            )}
           </div>
-        </div>
 
-        {/* History strip */}
-        {history.length > 0 && (
-          <div className="border-t border-line px-5 py-4">
-            <p className="eyebrow mb-3">Recent generations</p>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {history.map((h) => (
-                <button
-                  key={h.id}
-                  onClick={() => h.videoUrl && (setResultUrl(h.videoUrl), setPhase("done"))}
-                  className="w-40 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left hover:border-white/25 transition-colors"
-                  title={h.prompt}
-                >
-                  <div className="aspect-video bg-black">
-                    {h.videoUrl ? (
-                      <video src={h.videoUrl} muted playsInline className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[10px] text-neutral-600">
-                        {h.status}
+          {activeItem ? (
+            /* Detailed editing viewport focusing on the open project card */
+            <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-rise">
+              
+              {/* Left Side: Monitor Player / Loading Blur */}
+              <div className="w-full">
+                {activeItem.status === "rendering" || !activeItem.videoUrl ? (
+                  <div className="relative aspect-video rounded-2xl border border-neutral-800 flex flex-col items-center justify-center p-8 text-center overflow-hidden bg-[#070708]">
+                    {/* Glowing dynamic backdrop blur overlay */}
+                    <div className="absolute -inset-[20px] opacity-40">
+                      <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-indigo-500/20 blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
+                      <div className="absolute bottom-1/4 right-1/4 w-44 h-44 rounded-full bg-neutral-600/20 blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
+                      <div className="absolute top-1/2 right-1/3 w-36 h-36 rounded-full bg-neutral-500/10 blur-3xl animate-pulse" style={{ animationDuration: '3s' }} />
+                    </div>
+                    <div className="absolute inset-0 backdrop-blur-2xl bg-black/40" />
+                    
+                    <Loader2 size={32} className="animate-spin text-white mb-4 z-10" />
+                    <span className="text-sm font-semibold tracking-tight text-white mb-1 z-10 uppercase font-mono">
+                      Rendering Stream...
+                    </span>
+                    <p className="text-xs text-neutral-400 max-w-sm z-10 leading-normal font-sans">
+                      Our Gemini Omni Flash engine is generating frames. This usually takes 1-3 minutes.
+                    </p>
+                  </div>
+                ) : (
+                  <CustomVideoPlayer src={activeItem.videoUrl} aspect={aspect} />
+                )}
+              </div>
+
+              {/* Bottom Info & Action Panel */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Meta Panel */}
+                <div className="md:col-span-1 p-5 bg-[#09090b]/85 rounded-2xl border border-neutral-900 backdrop-blur flex flex-col justify-between min-h-[220px]">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="inline-block text-[9px] font-bold font-mono text-neutral-400 bg-black border border-neutral-800 px-2.5 py-1 rounded uppercase tracking-wider">
+                        Project Meta
+                      </span>
+                      <span className="text-[10px] font-mono text-neutral-500">
+                        {new Date(activeItem.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Project ID</p>
+                      <p className="text-xs font-mono text-neutral-300 break-all">{activeItem.id}</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">Prompt Description</p>
+                      <p className="text-xs text-neutral-300 font-sans leading-relaxed italic border-l border-neutral-800 pl-3">
+                        &ldquo;{activeItem.prompt}&rdquo;
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeItem.videoUrl && (
+                    <div className="pt-4 border-t border-neutral-900 mt-6">
+                      <a
+                        href={activeItem.videoUrl}
+                        download={`optiq_${activeItem.id}.mp4`}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-black hover:bg-neutral-200 transition-all active:scale-[0.98] shadow-md cursor-pointer"
+                      >
+                        <Download size={13} />
+                        Download MP4
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Edit & Refine Console (OMNI EDIT CONSOLE PLACED DIRECTLY HERE INSIDE THE MODAL/DETAIL VIEW) */}
+                <div className="md:col-span-2 p-5 bg-[#09090b]/85 rounded-2xl border border-neutral-900 backdrop-blur flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
+                      OMNI REFINEMENT CONSOLE
+                    </h3>
+                    <p className="text-xs text-neutral-500 mt-1.5 leading-normal font-sans">
+                      Omni supports high-end editing pipelines. Input your adjustment instructions (e.g. &ldquo;make it rain heavily&rdquo;, &ldquo;render a dramatic red background&rdquo;, or &ldquo;change the shot to a close-up tracking camera&rdquo;) to edit this scene.
+                    </p>
+                  </div>
+
+                  {/* Refinement Prompt Input Box */}
+                  <div className="space-y-3 mt-4">
+                    {image && (
+                      <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={image.preview} alt="Reference" className="h-12 w-14 rounded-lg object-cover border border-neutral-800" />
+                        <button onClick={() => setImage(null)} className="text-neutral-500 hover:text-white">
+                          <X size={14} />
+                        </button>
+                        <span className="text-[10px] text-neutral-500 font-mono">Reference image attached</span>
                       </div>
                     )}
+
+                    <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-[#0c0c0e] p-2.5 shadow-inner">
+                      <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach first-frame image">
+                        <ImagePlus size={16} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && attachImage(e.target.files[0])}
+                        />
+                      </label>
+                      
+                      <textarea
+                        rows={1}
+                        value={prompt}
+                        onChange={(e) => {
+                          setPrompt(e.target.value);
+                          e.target.style.height = 'auto';
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        placeholder="Instruct Omni to modify or edit this video..."
+                        className="flex-1 resize-none bg-transparent py-1 text-xs placeholder:text-neutral-600 max-h-24 overflow-y-auto focus:outline-none"
+                      />
+
+                      <button
+                        onClick={enhance}
+                        disabled={enhancing || !prompt.trim()}
+                        title="Enhance prompt"
+                        className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+                      >
+                        {enhancing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                      </button>
+
+                      <button
+                        onClick={handleEditPromptInOmni}
+                        disabled={phase === "generating" || !prompt.trim()}
+                        className="rounded-lg bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        {phase === "generating" ? "Editing..." : "Omni Edit"}
+                      </button>
+                    </div>
                   </div>
-                  <p className="truncate px-2 py-1.5 text-[10px] text-neutral-500">{h.prompt}</p>
+                </div>
+
+              </div>
+
+            </div>
+          ) : (
+            /* Main projects catalog displaying a dynamic Google Flow list of project cards */
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {history.map((item) => {
+                  const isRendering = item.status === "rendering" || !item.videoUrl;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleOpenDetailModal(item)}
+                      className="group bg-[#09090a]/60 border border-neutral-900 hover:border-neutral-800 hover:bg-[#0c0c0e] rounded-2xl overflow-hidden shadow-sm transition-all duration-300 flex flex-col justify-between aspect-video relative cursor-pointer"
+                    >
+                      {/* Dynamic Blur Thumbnail Container */}
+                      <div className="relative flex-1 overflow-hidden flex items-center justify-center h-full w-full">
+                        
+                        {isRendering ? (
+                          /* Generating dynamic shifting blur state with loading elements inside center */
+                          <div className="absolute inset-0 bg-[#070708] overflow-hidden flex items-center justify-center p-4">
+                            {/* Glowing shifting orbs */}
+                            <div className="absolute -inset-[20px] opacity-40">
+                              <div className="absolute top-1/4 left-1/4 w-32 h-32 rounded-full bg-indigo-500/20 blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
+                              <div className="absolute bottom-1/4 right-1/4 w-36 h-36 rounded-full bg-neutral-600/20 blur-2xl animate-pulse" style={{ animationDuration: '6s' }} />
+                              <div className="absolute top-1/2 right-1/3 w-28 h-28 rounded-full bg-neutral-500/10 blur-2xl animate-pulse" style={{ animationDuration: '3s' }} />
+                            </div>
+                            <div className="absolute inset-0 backdrop-blur-2xl bg-black/40 z-10" />
+                            
+                            <div className="relative z-20 flex flex-col items-center max-w-[85%] text-center">
+                              <Loader2 size={22} className="animate-spin text-white/80 mb-3" />
+                              <span className="text-[10px] font-mono tracking-widest text-neutral-400 uppercase mb-2">
+                                Generating shot
+                              </span>
+                              <p className="text-xs text-neutral-200 line-clamp-3 leading-relaxed font-sans font-medium px-2 drop-shadow">
+                                {item.prompt}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Done state: Render unblurred completed preview video */
+                          <div className="absolute inset-0 h-full w-full">
+                            <video
+                              src={item.videoUrl ?? undefined}
+                              playsInline
+                              muted
+                              loop
+                              autoPlay
+                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                            />
+                            {/* Ambient gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent z-10" />
+
+                            {/* Hover overlay — displays prompt in the center elegantly */}
+                            <div className="absolute inset-0 bg-black/65 backdrop-blur-md transition-opacity duration-300 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center p-5 text-center z-20">
+                              <div className="p-2 rounded-full bg-white/10 border border-white/20 mb-3 scale-90 group-hover:scale-100 transition-all duration-300">
+                                <Play size={16} fill="white" className="text-white translate-x-[1px]" />
+                              </div>
+                              <p className="text-xs text-neutral-100 line-clamp-3 leading-relaxed font-sans font-medium max-w-[90%] px-1">
+                                {item.prompt}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Top-Right Menu Button Actions */}
+                        <div className="absolute top-3 right-3 z-30">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenedMenuId(openedMenuId === item.id ? null : item.id);
+                            }}
+                            className="p-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-neutral-800 text-neutral-400 hover:text-white transition-colors hover:bg-neutral-900"
+                          >
+                            <MoreVertical size={13} />
+                          </button>
+
+                          {/* Popover Dropdown Actions Menu */}
+                          {openedMenuId === item.id && (
+                            <div className="absolute right-0 mt-1 w-28 bg-[#121314] border border-neutral-800 rounded-lg shadow-xl py-1 z-50">
+                              <button
+                                onClick={(e) => deleteProject(item.id, e)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-neutral-900 hover:text-red-300 transition-colors flex items-center gap-1.5"
+                              >
+                                <Trash2 size={12} />
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+
+                {history.length === 0 && (
+                  <div className="col-span-full py-28 text-center text-neutral-600 flex flex-col items-center">
+                    <Clapperboard size={36} className="text-neutral-700 mb-4" />
+                    <h3 className="text-sm font-semibold text-neutral-400">
+                      No Projects Generated Yet
+                    </h3>
+                    <p className="text-xs text-neutral-600 max-w-xs leading-normal mt-1">
+                      Type your script prompt below and see the dynamic, glassmorphic generation nodes appear.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Dynamic Error Status Alerts */}
+        {error && (
+          <div className="mx-8 mb-4 rounded-xl border border-red-950 bg-red-950/40 p-4 text-xs text-red-300 flex items-center justify-between animate-rise">
+            <span>Error: {error}</span>
+            <button onClick={() => setError(null)} className="text-neutral-500 hover:text-white">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* ── FLEXIBLE BOTTOM PROMPT CONSOLE (ONLY SHOWN WHEN NO ACTIVE ITEM IS OPENED) ── */}
+        {!activeItem && (
+          <div className="border-t border-neutral-900 p-5 bg-[#070707]/90 backdrop-blur-md relative z-40">
+            
+            {image && (
+              <div className="mb-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={image.preview} alt="Reference" className="h-14 w-14 rounded-lg object-cover border border-neutral-800" />
+                <button onClick={() => setImage(null)} className="text-neutral-500 hover:text-white">
+                  <X size={14} />
                 </button>
-              ))}
+                <span className="text-xs text-neutral-500">First-frame reference attached</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 max-w-4xl mx-auto shadow-inner">
+              <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach first-frame image">
+                <ImagePlus size={17} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && attachImage(e.target.files[0])}
+                />
+              </label>
+              <textarea
+                rows={1}
+                value={prompt}
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                placeholder="A slow dolly through a rain-soaked neon market at night…"
+                className="flex-1 resize-none bg-transparent py-1 text-sm placeholder:text-neutral-600 max-h-32 overflow-y-auto focus:outline-none"
+              />
+              <button
+                onClick={enhance}
+                disabled={enhancing || !prompt.trim()}
+                title="Enhance prompt"
+                className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+              >
+                {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              </button>
+
+              <button
+                onClick={generate}
+                disabled={phase === "generating" || !prompt.trim()}
+                className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 shrink-0"
+              >
+                {phase === "generating" ? "Generating…" : "Generate"}
+              </button>
             </div>
           </div>
         )}
-      </div>
+
+      </main>
     </div>
   );
 }
@@ -324,13 +930,13 @@ function Segmented<T extends string | number>({
   return (
     <div>
       <p className="eyebrow mb-2">{label}</p>
-      <div className="grid grid-flow-col gap-1 rounded-lg bg-surface p-1">
+      <div className="grid grid-flow-col gap-1 rounded-lg bg-[#0c0c0e] p-1 border border-neutral-900">
         {options.map((opt) => (
           <button
             key={String(opt)}
             onClick={() => onChange(opt)}
             className={`rounded-md px-2 py-1.5 text-xs transition-colors ${
-              value === opt ? "bg-surface-2 text-white" : "text-neutral-500 hover:text-white"
+              value === opt ? "bg-[#18181b] text-white" : "text-neutral-500 hover:text-white"
             }`}
           >
             {render ? render(opt) : String(opt)}

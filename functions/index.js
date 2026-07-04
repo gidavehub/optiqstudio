@@ -521,7 +521,7 @@ exports.imageGenerate = onRequest(
       const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const cost = purpose === "character" ? 15 : 5;
+      const cost = purpose === "character" ? 150 : 50;
       await chargeCredits(user.uid, cost, `${purpose} generation`);
 
       let image;
@@ -594,7 +594,7 @@ exports.voiceGenerate = onRequest(
         return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
       }
 
-      const cost = Math.max(5, Math.ceil(text.length / 100) * 1);
+      const cost = Math.max(15, Math.ceil(text.length / 100) * 10);
       await chargeCredits(user.uid, cost, `voiceover (${voice})`);
 
       let audio;
@@ -664,12 +664,14 @@ exports.videoGenerate = onRequest(
         prompt,
         model = "omni",
         durationSeconds = 8,
+        imageBase64,
+        imageMimeType,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
-      const perSecCost = model === "omni-fast" ? 5 : 12;
+      const perSecCost = model === "omni-fast" ? 15 : 30;
       const cost = perSecCost * duration;
 
       await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);
@@ -682,6 +684,8 @@ exports.videoGenerate = onRequest(
         prompt,
         model,
         cost,
+        imageBase64: imageBase64 || null,
+        imageMimeType: imageMimeType || null,
         createdAt: new Date().toISOString(),
       });
 
@@ -750,9 +754,32 @@ exports.videoStatus = onRequest(
           location: "global"
         });
 
+        let inputPayload;
+        if (gen.imageBase64 && gen.imageMimeType) {
+          console.log(`Integrating reference image with base64 length: ${gen.imageBase64.length}`);
+          inputPayload = [
+            {
+              type: "user_input",
+              content: [
+                {
+                  type: "image",
+                  data: gen.imageBase64,
+                  mime_type: gen.imageMimeType
+                },
+                {
+                  type: "text",
+                  text: gen.prompt
+                }
+              ]
+            }
+          ];
+        } else {
+          inputPayload = gen.prompt;
+        }
+
         const interaction = await ai.interactions.create({
           model: modelId,
-          input: gen.prompt
+          input: inputPayload
         });
 
         if (interaction && interaction.output_video && interaction.output_video.data) {
@@ -829,7 +856,7 @@ exports.apiGenerateImage = onRequest(
       const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const cost = purpose === "character" ? 15 : 5;
+      const cost = purpose === "character" ? 150 : 50;
       await chargeCredits(developer.uid, cost, `API: ${purpose} generation`);
 
       let image;
@@ -899,12 +926,14 @@ exports.apiGenerateVideo = onRequest(
         prompt,
         model = "omni",
         durationSeconds = 8,
+        imageBase64,
+        imageMimeType,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
-      const perSecCost = model === "omni-fast" ? 5 : 12;
+      const perSecCost = model === "omni-fast" ? 15 : 30;
       const cost = perSecCost * duration;
 
       await chargeCredits(developer.uid, cost, `API: video (${model}, ${duration}s)`);
@@ -918,6 +947,8 @@ exports.apiGenerateVideo = onRequest(
         model,
         cost,
         viaApi: true,
+        imageBase64: imageBase64 || null,
+        imageMimeType: imageMimeType || null,
         createdAt: new Date().toISOString(),
       });
 
@@ -985,9 +1016,32 @@ exports.apiGetVideoStatus = onRequest(
           location: "global"
         });
 
+        let inputPayload;
+        if (gen.imageBase64 && gen.imageMimeType) {
+          console.log(`Integrating API reference image with base64 length: ${gen.imageBase64.length}`);
+          inputPayload = [
+            {
+              type: "user_input",
+              content: [
+                {
+                  type: "image",
+                  data: gen.imageBase64,
+                  mime_type: gen.imageMimeType
+                },
+                {
+                  type: "text",
+                  text: gen.prompt
+                }
+              ]
+            }
+          ];
+        } else {
+          inputPayload = gen.prompt;
+        }
+
         const interaction = await ai.interactions.create({
           model: modelId,
-          input: gen.prompt
+          input: inputPayload
         });
 
         if (interaction && interaction.output_video && interaction.output_video.data) {
@@ -1041,7 +1095,7 @@ exports.apiGenerateTTS = onRequest(
         return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
       }
 
-      const cost = Math.max(5, Math.ceil(text.length / 100) * 1);
+      const cost = Math.max(15, Math.ceil(text.length / 100) * 10);
       await chargeCredits(developer.uid, cost, `API: voiceover (${voice})`);
 
       let audio;
