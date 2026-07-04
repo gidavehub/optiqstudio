@@ -52,7 +52,7 @@ async function main() {
       plan: "studio-monthly",
       planStatus: "active",
       planRenewsAt: renewsAt.toISOString(),
-      credits: 17000, // 10,000 subscription + 7,000 top-up = 17,000 credits ($170.00 value)
+      credits: 13930, // 17,000 starting credits - 3,070 used credits = 13,930 credits remaining
       email: EMAIL,
       name: name,
       updatedAt: new Date().toISOString(),
