@@ -1,4 +1,4 @@
-import { getApps, initializeApp, getApp, App } from "firebase-admin/app";
+import { getApps, initializeApp, getApp, App, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
 import { getStorage, Storage } from "firebase-admin/storage";
@@ -6,18 +6,32 @@ import { getStorage, Storage } from "firebase-admin/storage";
 /**
  * Firebase Admin bootstrap for the davelabs-tools project.
  *
- * Credentials come from Application Default Credentials (the
- * davelabs01@gmail.com login or GOOGLE_APPLICATION_CREDENTIALS key file).
- * Initialization itself never needs credentials — individual calls fail with
- * a clear auth error if ADC is missing, which surfaces in API route errors.
+ * Credentials come from:
+ * 1. FIREBASE_SERVICE_ACCOUNT env (for production servers like Vercel).
+ * 2. GOOGLE_APPLICATION_CREDENTIALS or Application Default Credentials (for local development).
  */
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
 export const STORAGE_BUCKET = `${PROJECT_ID}.firebasestorage.app`;
 
+let credential;
+const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (saJson) {
+  try {
+    const parsed = JSON.parse(saJson.startsWith("{") ? saJson : Buffer.from(saJson, "base64").toString("utf-8"));
+    credential = cert(parsed);
+  } catch (e) {
+    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT env:", e);
+  }
+}
+
 const app: App = getApps().length
   ? getApp()
-  : initializeApp({ projectId: PROJECT_ID, storageBucket: STORAGE_BUCKET });
+  : initializeApp({
+      projectId: PROJECT_ID,
+      storageBucket: STORAGE_BUCKET,
+      ...(credential ? { credential } : {}),
+    });
 
 export const adminDb: Firestore = getFirestore(app);
 export const adminAuth: Auth = getAuth(app);
