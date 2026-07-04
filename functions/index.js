@@ -22,6 +22,39 @@ const crypto = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
+const rtdb = admin.database();
+
+async function getPricing() {
+  const fallback = {
+    plans: [
+      { id: "pro-monthly", name: "Optiq Pro", priceUsd: 100, monthlyCredits: 10000 },
+      { id: "studio-monthly", name: "Optiq Studio", priceUsd: 250, monthlyCredits: 28000 },
+      { id: "enterprise-monthly", name: "Optiq Enterprise", priceUsd: 450, monthlyCredits: 55000 },
+    ],
+    packs: [
+      { id: "pack-1000", credits: 1000, priceUsd: 12 },
+      { id: "pack-5000", credits: 5000, priceUsd: 50 },
+      { id: "pack-12000", credits: 12000, priceUsd: 100 },
+    ],
+    costs: {
+      videoPerSecond: { omni: 30, "omni-fast": 15 },
+      image: 50,
+      ttsPer100Chars: 10,
+      ttsMinimum: 15,
+      characterSheet: 150,
+    }
+  };
+  try {
+    const snapshot = await rtdb.ref("pricing").once("value");
+    const val = snapshot.val();
+    if (val && val.plans && val.packs && val.costs) {
+      return val;
+    }
+  } catch (err) {
+    console.warn("Failed to load pricing from RTDB, using fallback:", err);
+  }
+  return fallback;
+}
 
 const MODEM_WEBHOOK_SECRET = defineSecret("MODEM_WEBHOOK_SECRET");
 const MODEMPAY_API_KEY = defineSecret("MODEMPAY_API_KEY");
@@ -282,16 +315,9 @@ exports.modemPayCheckout = onRequest(
       const { kind, packId, planId } = req.body;
       const appUrl = "https://optiq.studio"; // Production URL!
 
-      const PLANS = [
-        { id: "pro-monthly", name: "Optiq Pro", priceUsd: 100, monthlyCredits: 10000 },
-        { id: "studio-monthly", name: "Optiq Studio", priceUsd: 250, monthlyCredits: 28000 },
-        { id: "enterprise-monthly", name: "Optiq Enterprise", priceUsd: 450, monthlyCredits: 55000 },
-      ];
-      const CREDIT_PACKS = [
-        { id: "pack-1000", credits: 1000, priceUsd: 12 },
-        { id: "pack-5000", credits: 5000, priceUsd: 50 },
-        { id: "pack-12000", credits: 12000, priceUsd: 100 },
-      ];
+      const pricing = await getPricing();
+      const PLANS = pricing.plans;
+      const CREDIT_PACKS = pricing.packs;
 
       let amount;
       let title;
@@ -521,7 +547,8 @@ exports.imageGenerate = onRequest(
       const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const cost = purpose === "character" ? 150 : 50;
+      const pricing = await getPricing();
+      const cost = purpose === "character" ? (pricing.costs?.characterSheet || 150) : (pricing.costs?.image || 50);
       await chargeCredits(user.uid, cost, `${purpose} generation`);
 
       let image;
@@ -594,7 +621,10 @@ exports.voiceGenerate = onRequest(
         return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
       }
 
-      const cost = Math.max(15, Math.ceil(text.length / 100) * 10);
+      const pricing = await getPricing();
+      const per100 = pricing.costs?.ttsPer100Chars || 10;
+      const ttsMin = pricing.costs?.ttsMinimum || 15;
+      const cost = Math.max(ttsMin, Math.ceil(text.length / 100) * per100);
       await chargeCredits(user.uid, cost, `voiceover (${voice})`);
 
       let audio;
@@ -671,7 +701,8 @@ exports.videoGenerate = onRequest(
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
-      const perSecCost = model === "omni-fast" ? 15 : 30;
+      const pricing = await getPricing();
+      const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? (model === "omni-fast" ? 15 : 30);
       const cost = perSecCost * duration;
 
       await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);

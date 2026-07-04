@@ -22,6 +22,7 @@ import {
   DollarSign
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
+import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 
 interface HistoryItem {
   id: string;
@@ -184,6 +185,10 @@ function VideoWorkspace() {
   // Active inputs
   const [prompt, setPrompt] = useState(searchParams.get("prompt") ?? "");
   const model = "omni";
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"generate" | "edit" | null>(null);
+
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("16:9");
   const [duration, setDuration] = useState<(typeof DURATIONS)[number]>(10);
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>("720p");
@@ -201,8 +206,34 @@ function VideoWorkspace() {
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
+  // Computed / Dynamic pricing properties
+  const perSecCost = (pricing?.costs?.videoPerSecond?.[model as string]) ?? ((model as string) === "omni-fast" ? 15 : 30);
+  const cappedDuration = Math.min(Math.max(Number(duration) || 8, 4), 8);
+  const calculatedCost = perSecCost * cappedDuration;
+
   const perSecond = pricing?.costs.videoPerSecond?.[model] ?? (model === "omni" ? 12 : 5);
   const cost = perSecond * duration;
+
+  const triggerGenerate = () => {
+    if (!prompt.trim() || phase === "generating") return;
+    setPendingAction("generate");
+    setConfirmOpen(true);
+  };
+
+  const triggerEditPromptInOmni = () => {
+    if (!activeItem || !prompt.trim() || phase === "generating") return;
+    setPendingAction("edit");
+    setConfirmOpen(true);
+  };
+
+  const handleConfirm = () => {
+    if (pendingAction === "generate") {
+      void generate();
+    } else if (pendingAction === "edit") {
+      void handleEditPromptInOmni();
+    }
+    setPendingAction(null);
+  };
 
   // Load list of all projects and videos
   const loadHistory = useCallback(() => {
@@ -733,7 +764,7 @@ function VideoWorkspace() {
                       </button>
 
                       <button
-                        onClick={handleEditPromptInOmni}
+                        onClick={triggerEditPromptInOmni}
                         disabled={phase === "generating" || !prompt.trim()}
                         className="rounded-lg bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 shrink-0"
                       >
@@ -912,7 +943,7 @@ function VideoWorkspace() {
               </button>
 
               <button
-                onClick={generate}
+                onClick={triggerGenerate}
                 disabled={phase === "generating" || !prompt.trim()}
                 className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 shrink-0"
               >
@@ -923,6 +954,21 @@ function VideoWorkspace() {
         )}
 
       </main>
+
+      <ConfirmGenerationModal
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleConfirm}
+        cost={calculatedCost}
+        balance={profile?.credits ?? 0}
+        title={pendingAction === "edit" ? "Confirm Video Modification" : "Confirm Video Generation"}
+        description={
+          pendingAction === "edit"
+            ? `You are about to modify the selected video. This will deduct ${calculatedCost} credits from your balance.`
+            : `You are about to generate a ${cappedDuration}s video. This will deduct ${calculatedCost} credits from your balance.`
+        }
+        actionLabel={pendingAction === "edit" ? "Omni Edit" : "Generate Video"}
+      />
     </div>
   );
 }

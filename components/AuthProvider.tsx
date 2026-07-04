@@ -286,6 +286,36 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) {
+        // Subscribe to real-time updates from RTDB pricing node
+        let unsubRtdb = () => {};
+        const pricingRef = ref(rtdb, "pricing");
+        unsubRtdb = onValue(pricingRef, (snapshot) => {
+          const val = snapshot.val();
+          if (val && val.plans && val.packs && val.costs) {
+            setPricing({
+              plan: val.plans.find((p: any) => p.id === "pro-monthly") || PLANS[0],
+              plans: val.plans,
+              packs: val.packs,
+              costs: val.costs,
+            });
+          } else {
+            setPricing({
+              plan: PLAN,
+              plans: PLANS,
+              packs: CREDIT_PACKS,
+              costs: COSTS,
+            });
+          }
+        }, (err) => {
+          console.error("RTDB pricing read error:", err);
+          setPricing({
+            plan: PLAN,
+            plans: PLANS,
+            packs: CREDIT_PACKS,
+            costs: COSTS,
+          });
+        });
+
         // Subscribe to real-time updates from Firestore users/{uid} document
         const unsub = onSnapshot(
           doc(db, "users", u.uid),
@@ -303,12 +333,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 name: u.displayName || null,
               });
             }
-            setPricing({
-              plan: PLAN,
-              plans: PLANS,
-              packs: CREDIT_PACKS,
-              costs: COSTS,
-            });
             setLoading(false);
           },
           (err) => {
@@ -316,7 +340,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             setLoading(false);
           }
         );
-        return () => unsub();
+        return () => {
+          unsub();
+          unsubRtdb();
+        };
       } else {
         setProfile(null);
         setPricing(null);

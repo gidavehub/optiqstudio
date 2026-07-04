@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 
 export default function LoginPage() {
-  const { user, loading, signInGoogle, signInEmail, signUpEmail } = useAuth();
+  const { user, profile, loading, signInGoogle, signInEmail, signUpEmail } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -16,15 +16,20 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
-  }, [loading, user, router]);
+    if (!loading && user) {
+      if (profile && profile.planStatus === "active") {
+        router.replace("/dashboard");
+      } else if (profile) {
+        router.replace("/plans");
+      }
+    }
+  }, [loading, user, profile, router]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError(null);
     try {
       await fn();
-      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message.replace("Firebase: ", "") : "Sign-in failed");
     } finally {

@@ -3,16 +3,17 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Download, Loader2, Mic, Play } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
+import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 
 const VOICES = [
-  { id: "Kore", label: "Kore", vibe: "Warm, confident female" },
-  { id: "Charon", label: "Charon", vibe: "Deep, cinematic male" },
-  { id: "Puck", label: "Puck", vibe: "Upbeat, energetic" },
-  { id: "Fenrir", label: "Fenrir", vibe: "Gravelly, intense" },
-  { id: "Aoede", label: "Aoede", vibe: "Bright, expressive female" },
-  { id: "Leda", label: "Leda", vibe: "Soft, youthful" },
-  { id: "Orus", label: "Orus", vibe: "Firm, authoritative male" },
-  { id: "Enceladus", label: "Enceladus", vibe: "Breathy, contemplative" },
+  { id: "Kore", label: "Awa (Wolof)", vibe: "Soft, warm female Wolof speaker" },
+  { id: "Charon", label: "Moussa (Wolof)", vibe: "Deep, resonant male Wolof speaker" },
+  { id: "Leda", label: "Fatou (Mandinka)", vibe: "Bright, youthful female Mandinka speaker" },
+  { id: "Fenrir", label: "Lamin (Mandinka)", vibe: "Gravelly, strong male Mandinka speaker" },
+  { id: "Aoede", label: "Chioma (Igbo)", vibe: "Melodic, expressive female Igbo speaker" },
+  { id: "Orus", label: "Chinedu (Igbo)", vibe: "Authoritative, firm male Igbo speaker" },
+  { id: "Puck", label: "Efe (Nigerian English)", vibe: "Energetic, clear female English speaker" },
+  { id: "Enceladus", label: "Kofi (African-British)", vibe: "Contemplative, British-African male accent" },
 ];
 
 interface AudioItem {
@@ -31,6 +32,12 @@ export default function VoiceStudio() {
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [history, setHistory] = useState<AudioItem[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const triggerGenerate = () => {
+    if (!text.trim() || busy) return;
+    setConfirmOpen(true);
+  };
 
   const per100 = pricing?.costs.ttsPer100Chars ?? 1;
   const minCharge = pricing?.costs.ttsMinimum ?? 5;
@@ -94,7 +101,7 @@ export default function VoiceStudio() {
           />
 
           <button
-            onClick={generate}
+            onClick={triggerGenerate}
             disabled={busy || !text.trim()}
             className="mt-4 flex items-center gap-2 rounded-full bg-white px-6 py-2.5 text-sm font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40"
           >
@@ -161,8 +168,18 @@ export default function VoiceStudio() {
               </button>
             ))}
           </div>
-        </div>
       </div>
+      <ConfirmGenerationModal
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={generate}
+        cost={cost}
+        balance={profile?.credits ?? 0}
+        title="Confirm Voice Synthesis"
+        description={`You are about to synthesize a take using the selected localized profile. This will deduct ${cost} credits from your ledger.`}
+        actionLabel="Synthesize Voice"
+      />
+    </div>
     </div>
     </div>
   );
