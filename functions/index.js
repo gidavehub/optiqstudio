@@ -39,7 +39,7 @@ exports.modemWebhook = onRequest(
 
     const rawBody = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body);
     const signature = req.get("x-modem-signature");
-    const secret = MODEM_WEBHOOK_SECRET.value();
+    const secret = MODEM_WEBHOOK_SECRET.value().trim();
 
     if (!signature || !secret) {
       res.status(400).json({ error: "Missing signature or secret" });
@@ -316,7 +316,7 @@ exports.modemPayCheckout = onRequest(
         return res.status(400).json({ error: "Unknown checkout kind" });
       }
 
-      const apiKey = MODEMPAY_API_KEY.value();
+      const apiKey = MODEMPAY_API_KEY.value().trim();
 
       const body = {
         amount,
