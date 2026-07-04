@@ -318,10 +318,14 @@ exports.modemPayCheckout = onRequest(
 
       const apiKey = MODEMPAY_API_KEY.value().trim();
 
+      // ModemPay only supports GMD (Gambian Dalasi). Convert USD price to GMD at a standard exchange rate of ~73.5 GMD per USD.
+      const exchangeRate = 73.5;
+      const amountGmd = Math.round(amount * exchangeRate);
+
       const body = {
         data: {
-          amount,
-          currency: "USD",
+          amount: amountGmd,
+          currency: "GMD",
           title,
           description: title,
           customer_email: email,
