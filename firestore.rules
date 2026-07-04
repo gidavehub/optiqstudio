@@ -18,6 +18,10 @@ service cloud.firestore {
     match /payments/{id} {
       allow read, write: if false;
     }
+    match /transactions/{id} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
     match /api_keys/{id} {
       allow read, delete: if request.auth != null && resource.data.uid == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
