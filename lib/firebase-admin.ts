@@ -50,14 +50,10 @@ export async function uploadBase64(
   path: string,
   contentType: string
 ): Promise<string> {
-  const token = crypto.randomUUID();
   const file = adminStorage.bucket().file(path);
   await file.save(Buffer.from(base64, "base64"), {
     contentType,
-    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
     resumable: false,
   });
-  return `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(
-    path
-  )}?alt=media&token=${token}`;
+  return `https://storage.googleapis.com/${STORAGE_BUCKET}/${path}`;
 }

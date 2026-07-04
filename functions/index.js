@@ -442,14 +442,12 @@ async function refundCredits(uid, amount, reason) {
 }
 
 async function uploadBase64(base64, path, contentType) {
-  const token = crypto.randomUUID();
   const file = admin.storage().bucket(STORAGE_BUCKET).file(path);
   await file.save(Buffer.from(base64, "base64"), {
     contentType,
-    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
     resumable: false,
   });
-  return `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+  return `https://storage.googleapis.com/${STORAGE_BUCKET}/${path}`;
 }
 
 function pcmToWav(pcmBase64, sampleRate) {
