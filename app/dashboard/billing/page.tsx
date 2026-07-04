@@ -299,7 +299,7 @@ function BillingInner() {
                           Succeeded
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white">$250.00</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-white">$100.00</td>
                     </tr>
                   </tbody>
                 </table>

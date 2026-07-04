@@ -535,25 +535,38 @@ function VideoWorkspace() {
           </div>
         </div>
 
-        {/* ── HIGH-END PIPELINE VALUE ADVISORY ── */}
+        {/* ── CREDIT ESTIMATION & GENERATION UTILITY ── */}
         <div className="border-t border-neutral-900 pt-5 mt-auto">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign size={14} className="text-neutral-300" />
             <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
-              Pipeline Costs Breakdown
+              Credit Utility Guide
             </span>
           </div>
           <div className="bg-[#040405] rounded-xl p-3.5 border border-neutral-900 text-[11px] space-y-2.5">
-            <div className="flex justify-between items-center text-neutral-400">
-              <span>Standard HeyGen Route:</span>
-              <span className="line-through text-red-500 font-mono font-medium">$800+</span>
+            <p className="text-[10px] text-neutral-500 leading-normal font-sans">
+              Credits power every workspace generation on Optiq Studio. Here is a breakdown of active generation costs:
+            </p>
+            <div className="space-y-1.5 font-mono text-[10px] text-neutral-400 border-t border-neutral-900 pt-2.5">
+              <div className="flex justify-between">
+                <span>Video Generation:</span>
+                <span className="text-white font-semibold">30 cr / sec</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Standard Image:</span>
+                <span className="text-white font-semibold">50 cr</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Character Sheet:</span>
+                <span className="text-white font-semibold">150 cr</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Audio Synthesis:</span>
+                <span className="text-white font-semibold">10 cr / 100 chars</span>
+              </div>
             </div>
-            <div className="flex justify-between items-center font-semibold text-white">
-              <span>Optiq Custom Path:</span>
-              <span className="text-green-400 font-mono">$350</span>
-            </div>
-            <p className="text-[10px] text-neutral-500 leading-normal border-t border-neutral-900 pt-2 font-sans">
-              <strong>Direct Savings of $450+.</strong> By sidestepping HeyGen subscriptions, we only require an additional **$180** in Optiq Studio credits to completely generate all remaining 3D scenes and WAVs.
+            <p className="text-[9px] text-neutral-500 leading-normal border-t border-neutral-900 pt-2 font-sans italic">
+              * A standard 10-second scene generation consumes exactly 300 credits.
             </p>
           </div>
           
