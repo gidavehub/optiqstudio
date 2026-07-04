@@ -195,6 +195,7 @@ function VideoWorkspace() {
   const [audioOn, setAudioOn] = useState(true);
   const [negativePrompt, setNegativePrompt] = useState("");
   const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  const [videoFile, setVideoFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
 
   // States
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -278,6 +279,16 @@ function VideoWorkspace() {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
       setImage({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const attachVideo = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setVideoFile({ base64, mimeType: file.type, preview: dataUrl });
     };
     reader.readAsDataURL(file);
   };
@@ -394,10 +405,13 @@ function VideoWorkspace() {
           negativePrompt: negativePrompt || undefined,
           imageBase64: image?.base64,
           imageMimeType: image?.mimeType,
+          videoBase64: videoFile?.base64,
+          videoMimeType: videoFile?.mimeType,
         }),
       });
 
       setImage(null);
+      setVideoFile(null);
       void refreshProfile();
       setPhase("idle");
 
@@ -480,10 +494,13 @@ function VideoWorkspace() {
           negativePrompt: negativePrompt || undefined,
           imageBase64: image?.base64,
           imageMimeType: image?.mimeType,
+          videoBase64: videoFile?.base64,
+          videoMimeType: videoFile?.mimeType,
         }),
       });
 
       setImage(null);
+      setVideoFile(null);
       void refreshProfile();
       setPhase("idle");
 
@@ -638,7 +655,7 @@ function VideoWorkspace() {
 
           {activeItem ? (
             /* Detailed editing viewport focusing on the open project card */
-            <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-rise">
+            <div className="w-full flex flex-col gap-6 animate-rise">
               
               {/* Left Side: Monitor Player / Loading Blur */}
               <div className="w-full">
@@ -731,14 +748,34 @@ function VideoWorkspace() {
                       </div>
                     )}
 
+                    {videoFile && (
+                      <div className="flex items-center gap-3">
+                        <video src={videoFile.preview} className="h-12 w-14 rounded-lg object-cover border border-neutral-800" muted playsInline />
+                        <button onClick={() => setVideoFile(null)} className="text-neutral-500 hover:text-white">
+                          <X size={14} />
+                        </button>
+                        <span className="text-[10px] text-neutral-500 font-mono">Reference video attached</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-[#0c0c0e] p-2.5 shadow-inner">
-                      <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach first-frame image">
+                      <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
                         <ImagePlus size={16} />
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           className="hidden"
-                          onChange={(e) => e.target.files?.[0] && attachImage(e.target.files[0])}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.type.startsWith("video/")) {
+                              attachVideo(file);
+                              setImage(null);
+                            } else {
+                              attachImage(file);
+                              setVideoFile(null);
+                            }
+                          }}
                         />
                       </label>
                       
@@ -912,14 +949,34 @@ function VideoWorkspace() {
               </div>
             )}
 
-            <div className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 max-w-4xl mx-auto shadow-inner">
-              <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach first-frame image">
+            {videoFile && (
+              <div className="mb-3 flex items-center gap-3">
+                <video src={videoFile.preview} className="h-14 w-14 rounded-lg object-cover border border-neutral-800" muted playsInline />
+                <button onClick={() => setVideoFile(null)} className="text-neutral-500 hover:text-white">
+                  <X size={14} />
+                </button>
+                <span className="text-xs text-neutral-500">Reference video attached</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 w-full shadow-inner">
+              <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
                 <ImagePlus size={17} />
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && attachImage(e.target.files[0])}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.type.startsWith("video/")) {
+                      attachVideo(file);
+                      setImage(null);
+                    } else {
+                      attachImage(file);
+                      setVideoFile(null);
+                    }
+                  }}
                 />
               </label>
               <textarea

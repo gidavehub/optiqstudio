@@ -132,7 +132,7 @@ export default function ImageStudioPage() {
 
   return (
     <div className="h-full bg-black text-white overflow-y-auto">
-      <div className="mx-auto max-w-6xl px-8 py-10 flex flex-col min-h-full">
+      <div className="px-8 py-10 flex flex-col min-h-full w-full">
         
         {/* Header Title */}
         <div className="flex items-center justify-between mb-8">

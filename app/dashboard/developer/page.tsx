@@ -42,6 +42,7 @@ export default function DeveloperPage() {
   const [creating, setCreating] = useState(false);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [copyingText, setCopyingText] = useState<string | null>(null);
+  const [copyingGuide, setCopyingGuide] = useState(false);
   const [activeTab, setActiveTab] = useState<"image" | "video" | "tts">("image");
 
   // Load user's API keys in real-time
@@ -139,6 +140,137 @@ export default function DeveloperPage() {
     navigator.clipboard.writeText(text);
     setCopyingText(label);
     setTimeout(() => setCopyingText(null), 2000);
+  };
+
+  const handleCopyGuide = () => {
+    const fullGuide = `OPTIQ STUDIO - DEVELOPER GUIDE & API REFERENCE
+
+1. AUTHENTICATION & QUICKSTART
+All developer APIs use secure endpoints deployed in region us-east4. Request parameters are passed via standard JSON. Authentication is fulfilled via Bearer tokens in the Authorization header.
+
+Authorization Header:
+Authorization: Bearer optiq_live_YOUR_API_KEY
+
+API Base URL:
+https://us-east4-davelabs-tools.cloudfunctions.net
+
+--------------------------------------------------
+
+2. API ENDPOINTS & REFERENCE
+
+A. IMAGE GENERATION (POST /apiGenerateImage)
+Generates photorealistic images using gemini-3.1-flash-image-preview.
+Cost: 5 Credits / Request
+
+Request Example:
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateImage" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "Cinematic wide shot of a young Black scuba diver exploring a bioluminescent coral shipwreck",
+    "aspectRatio": "16:9",
+    "purpose": "image"
+  }'
+
+Response Example:
+{
+  "id": "gen_8kC9dfS2X9j",
+  "url": "https://storage.googleapis.com/davelabs-tools/generations/user_123/gen_8kC9dfS2X9j.jpg",
+  "mimeType": "image/jpeg",
+  "cost": 5
+}
+
+--------------------------------------------------
+
+B. VIDEO GENERATION (POST /apiGenerateVideo)
+Generates cinematic high-motion video using gemini-omni-flash-preview. Supports optional image or video first-frame/reference attachments.
+Cost: 12 Credits / Second
+
+Request Example (Text-to-Video):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateVideo" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "Dramatic slow-motion tracking shot of a focused female sprinter starting a race, neon lagos background",
+    "model": "omni",
+    "durationSeconds": 8
+  }'
+
+Request Example (With Image Reference Attachment):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateVideo" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "Dramatic slow-motion tracking shot of a focused female sprinter starting a race, neon lagos background",
+    "model": "omni",
+    "durationSeconds": 8,
+    "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "imageMimeType": "image/png"
+  }'
+
+Request Example (With Video Reference Attachment):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateVideo" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "Dramatic slow-motion tracking shot of a focused female sprinter starting a race, neon lagos background",
+    "model": "omni",
+    "durationSeconds": 8,
+    "videoBase64": "AAAAIGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAApZnJlZQAAAgNtZGF0...",
+    "videoMimeType": "video/mp4"
+  }'
+
+Response Example:
+{
+  "id": "gen_4jSk2Lp0As1",
+  "status": "generating",
+  "cost": 96
+}
+
+--------------------------------------------------
+
+C. GET VIDEO STATUS (GET /apiGetVideoStatus)
+Retrieve render state and video MP4 download URL.
+Request Example:
+curl -X GET "https://us-east4-davelabs-tools.cloudfunctions.net/apiGetVideoStatus?id=YOUR_GENERATION_ID" \\
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+Response Example (Completed):
+{
+  "id": "gen_4jSk2Lp0As1",
+  "status": "succeeded",
+  "videoUrl": "https://storage.googleapis.com/davelabs-tools/generations/user_123/gen_4jSk2Lp0As1.mp4",
+  "error": null,
+  "prompt": "Dramatic slow-motion tracking shot of a focused female sprinter starting a race, neon lagos background",
+  "completedAt": "2026-07-04T12:52:00Z"
+}
+
+--------------------------------------------------
+
+D. TEXT-TO-SPEECH (POST /apiGenerateTTS)
+Compiles studio-grade narrative speech recordings using gemini-2.5-flash-preview-tts.
+Cost: 1 Credit / 100 Characters
+
+Request Example:
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateTTS" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "text": "Welcome to Optiq Studio. Bring your wildest imaginations to life.",
+    "voice": "Charon",
+    "style": "cinematic movie-trailer gravitas"
+  }'
+
+Response Example:
+{
+  "id": "gen_a2Dsf9Km1Pz",
+  "url": "https://storage.googleapis.com/davelabs-tools/generations/user_123/gen_a2Dsf9Km1Pz.wav",
+  "cost": 5
+}
+`;
+    navigator.clipboard.writeText(fullGuide);
+    setCopyingGuide(true);
+    setTimeout(() => setCopyingGuide(false), 2000);
   };
 
   // Code snippets for Docs
@@ -323,9 +455,25 @@ export default function DeveloperPage() {
             
             {/* Getting Started Guide */}
             <div className="rounded-lg border border-white/5 bg-[#0a0a0a] p-6">
-              <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
-                <BookOpen size={15} />
-                <h2>Developer Quickstart</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+                  <BookOpen size={15} />
+                  <h2>Developer Quickstart</h2>
+                </div>
+                <button
+                  onClick={handleCopyGuide}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white px-3 text-[11px] font-semibold text-neutral-300 transition-colors"
+                >
+                  {copyingGuide ? (
+                    <>
+                      <Check className="text-emerald-500" size={11} /> Guide Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={11} /> Copy Entire Guide
+                    </>
+                  )}
+                </button>
               </div>
               <p className="mt-3 text-[13px] leading-relaxed text-neutral-400">
                 All developer APIs use secure endpoints deployed in region <code className="font-mono text-neutral-300">us-east4</code>. Request parameters are passed via standard JSON, and authentication is fulfilled via bearer tokens:
@@ -424,7 +572,7 @@ export default function DeveloperPage() {
                       </span>
                     </div>
                     <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Generates high-motion cinematic video using <code className="font-mono text-neutral-300">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion.
+                      Generates high-motion cinematic video using <code className="font-mono text-neutral-300">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion. You can optionally attach reference images or videos (using <code className="font-mono text-neutral-300">imageBase64</code>/<code className="font-mono text-neutral-300">imageMimeType</code> or <code className="font-mono text-neutral-300">videoBase64</code>/<code className="font-mono text-neutral-300">videoMimeType</code>) to guide the first frame of the generated output.
                     </p>
 
                     <div>
