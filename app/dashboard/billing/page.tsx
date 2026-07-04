@@ -35,23 +35,57 @@ const PLAN_FEATURES_MAP: Record<string, string[]> = {
   ],
 };
  
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  invoiceId: string;
+  method: string;
+  status: string;
+  amount: string;
+}
+
 function BillingInner() {
   const { profile, pricing, apiFetch, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
   const status = searchParams.get("status");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+
+  const loadTransactions = React.useCallback(() => {
+    apiFetch<{ items: Transaction[] }>("/api/transactions")
+      .then((data) => {
+        setTransactions(data.items || []);
+        setTxLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load transactions:", err);
+        setTxLoading(false);
+      });
+  }, [apiFetch]);
+
+  useEffect(() => {
+    if (profile) {
+      loadTransactions();
+    }
+  }, [profile, loadTransactions]);
  
   // After returning from ModemPay checkout, the webhook may land a moment
   // later — refresh a few times so the new balance shows up.
   useEffect(() => {
     if (status === "success") {
       const timers = [0, 3000, 8000, 15000].map((ms) =>
-        setTimeout(() => void refreshProfile(), ms)
+        setTimeout(() => {
+          void refreshProfile();
+          loadTransactions();
+        }, ms)
       );
       return () => timers.forEach(clearTimeout);
     }
-  }, [status, refreshProfile]);
+  }, [status, refreshProfile, loadTransactions]);
  
   const checkout = async (kind: "subscription" | "credits", id?: string) => {
     setBusyId(id ?? "subscription");
@@ -253,7 +287,7 @@ function BillingInner() {
 
         </div>
 
-        {/* ── TRANSACTION LEDGER / PAYMENT HISTORY (CONDITIONALLY ENHANCED FOR SPECIFIED ACCOUNT) ── */}
+        {/* ── TRANSACTION LEDGER / PAYMENT HISTORY (DYNAMICALLY READ FROM FIRESTORE DATABASE) ── */}
         <div className="mt-12 border-t border-neutral-900 pt-10">
           <div className="flex items-center gap-2 mb-4">
             <Receipt className="text-neutral-400" size={16} />
@@ -262,7 +296,12 @@ function BillingInner() {
             </h3>
           </div>
           
-          {profile?.email === "virtualteacherprojectgm@gmail.com" ? (
+          {txLoading ? (
+            <div className="flex items-center justify-center p-6 text-neutral-500 text-xs font-mono uppercase tracking-wider gap-2">
+              <Loader2 className="animate-spin text-neutral-400" size={14} />
+              Retrieving transaction ledger...
+            </div>
+          ) : transactions.length > 0 ? (
             <div className="rounded-xl border border-neutral-900 bg-[#08080a]/60 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
@@ -277,30 +316,26 @@ function BillingInner() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-900/60 font-sans text-neutral-300">
-                    <tr className="hover:bg-neutral-900/20 transition-colors">
-                      <td className="py-3 px-4 font-mono text-neutral-400">Jul 3, 2026</td>
-                      <td className="py-3 px-4 font-medium text-neutral-200">Credit Top-up — 7,000 Credits</td>
-                      <td className="py-3 px-4 font-mono text-neutral-500">INV-8024-02</td>
-                      <td className="py-3 px-4 text-neutral-400">ModemPay (Visa *9011)</td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/40 border border-emerald-900 px-2.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase font-mono">
-                          Succeeded
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white">$70.00</td>
-                    </tr>
-                    <tr className="hover:bg-neutral-900/20 transition-colors">
-                      <td className="py-3 px-4 font-mono text-neutral-400">Jul 1, 2026</td>
-                      <td className="py-3 px-4 font-medium text-neutral-200">Subscription — Optiq Studio (Monthly)</td>
-                      <td className="py-3 px-4 font-mono text-neutral-500">INV-8024-01</td>
-                      <td className="py-3 px-4 text-neutral-400">ModemPay (Visa *9011)</td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/40 border border-emerald-900 px-2.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase font-mono">
-                          Succeeded
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white">$100.00</td>
-                    </tr>
+                    {transactions.map((tx) => (
+                      <tr key={tx.id || tx.invoiceId} className="hover:bg-neutral-900/20 transition-colors">
+                        <td className="py-3 px-4 font-mono text-neutral-400">{tx.date}</td>
+                        <td className="py-3 px-4 font-medium text-neutral-200">{tx.description}</td>
+                        <td className="py-3 px-4 font-mono text-neutral-500">{tx.invoiceId}</td>
+                        <td className="py-3 px-4 text-neutral-400">{tx.method}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase font-mono ${
+                            tx.status?.toLowerCase() === "succeeded"
+                              ? "bg-emerald-950/40 border border-emerald-900 text-emerald-400"
+                              : "bg-neutral-950 border border-neutral-800 text-neutral-400"
+                          }`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                          {tx.amount?.startsWith("$") ? tx.amount : `$${tx.amount}`}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

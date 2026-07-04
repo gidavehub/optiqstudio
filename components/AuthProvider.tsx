@@ -166,6 +166,34 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
       }
 
+      // Intercept /api/transactions history loading calls and query Firestore directly
+      if (path.startsWith("/api/transactions")) {
+        try {
+          const q = query(
+            collection(db, "transactions"),
+            where("uid", "==", current.uid)
+          );
+
+          const snap = await getDocs(q);
+          const items = snap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          }));
+
+          // Sort client-side by createdAt desc to avoid composite index requirements
+          items.sort((a: any, b: any) => {
+            const tA = new Date(a.createdAt || 0).getTime();
+            const tB = new Date(b.createdAt || 0).getTime();
+            return tB - tA;
+          });
+
+          return { items } as unknown as T;
+        } catch (err) {
+          console.error("Failed to query transactions from Firestore:", err);
+          return { items: [] } as unknown as T;
+        }
+      }
+
       // Intercept Next.js server-side APIs and redirect to Firebase Cloud Functions
       let functionUrl: string | null = null;
       if (path === "/api/payments/checkout") {
