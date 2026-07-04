@@ -78,6 +78,10 @@ const LIVE_SPEECH_QUICK_SENS = [
     text: "You have given me a lot to work with – this is a case of students giving their teacher homework. What a clever class you are! Look at what we can accomplish..."
   },
   {
+    label: "Telehealth Investment Case",
+    text: "Furthermore, our mapped health facilities will become nodes of modern telehealth, bringing specialist pediatric care and life-saving diagnoses directly to rural villages, bypassing hours of difficult travel."
+  },
+  {
     label: "Commitment Card Intro",
     text: "My lovely class monitors in blue shirts will come to each of your tables in a moment. They have cards. They want to hear your answer tonight."
   },
