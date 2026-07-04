@@ -792,6 +792,316 @@ exports.videoStatus = onRequest(
   }
 );
 
+async function requireApiKey(req) {
+  const authHeader = req.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) {
+    throw new Error("Unauthorized: Missing or invalid Authorization header");
+  }
+  const apiKey = authHeader.split("Bearer ")[1].trim();
+  if (!apiKey.startsWith("optiq_live_")) {
+    throw new Error("Unauthorized: Invalid API key format");
+  }
+  
+  const keysSnap = await db.collection("api_keys")
+    .where("apiKey", "==", apiKey)
+    .where("active", "==", true)
+    .limit(1)
+    .get();
+    
+  if (keysSnap.empty) {
+    throw new Error("Unauthorized: API key is invalid or has been revoked");
+  }
+  
+  const keyDoc = keysSnap.docs[0];
+  const data = keyDoc.data();
+  
+  keyDoc.ref.update({ lastUsedAt: new Date().toISOString() }).catch(() => {});
+  
+  return { uid: data.uid };
+}
+
+exports.apiGenerateImage = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const developer = await requireApiKey(req);
+      const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
+      if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+      const cost = purpose === "character" ? 15 : 5;
+      await chargeCredits(developer.uid, cost, `API: ${purpose} generation`);
+
+      let image;
+      try {
+        const parts = [];
+        for (const ref of referenceImages || []) {
+          parts.push({ inlineData: { data: ref.base64, mimeType: ref.mimeType } });
+        }
+        parts.push({ text: prompt });
+
+        const model = "gemini-3.1-flash-image-preview";
+        const response = await vertexFetch(
+          `/publishers/google/models/${model}:generateContent`,
+          {
+            contents: [{ role: "user", parts }],
+            generationConfig: {
+              responseModalities: ["TEXT", "IMAGE"],
+              ...(aspectRatio ? { imageConfig: { aspectRatio } } : {}),
+            }
+          }
+        );
+
+        const imgPart = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+        if (!imgPart?.inlineData) {
+          throw new Error("No image data in Vertex AI response");
+        }
+        image = { base64: imgPart.inlineData.data, mimeType: imgPart.inlineData.mimeType };
+      } catch (err) {
+        await refundCredits(developer.uid, cost, `API: ${purpose} generation failed`);
+        throw err;
+      }
+
+      const doc = db.collection("generations").doc();
+      const ext = image.mimeType.includes("jpeg") ? "jpg" : "png";
+      const url = await uploadBase64(
+        image.base64,
+        `generations/${developer.uid}/${doc.id}.${ext}`,
+        image.mimeType
+      );
+
+      await doc.set({
+        uid: developer.uid,
+        type: purpose === "character" ? "character" : "image",
+        status: "succeeded",
+        prompt,
+        imageUrl: url,
+        cost,
+        viaApi: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      return res.status(200).json({ id: doc.id, url, mimeType: image.mimeType, cost });
+    } catch (err) {
+      console.error("apiGenerateImage error:", err);
+      return res.status(err.message.includes("Unauthorized") ? 401 : 500).json({ error: err.message });
+    }
+  }
+);
+
+exports.apiGenerateVideo = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const developer = await requireApiKey(req);
+      const {
+        prompt,
+        model = "omni",
+        durationSeconds = 8,
+      } = req.body;
+
+      if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+      const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
+      const perSecCost = model === "omni-fast" ? 5 : 12;
+      const cost = perSecCost * duration;
+
+      await chargeCredits(developer.uid, cost, `API: video (${model}, ${duration}s)`);
+
+      const doc = db.collection("generations").doc();
+      await doc.set({
+        uid: developer.uid,
+        type: "video",
+        status: "generating",
+        prompt,
+        model,
+        cost,
+        viaApi: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      return res.status(200).json({ id: doc.id, status: "generating", cost });
+    } catch (err) {
+      console.error("apiGenerateVideo error:", err);
+      return res.status(err.message.includes("Unauthorized") ? 401 : 500).json({ error: err.message });
+    }
+  }
+);
+
+exports.apiGetVideoStatus = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 300 },
+  async (req, res) => {
+    try {
+      const developer = await requireApiKey(req);
+      const id = req.query.id || req.body.id;
+      if (!id) return res.status(400).json({ error: "Missing id" });
+
+      const ref = db.collection("generations").doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: "Not found" });
+
+      const gen = snap.data();
+      if (gen.uid !== developer.uid) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      if (gen.status === "succeeded" || gen.status === "failed") {
+        return res.status(200).json({
+          id,
+          status: gen.status,
+          videoUrl: gen.videoUrl || null,
+          error: gen.error || null,
+          prompt: gen.prompt,
+          completedAt: gen.completedAt || null,
+        });
+      }
+
+      if (gen.status === "processing") {
+        return res.status(200).json({ id, status: "generating" });
+      }
+
+      const hasStarted = await db.runTransaction(async (tx) => {
+        const dSnap = await tx.get(ref);
+        if (dSnap.data().status === "generating") {
+          tx.update(ref, { status: "processing" });
+          return true;
+        }
+        return false;
+      });
+
+      if (!hasStarted) {
+        return res.status(200).json({ id, status: "generating" });
+      }
+
+      try {
+        const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
+        const modelId = "gemini-omni-flash-preview";
+
+        console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt}`);
+        const ai = new GoogleGenAI({
+          vertexai: true,
+          project: projectId,
+          location: "global"
+        });
+
+        const interaction = await ai.interactions.create({
+          model: modelId,
+          input: gen.prompt
+        });
+
+        if (interaction && interaction.output_video && interaction.output_video.data) {
+          const videoUrl = await uploadBase64(
+            interaction.output_video.data,
+            `generations/${gen.uid}/${id}.mp4`,
+            interaction.output_video.mime_type || "video/mp4"
+          );
+
+          const update = {
+            status: "succeeded",
+            videoUrl,
+            mimeType: interaction.output_video.mime_type || "video/mp4",
+            completedAt: new Date().toISOString(),
+          };
+
+          await ref.update(update);
+          return res.status(200).json({ id, ...update });
+        } else {
+          throw new Error("No video data in interaction response");
+        }
+      } catch (err) {
+        console.error("Video generation background process (API) failed:", err);
+        await refundCredits(gen.uid, gen.cost || 0, `API: video ${id} failed`);
+        const update = {
+          status: "failed",
+          error: err.message || "Generation failed",
+          completedAt: new Date().toISOString(),
+        };
+        await ref.update(update);
+        return res.status(200).json({ id, ...update });
+      }
+    } catch (err) {
+      console.error("apiGetVideoStatus error:", err);
+      return res.status(err.message.includes("Unauthorized") ? 401 : 500).json({ error: err.message });
+    }
+  }
+);
+
+exports.apiGenerateTTS = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const developer = await requireApiKey(req);
+      const { text, voice = "Kore", style } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Missing text" });
+      }
+      if (text.length > 4000) {
+        return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
+      }
+
+      const cost = Math.max(5, Math.ceil(text.length / 100) * 1);
+      await chargeCredits(developer.uid, cost, `API: voiceover (${voice})`);
+
+      let audio;
+      try {
+        const promptText = style ? `${style}:\n\n${text}` : text;
+        const model = "gemini-2.5-flash-preview-tts";
+        const response = await vertexFetch(
+          `/publishers/google/models/${model}:generateContent`,
+          {
+            contents: [{ role: "user", parts: [{ text: promptText }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voice },
+                },
+              },
+            }
+          }
+        );
+
+        const rawAudio = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
+        if (!rawAudio) throw new Error("TTS model returned no audio");
+
+        const rateMatch = rawAudio.mimeType.match(/rate=(\d+)/);
+        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+        audio = { base64Wav: pcmToWav(rawAudio.data, sampleRate), mimeType: "audio/wav" };
+      } catch (err) {
+        await refundCredits(developer.uid, cost, "API: voiceover failed");
+        throw err;
+      }
+
+      const doc = db.collection("generations").doc();
+      const url = await uploadBase64(
+        audio.base64Wav,
+        `generations/${developer.uid}/${doc.id}.wav`,
+        "audio/wav"
+      );
+
+      await doc.set({
+        uid: developer.uid,
+        type: "audio",
+        status: "succeeded",
+        prompt: text.slice(0, 500),
+        voice,
+        style: style || null,
+        audioUrl: url,
+        cost,
+        viaApi: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      return res.status(200).json({ id: doc.id, url, cost });
+    } catch (err) {
+      console.error("apiGenerateTTS error:", err);
+      return res.status(err.message.includes("Unauthorized") ? 401 : 500).json({ error: err.message });
+    }
+  }
+);
+
 /**
  * Auth trigger: Automatically initializes newly registered users in Firestore.
  */

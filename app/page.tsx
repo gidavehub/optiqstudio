@@ -7,14 +7,14 @@ import MediaSlot from "../components/MediaSlot";
 import { useAuth } from "../components/AuthProvider";
 
 /* Center nav: small uppercase links; PRODUCT opens a mega-menu. */
-const NAV_ITEMS = ["RESEARCH", "PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY"];
+const NAV_ITEMS = ["API", "PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY"];
 
 const MEGA_MENU: { heading: string; links: { label: string; href: string; external?: boolean }[] }[] = [
   {
     heading: "Product",
     links: [
       { label: "Our Tools", href: "/dashboard" },
-      { label: "API", href: "mailto:hello@optiq.studio", external: true },
+      { label: "Developer API", href: "/dashboard/developer" },
       { label: "Use Cases", href: "#worlds" },
       { label: "Pricing", href: "/dashboard/billing" },
     ],
@@ -50,9 +50,9 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
 
 const HERO_LINKS = [
   { label: "OPTIQ STUDIO CHARACTERS", href: "/dashboard/characters" },
-  { label: "MEDIA AND ENTERTAINMENT", href: "#worlds" },
-  { label: "VOICE AND AUDIO", href: "/dashboard/audio" },
-  { label: "GENERAL WORLD MODELS", href: "#research" },
+  { label: "CREATIVE ADS & CAMPAIGNS", href: "#worlds" },
+  { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/audio" },
+  { label: "DEVELOPER API PLATFORM", href: "/dashboard/developer" },
 ];
 
 const PARTNERS = ["AURELIA PICTURES", "NORTHFIELD", "HELIX STUDIOS", "PALE BLUE", "MERIDIAN", "KINO+"];
@@ -60,43 +60,43 @@ const PARTNERS = ["AURELIA PICTURES", "NORTHFIELD", "HELIX STUDIOS", "PALE BLUE"
 const WORLD_CARDS = [
   {
     media: "/media/card-omni.jpg",
-    title: "Gemini Omni Flash: A New Frontier for Generative Video",
-    body: "Our best video model yet — cinematic motion, native sound and precise prompt control.",
+    title: "High-Converting Ads: Creative Video Engine",
+    body: "Generate vertical ads with photorealistic visuals, perfect motion, and native high-fidelity sound.",
     href: "/dashboard/video",
   },
   {
     media: "/media/card-robotics.jpg",
-    title: "Omni Flash: Native Audio Synthesis",
-    body: "Generate high-fidelity motion synchronized with realistic ambient sound and voice.",
-    href: "/dashboard/video",
+    title: "Omni Voice: Studio-Grade Voiceovers",
+    body: "Create hyper-realistic voice profiles and natural narrations synchronizing perfectly with your ads.",
+    href: "/dashboard/audio",
   },
   {
     media: "/media/card-worlds.jpg",
-    title: "Worlds: Interactive and Explorable Scenes",
-    body: "Generate spaces you can move through, relight and reshoot from any angle.",
+    title: "Scenic Backdrops: Tailored Commercial Spaces",
+    body: "Set your products inside stunning cinematic scenes you can customize, light, and rotate dynamically.",
     href: "/dashboard/video",
     overlayCta: true,
   },
   {
     media: "/media/card-avatars.jpg",
-    title: "Characters: Real-time Video Personas",
-    body: "Faces that stay consistent across every shot, ready for narration and dialogue.",
+    title: "Consistent Characters: Virtual Brand Faces",
+    body: "Maintain precise brand alignment across campaigns with consistent digital actors and video spokespersons.",
     href: "/dashboard/characters",
   },
 ];
 
-const RESEARCH_ROWS = [
+const PRODUCT_ROWS = [
   {
-    title: "OWM-1",
-    body: "Our first general world model — a step toward simulation you can direct.",
+    title: "Photorealistic Creations",
+    body: "Bespoke commercial visuals and cinematic shots matching your brand's style guide exactly.",
   },
   {
-    title: "Gemini Omni Flash",
-    body: "State-of-the-art motion quality, prompt adherence and visual fidelity.",
+    title: "Democratized Video Production",
+    body: "Skip expensive physical shoots. Instantly create vertical format video ads built to engage and convert.",
   },
   {
-    title: "General World Models",
-    body: "Our long-term effort to build systems that understand the visual world and its dynamics.",
+    title: "Developer First APIs",
+    body: "Integrate video generation, image creation, and TTS audio synthesis directly into your apps and workflows.",
   },
 ];
 
@@ -124,7 +124,7 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
     heading: "Resources",
     links: [
       { label: "Help Center", href: "#" },
-      { label: "API Docs", href: "#" },
+      { label: "API Docs", href: "/dashboard/developer" },
       { label: "Status", href: "#" },
       { label: "Terms of Use", href: "#" },
       { label: "Privacy Policy", href: "#" },
@@ -158,15 +158,28 @@ export default function LandingPage() {
           </Link>
 
           <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item}
-                onMouseEnter={() => setMenuOpen(item === "PRODUCT" ? "PRODUCT" : null)}
-                className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
-              >
-                {item}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              if (item === "API") {
+                return (
+                  <Link
+                    key={item}
+                    href="/dashboard/developer"
+                    className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
+                  >
+                    {item}
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={item}
+                  onMouseEnter={() => setMenuOpen(item === "PRODUCT" ? "PRODUCT" : null)}
+                  className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
+                >
+                  {item}
+                </button>
+              );
+            })}
           </div>
 
           <div className="ml-auto hidden items-center gap-2 lg:flex">
@@ -226,8 +239,13 @@ export default function LandingPage() {
 
         {mobileOpen && (
           <div className="border-b border-neutral-200 bg-white px-6 py-4 space-y-3 lg:hidden">
-            {["Research", "Product", "Company"].map((l) => (
-              <Link key={l} href="#worlds" className="block text-sm" onClick={() => setMobileOpen(false)}>
+            {["API", "Product", "Company"].map((l) => (
+              <Link
+                key={l}
+                href={l === "API" ? "/dashboard/developer" : "#worlds"}
+                className="block text-sm"
+                onClick={() => setMobileOpen(false)}
+              >
                 {l}
               </Link>
             ))}
@@ -253,15 +271,18 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
           {/* Headline bottom-left */}
-          <div className="absolute bottom-12 left-8 md:left-14 text-white">
+          <div className="absolute bottom-12 left-8 md:left-14 text-white max-w-2xl">
             <h1 className="display text-[44px] leading-[1.05] md:text-[64px]">
-              Building AI to
+              Democratizing
               <br />
-              Picture the World
+              High-Quality Ads
             </h1>
+            <p className="mt-4 text-[15px] text-white/80 leading-relaxed max-w-md">
+              Produce photorealistic cinematic content and high-converting vertical video ads powered by state-of-the-art generative AI.
+            </p>
             <Link
               href={appHref}
-              className="mt-7 inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors"
+              className="mt-6 inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors"
             >
               Get Started <ChevronRight size={14} />
             </Link>
@@ -296,8 +317,7 @@ export default function LandingPage() {
       {/* ── Statement + world cards (white) ────────────────────────── */}
       <section id="worlds" className="mx-auto max-w-[1440px] px-16 pt-28 pb-24">
         <h2 className="display max-w-5xl text-[34px] leading-[1.15] text-neutral-900 md:text-[46px]">
-          AI is changing how stories are told, how ideas take shape and how the
-          next era of film, art and entertainment gets made.
+          Generative AI is democratizing high-quality commercial production, enabling brands to scale visual creation, voiceovers, and ads with absolute photorealism.
         </h2>
 
         <div className="mt-14 grid grid-cols-2 gap-5 md:grid-cols-4">
@@ -327,7 +347,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Research band: inset blurred card ──────────────────────── */}
+      {/* ── Developer Engine band: inset blurred card ──────────────────────── */}
       <section id="research" className="px-3 pb-3">
         <div className="relative overflow-hidden rounded-xl bg-neutral-900">
           <MediaSlot
@@ -340,23 +360,20 @@ export default function LandingPage() {
 
           <div className="relative mx-auto grid max-w-[1440px] gap-16 px-14 py-24 text-white md:grid-cols-2">
             <div>
-              <p className="mb-8 text-[13px] text-white/80">Optiq Studio Research</p>
+              <p className="mb-8 text-[13px] text-white/80">Optiq Studio Developer Engine</p>
               <h2 className="display max-w-lg text-[26px] leading-[1.25] md:text-[30px]">
-                We are building foundational world models — systems able to
-                simulate spaces, stories and experiences. The next frontier of
-                intelligence will come from models that can understand,
-                perceive, generate and act in the world.
+                Integrate our robust generative suite directly into your applications. Scale photorealistic image, video, and text-to-speech generation programmatically with our developer API.
               </h2>
               <Link
-                href={appHref}
+                href="/dashboard/developer"
                 className="mt-9 inline-block rounded-md border border-white/40 px-4 py-2 text-[13px] font-medium hover:bg-white hover:text-black transition-colors"
               >
-                Learn more
+                Get Developer Keys
               </Link>
             </div>
 
             <div className="flex flex-col justify-center">
-              {RESEARCH_ROWS.map((row) => (
+              {PRODUCT_ROWS.map((row) => (
                 <div key={row.title} className="group border-t border-white/25 py-5 last:border-b">
                   <div className="flex items-start justify-between gap-6">
                     <div>
@@ -388,11 +405,10 @@ export default function LandingPage() {
           </Link>
           <div>
             <h2 className="display text-[34px] leading-[1.1] text-neutral-900 md:text-[46px]">
-              Gemini Omni Flash: a new frontier for video generation.
+              High-fidelity video ads in seconds, not weeks.
             </h2>
             <p className="mt-5 max-w-md text-[14px] leading-relaxed text-neutral-500">
-              Longer shots, native sound and a deeper grasp of light and
-              motion — available today for every Optiq Studio subscriber.
+              Generate native, high-definition videos with matching sound design, lifelike characters, and precise camera controls. Elevate your brand's narrative without the overhead of physical production.
             </p>
             <Link
               href={appHref}
@@ -410,8 +426,7 @@ export default function LandingPage() {
           <div>
             <p className="text-[22px] font-bold lowercase tracking-tight">optiq studio</p>
             <p className="mt-4 max-w-[220px] text-[13px] leading-relaxed text-neutral-500">
-              An applied AI research company shaping the next era of art,
-              entertainment and human creativity.
+              Democratizing high-quality vertical video ads and photorealistic creations through cutting-edge generative AI.
             </p>
           </div>
           {FOOTER_COLS.map((col) => (

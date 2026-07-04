@@ -12,6 +12,7 @@ import {
   LogOut,
   Mic,
   Users,
+  Code,
 } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 
@@ -22,6 +23,7 @@ const RAIL = [
   { label: "Characters", href: "/dashboard/characters", icon: Users },
   { label: "Assets", href: "/dashboard/assets", icon: FolderOpen },
   { label: "Plan & Credits", href: "/dashboard/billing", icon: CreditCard },
+  { label: "API & Developers", href: "/dashboard/developer", icon: Code },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -50,10 +52,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-white/5 bg-[#0a0a0a] py-3">
           <Link
             href="/"
-            className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg text-[15px] font-bold lowercase"
+            className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg text-white hover:opacity-80 transition-opacity"
             title="optiq studio"
           >
-            o
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.2" />
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" />
+            </svg>
           </Link>
           <nav className="flex flex-col items-center gap-1.5">
             {RAIL.map((item) => {
