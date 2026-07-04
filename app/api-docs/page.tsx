@@ -209,7 +209,7 @@ Response Example:
     <div className="min-h-screen bg-black text-neutral-100 font-sans antialiasedSelection">
       {/* Top Banner */}
       <div className="sticky top-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-6 lg:px-16">
+        <div className="w-full flex h-14 items-center justify-between px-6 lg:px-16">
           <div className="flex items-center gap-6">
             <Link href="/" className="text-[20px] font-bold lowercase tracking-tight text-white hover:opacity-80 transition-opacity">
               optiq studio
@@ -238,7 +238,7 @@ Response Example:
       </div>
 
       {/* Main Container */}
-      <div className="mx-auto max-w-[1440px] px-6 py-12 lg:px-16">
+      <div className="w-full px-6 py-12 lg:px-16">
         
         {/* Intro Header */}
         <div className="max-w-3xl border-b border-white/5 pb-10">
