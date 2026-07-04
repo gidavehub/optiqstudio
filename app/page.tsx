@@ -31,7 +31,7 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
     heading: "Featured Tools",
     links: [
       { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Omni 1.5 (Video)", href: "/dashboard/video" },
+      { label: "Gemini Omni Flash (Video)", href: "/dashboard/video" },
       { label: "Characters", href: "/dashboard/characters" },
       { label: "Voice Studio", href: "/dashboard/audio" },
       { label: "Assets", href: "/dashboard/assets" },
@@ -60,14 +60,14 @@ const PARTNERS = ["AURELIA PICTURES", "NORTHFIELD", "HELIX STUDIOS", "PALE BLUE"
 const WORLD_CARDS = [
   {
     media: "/media/card-omni.jpg",
-    title: "Omni 1.5: A New Frontier for Generative Video",
+    title: "Gemini Omni Flash: A New Frontier for Generative Video",
     body: "Our best video model yet — cinematic motion, native sound and precise prompt control.",
     href: "/dashboard/video",
   },
   {
     media: "/media/card-robotics.jpg",
-    title: "Omni Fast: Iteration at the Speed of Thought",
-    body: "A distilled model for drafts and lookdev, tuned for loops measured in seconds.",
+    title: "Omni Flash: Native Audio Synthesis",
+    body: "Generate high-fidelity motion synchronized with realistic ambient sound and voice.",
     href: "/dashboard/video",
   },
   {
@@ -91,7 +91,7 @@ const RESEARCH_ROWS = [
     body: "Our first general world model — a step toward simulation you can direct.",
   },
   {
-    title: "Omni 1.5",
+    title: "Gemini Omni Flash",
     body: "State-of-the-art motion quality, prompt adherence and visual fidelity.",
   },
   {
@@ -382,13 +382,13 @@ export default function LandingPage() {
               <MediaSlot
                 src="/media/news-omni.mp4"
                 className="h-full w-full transition-transform duration-700 group-hover:scale-[1.02]"
-                alt="Omni 1.5 reel"
+                alt="Gemini Omni Flash reel"
               />
             </div>
           </Link>
           <div>
             <h2 className="display text-[34px] leading-[1.1] text-neutral-900 md:text-[46px]">
-              Omni 1.5: a new frontier for video generation.
+              Gemini Omni Flash: a new frontier for video generation.
             </h2>
             <p className="mt-5 max-w-md text-[14px] leading-relaxed text-neutral-500">
               Longer shots, native sound and a deeper grasp of light and

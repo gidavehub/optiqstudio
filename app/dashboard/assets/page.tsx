@@ -34,7 +34,8 @@ export default function AssetsPage() {
   useEffect(load, [load]);
 
   return (
-    <div className="mx-auto max-w-6xl overflow-y-auto px-8 py-10">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-6xl px-8 py-10">
       <h1 className="text-[26px] font-semibold tracking-tight">Assets</h1>
       <p className="mt-1 text-[13px] text-neutral-500">
         Everything you&apos;ve generated, stored in your library.
@@ -116,6 +117,7 @@ export default function AssetsPage() {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 }

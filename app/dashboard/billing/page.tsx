@@ -8,7 +8,7 @@ import { useAuth } from "../../../components/AuthProvider";
 const PLAN_FEATURES_MAP: Record<string, string[]> = {
   "pro-monthly": [
     "10,000 credits every month",
-    "Omni & Omni Fast video generation",
+    "Gemini Omni Flash video generation",
     "1080p renders with native audio",
     "Character consistency tools",
     "Voice Studio with all profiles",
@@ -16,7 +16,7 @@ const PLAN_FEATURES_MAP: Record<string, string[]> = {
   ],
   "studio-monthly": [
     "28,000 credits every month",
-    "Omni & Omni Fast video generation",
+    "Gemini Omni Flash video generation",
     "1080p renders with native audio",
     "Character consistency tools",
     "Voice Studio with all profiles",
@@ -25,7 +25,7 @@ const PLAN_FEATURES_MAP: Record<string, string[]> = {
   ],
   "enterprise-monthly": [
     "55,000 credits every month",
-    "Omni & Omni Fast video generation",
+    "Gemini Omni Flash video generation",
     "1080p renders with native audio",
     "Character consistency tools",
     "Voice Studio with all profiles",
@@ -81,23 +81,24 @@ function BillingInner() {
   const isSubscribed = profile?.planStatus === "active";
  
   return (
-    <div className="mx-auto max-w-4xl overflow-y-auto px-8 py-10">
-      <h1 className="text-[26px] font-semibold tracking-tight">Plan & Credits</h1>
-      <p className="mt-1 text-[13px] text-neutral-500">
-        Credits power every generation. Subscribe for the best rate, or top up any time.
-      </p>
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-4xl px-8 py-10">
+        <h1 className="text-[26px] font-semibold tracking-tight">Plan & Credits</h1>
+        <p className="mt-1 text-[13px] text-neutral-500">
+          Credits power every generation. Subscribe for the best rate, or top up any time.
+        </p>
  
-      {status === "success" && (
-        <div className="mt-5 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-          Payment received — your credits will appear within a few seconds of
-          confirmation.
-        </div>
-      )}
-      {status === "cancelled" && (
-        <div className="mt-5 rounded-lg border border-line bg-surface px-4 py-3 text-sm text-neutral-400">
-          Checkout cancelled. No charge was made.
-        </div>
-      )}
+        {status === "success" && (
+          <div className="mt-5 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
+            Payment received — your credits will appear within a few seconds of
+            confirmation.
+          </div>
+        )}
+        {status === "cancelled" && (
+          <div className="mt-5 rounded-lg border border-line bg-surface px-4 py-3 text-sm text-neutral-400">
+            Checkout cancelled. No charge was made.
+          </div>
+        )}
       {error && (
         <div className="mt-5 rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
           {error}
@@ -224,6 +225,7 @@ function BillingInner() {
           </div>
         </div>
       </div>
+    </div>
   );
 }
  

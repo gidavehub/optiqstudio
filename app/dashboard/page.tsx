@@ -108,18 +108,10 @@ const APPS: AppCard[] = [
 
 const MODEL_CARDS: AppCard[] = [
   {
-    title: "Omni 1.5",
-    body: "Frontier video model. Cinematic motion, native audio, 4–8s shots.",
+    title: "Gemini Omni Flash",
+    body: "Frontier video model. Cinematic motion, native audio, 4–10s shots.",
     href: "/dashboard/video",
     media: "/media/app-video.jpg",
-    type: "model",
-    kits: [],
-  },
-  {
-    title: "Omni Fast",
-    body: "Distilled for speed — drafts and lookdev in a fraction of the credits.",
-    href: "/dashboard/video",
-    media: "/media/app-multishot.jpg",
     type: "model",
     kits: [],
   },
@@ -184,7 +176,7 @@ export default function DashboardHome() {
       {showBanner && profile?.planStatus !== "active" && (
         <div className="relative flex items-center justify-center gap-3 bg-gradient-to-r from-[#3b3a1e] via-[#4a4526] to-[#1f1d10] px-10 py-2">
           <p className="text-[12px] text-neutral-100">
-            Omni 1.5 is live. Pro members get 10,000 monthly credits.{" "}
+            Gemini Omni Flash is live. Pro members get 10,000 monthly credits.{" "}
             <Link href="/dashboard/billing" className="underline underline-offset-2">
               See plans
             </Link>

@@ -95,7 +95,8 @@ export default function CharacterStudio() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-10">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-8 py-10">
       <h1 className="display text-2xl">Character Studio</h1>
       <p className="mt-1 text-sm text-neutral-500">
         Design a character once, then keep their identity consistent across every generation.
@@ -193,6 +194,7 @@ export default function CharacterStudio() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

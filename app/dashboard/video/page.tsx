@@ -23,7 +23,7 @@ interface HistoryItem {
 }
 
 const ASPECTS = ["16:9", "9:16"] as const;
-const DURATIONS = [4, 6, 8] as const;
+const DURATIONS = [4, 6, 8, 10] as const;
 const RESOLUTIONS = ["720p", "1080p"] as const;
 
 function VideoWorkspace() {
@@ -31,9 +31,9 @@ function VideoWorkspace() {
   const searchParams = useSearchParams();
 
   const [prompt, setPrompt] = useState(searchParams.get("prompt") ?? "");
-  const [model, setModel] = useState<"omni" | "omni-fast">("omni");
+  const model = "omni";
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("16:9");
-  const [duration, setDuration] = useState<(typeof DURATIONS)[number]>(8);
+  const [duration, setDuration] = useState<(typeof DURATIONS)[number]>(10);
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>("720p");
   const [audioOn, setAudioOn] = useState(true);
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -146,26 +146,9 @@ function VideoWorkspace() {
       <aside className="w-64 shrink-0 space-y-6 overflow-y-auto border-r border-line p-5">
         <div>
           <p className="eyebrow mb-2">Model</p>
-          <div className="space-y-1.5">
-            {(
-              [
-                { id: "omni", name: "Omni", note: "Highest fidelity, native audio" },
-                { id: "omni-fast", name: "Omni Fast", note: "Fast drafts, lower cost" },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setModel(m.id)}
-                className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                  model === m.id
-                    ? "border-white/40 bg-surface-2"
-                    : "border-line bg-surface hover:border-white/20"
-                }`}
-              >
-                <p className="text-sm font-medium">{m.name}</p>
-                <p className="text-[11px] text-neutral-500">{m.note}</p>
-              </button>
-            ))}
+          <div className="rounded-lg border border-white/15 bg-surface-2 px-3 py-2.5">
+            <p className="text-sm font-medium text-white">Gemini Omni Flash</p>
+            <p className="text-[11px] text-neutral-400">Highest fidelity, native audio</p>
           </div>
         </div>
 
@@ -216,7 +199,7 @@ function VideoWorkspace() {
               <Loader2 size={26} className="mx-auto animate-spin text-neutral-400" />
               <p className="mt-4 text-sm text-neutral-300">Rendering your shot…</p>
               <p className="mt-1 text-xs text-neutral-600">
-                Omni is composing frames and sound. This usually takes one to three minutes.
+                Gemini Omni Flash is composing frames and sound. This usually takes one to three minutes.
               </p>
             </div>
           ) : resultUrl ? (
