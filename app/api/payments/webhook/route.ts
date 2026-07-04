@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       const uid = meta.uid;
 
       const ref = adminDb.collection("payments").doc(charge.id);
-      const isNew = await adminDb.runTransaction(async (tx) => {
+      const isNew = await adminDb.runTransaction(async (tx: any) => {
         const snap = await tx.get(ref);
         if (snap.exists) return false;
         tx.set(ref, {

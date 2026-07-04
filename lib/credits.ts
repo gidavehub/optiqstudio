@@ -85,7 +85,7 @@ export async function ensureUser(
   info?: { email?: string; name?: string }
 ): Promise<UserProfile> {
   const ref = adminDb.collection("users").doc(uid);
-  return adminDb.runTransaction(async (tx) => {
+  return adminDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     if (snap.exists) {
       const data = snap.data() as UserProfile;
@@ -116,7 +116,7 @@ export async function chargeCredits(
     return (snap.data()?.credits as number) ?? 0;
   }
   const ref = adminDb.collection("users").doc(uid);
-  return adminDb.runTransaction(async (tx) => {
+  return adminDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     const available = (snap.data()?.credits as number) ?? 0;
     if (available < amount) throw new InsufficientCreditsError(amount, available);

@@ -1,7 +1,7 @@
-import { getApps, initializeApp, getApp, App, cert } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { getAuth, Auth } from "firebase-admin/auth";
-import { getStorage, Storage } from "firebase-admin/storage";
+import { getApps, initializeApp, getApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getStorage } from "firebase-admin/storage";
 
 /**
  * Firebase Admin bootstrap for the davelabs-tools project.
@@ -14,28 +14,31 @@ import { getStorage, Storage } from "firebase-admin/storage";
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
 export const STORAGE_BUCKET = `${PROJECT_ID}.firebasestorage.app`;
 
-let credential;
-const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (saJson) {
-  try {
-    const parsed = JSON.parse(saJson.startsWith("{") ? saJson : Buffer.from(saJson, "base64").toString("utf-8"));
-    credential = cert(parsed);
-  } catch (e) {
-    console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT env:", e);
+let app;
+if (getApps().length === 0) {
+  let credential;
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (saJson) {
+    try {
+      const parsed = JSON.parse(saJson.startsWith("{") ? saJson : Buffer.from(saJson, "base64").toString("utf-8"));
+      credential = cert(parsed);
+    } catch (e) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT env:", e);
+    }
   }
+
+  app = initializeApp({
+    projectId: PROJECT_ID,
+    storageBucket: STORAGE_BUCKET,
+    ...(credential ? { credential } : {}),
+  });
+} else {
+  app = getApp();
 }
 
-const app: App = getApps().length
-  ? getApp()
-  : initializeApp({
-      projectId: PROJECT_ID,
-      storageBucket: STORAGE_BUCKET,
-      ...(credential ? { credential } : {}),
-    });
-
-export const adminDb: Firestore = getFirestore(app);
-export const adminAuth: Auth = getAuth(app);
-export const adminStorage: Storage = getStorage(app);
+export const adminDb = getFirestore(app);
+export const adminAuth = getAuth(app);
+export const adminStorage = getStorage(app);
 export default app;
 
 /**

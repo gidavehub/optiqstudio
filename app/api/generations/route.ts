@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     if (type) query = query.where("type", "==", type) as typeof query;
 
     const snap = await query.get();
-    const items = snap.docs.map((d) => {
+    const items = snap.docs.map((d: any) => {
       const g = d.data();
       return {
         id: d.id,
