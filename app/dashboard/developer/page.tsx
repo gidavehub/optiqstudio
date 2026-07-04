@@ -159,17 +159,33 @@ https://us-east4-davelabs-tools.cloudfunctions.net
 2. API ENDPOINTS & REFERENCE
 
 A. IMAGE GENERATION (POST /apiGenerateImage)
-Generates photorealistic images using gemini-3.1-flash-image-preview.
+Generates photorealistic images using gemini-3.1-flash-image-preview. Optionally supports input reference image attachments to guide generation.
 Cost: 5 Credits / Request
 
-Request Example:
-curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateImage" \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
+Request Example (Text-to-Image):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateImage" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
   -d '{
     "prompt": "Cinematic wide shot of a young Black scuba diver exploring a bioluminescent coral shipwreck",
     "aspectRatio": "16:9",
     "purpose": "image"
+  }'
+
+Request Example (With Reference Image Attachment):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateImage" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Cinematic wide shot of a young Black scuba diver exploring a bioluminescent coral shipwreck",
+    "aspectRatio": "16:9",
+    "purpose": "image",
+    "referenceImages": [
+      {
+        "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "mimeType": "image/png"
+      }
+    ]
   }'
 
 Response Example:
@@ -523,8 +539,8 @@ Response Example:
                         5 - 15 Credits
                       </span>
                     </div>
-                    <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Creates premium photorealistic graphics using <code className="font-mono text-neutral-300">gemini-3.1-flash-image-preview</code>. Supports optional input character sheets for absolute subject consistency.
+                     <p className="text-[12.5px] leading-relaxed text-neutral-400">
+                      Creates premium photorealistic graphics using <code className="font-mono text-neutral-300">gemini-3.1-flash-image-preview</code>. Supports optional reference image attachments (passed via <code className="font-mono text-neutral-300">{'referenceImages: [{"base64", "mimeType"}]'}</code>) to guide generations, or character sheets for subject consistency.
                     </p>
 
                     <div>

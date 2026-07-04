@@ -48,6 +48,19 @@ export default function ImageStudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // Reference image attachment state
+  const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+
+  const attachImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setImage({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Cost dynamic deduction
   const generationCost = pricing?.costs?.image ?? 50;
   const userBalance = profile?.credits ?? 0;
@@ -101,6 +114,7 @@ export default function ImageStudioPage() {
             prompt,
             aspectRatio,
             purpose: "image",
+            referenceImages: image ? [{ base64: image.base64, mimeType: image.mimeType }] : [],
           }),
         }
       );
@@ -116,6 +130,7 @@ export default function ImageStudioPage() {
 
       setHistory((prev) => [newItem, ...prev]);
       setActiveItem(newItem);
+      setImage(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image generation failed");
     } finally {
@@ -192,6 +207,52 @@ export default function ImageStudioPage() {
                 disabled={generating}
                 className="w-full text-xs rounded-xl bg-neutral-950 border border-neutral-900/80 p-3.5 placeholder:text-neutral-600 focus:border-white/20 focus:ring-0 focus:outline-none resize-none leading-relaxed transition-colors text-white"
               />
+            </div>
+
+            {/* Reference Image Attachment (Optional) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest block">
+                Reference Image (Optional)
+              </label>
+              
+              {!image ? (
+                <label className="flex flex-col items-center justify-center border border-dashed border-neutral-900 bg-neutral-950/40 rounded-xl p-5 hover:border-neutral-800 hover:bg-neutral-950/60 transition-all cursor-pointer group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 border border-white/5 text-neutral-500 group-hover:text-white transition-colors mb-2">
+                    <ImageIcon size={14} />
+                  </div>
+                  <span className="text-[11px] font-medium text-neutral-400 group-hover:text-neutral-200 transition-colors">Attach reference image</span>
+                  <span className="text-[9px] text-neutral-600 mt-0.5">Supports PNG, JPG, WEBP</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) attachImage(file);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              ) : (
+                <div className="relative border border-neutral-900 bg-neutral-950/60 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-white/5 shrink-0 bg-black">
+                      <img src={image.preview} alt="Attached reference" className="h-full w-full object-cover" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium text-white truncate">Attached Reference Image</p>
+                      <p className="text-[9px] text-neutral-500 font-mono mt-0.5 uppercase">{(image.mimeType || "image/png").split("/")[1]}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImage(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5 text-neutral-400 hover:text-red-400 transition-colors"
+                    title="Remove attachment"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Aspect Ratio Selector */}
