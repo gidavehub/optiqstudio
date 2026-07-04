@@ -9,7 +9,7 @@ import { adminDb } from "./firebase-admin";
  * double-spend.
  */
 
-export const SIGNUP_CREDITS = 300;
+export const SIGNUP_CREDITS = 0;
 
 export const PLANS = [
   {

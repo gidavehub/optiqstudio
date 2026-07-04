@@ -1113,7 +1113,7 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
 
   try {
     await ref.set({
-      credits: 300,
+      credits: 0,
       plan: null,
       planStatus: "none",
       planRenewsAt: null,
@@ -1122,12 +1122,7 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
       createdAt: new Date().toISOString()
     }, { merge: true });
 
-    await ref.collection("ledger").add({
-      delta: 300,
-      reason: "signup bonus",
-      at: new Date().toISOString()
-    });
-    console.log(`Successfully initialized user doc for UID: ${uid} with 300 signup credits.`);
+    console.log(`Successfully initialized user doc for UID: ${uid} with 0 signup credits.`);
   } catch (error) {
     console.error(`Failed to initialize user doc for UID: ${uid}:`, error);
   }

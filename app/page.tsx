@@ -7,14 +7,14 @@ import MediaSlot from "../components/MediaSlot";
 import { useAuth } from "../components/AuthProvider";
 
 /* Center nav: small uppercase links; PRODUCT opens a mega-menu. */
-const NAV_ITEMS = ["API", "PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY"];
+const NAV_ITEMS = ["PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY", "API"];
 
 const MEGA_MENU: { heading: string; links: { label: string; href: string; external?: boolean }[] }[] = [
   {
     heading: "Product",
     links: [
       { label: "Our Tools", href: "/dashboard" },
-      { label: "Developer API", href: "/dashboard/developer" },
+      { label: "Developer API", href: "/api-docs" },
       { label: "Use Cases", href: "#worlds" },
       { label: "Pricing", href: "/dashboard/billing" },
     ],
@@ -52,7 +52,7 @@ const HERO_LINKS = [
   { label: "OPTIQ STUDIO CHARACTERS", href: "/dashboard/characters" },
   { label: "CREATIVE ADS & CAMPAIGNS", href: "#worlds" },
   { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/audio" },
-  { label: "DEVELOPER API PLATFORM", href: "/dashboard/developer" },
+  { label: "DEVELOPER API PLATFORM", href: "/api-docs" },
 ];
 
 const PARTNERS = ["AURELIA PICTURES", "NORTHFIELD", "HELIX STUDIOS", "PALE BLUE", "MERIDIAN", "KINO+"];
@@ -124,7 +124,7 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
     heading: "Resources",
     links: [
       { label: "Help Center", href: "#" },
-      { label: "API Docs", href: "/dashboard/developer" },
+      { label: "API Docs", href: "/api-docs" },
       { label: "Status", href: "#" },
       { label: "Terms of Use", href: "#" },
       { label: "Privacy Policy", href: "#" },
@@ -163,7 +163,7 @@ export default function LandingPage() {
                 return (
                   <Link
                     key={item}
-                    href="/dashboard/developer"
+                    href="/api-docs"
                     className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
                   >
                     {item}
@@ -239,10 +239,10 @@ export default function LandingPage() {
 
         {mobileOpen && (
           <div className="border-b border-neutral-200 bg-white px-6 py-4 space-y-3 lg:hidden">
-            {["API", "Product", "Company"].map((l) => (
+            {["Product", "Company", "API"].map((l) => (
               <Link
                 key={l}
-                href={l === "API" ? "/dashboard/developer" : "#worlds"}
+                href={l === "API" ? "/api-docs" : "#worlds"}
                 className="block text-sm"
                 onClick={() => setMobileOpen(false)}
               >
@@ -275,7 +275,7 @@ export default function LandingPage() {
             <h1 className="display text-[44px] leading-[1.05] md:text-[64px]">
               Democratizing
               <br />
-              High-Quality Ads
+              Production Quality Videos
             </h1>
             <p className="mt-4 text-[15px] text-white/80 leading-relaxed max-w-md">
               Produce photorealistic cinematic content and high-converting vertical video ads powered by state-of-the-art generative AI.
@@ -365,10 +365,10 @@ export default function LandingPage() {
                 Integrate our robust generative suite directly into your applications. Scale photorealistic image, video, and text-to-speech generation programmatically with our developer API.
               </h2>
               <Link
-                href="/dashboard/developer"
+                href="/api-docs"
                 className="mt-9 inline-block rounded-md border border-white/40 px-4 py-2 text-[13px] font-medium hover:bg-white hover:text-black transition-colors"
               >
-                Get Developer Keys
+                Read API Documentation
               </Link>
             </div>
 
@@ -426,7 +426,7 @@ export default function LandingPage() {
           <div>
             <p className="text-[22px] font-bold lowercase tracking-tight">optiq studio</p>
             <p className="mt-4 max-w-[220px] text-[13px] leading-relaxed text-neutral-500">
-              Democratizing high-quality vertical video ads and photorealistic creations through cutting-edge generative AI.
+              Democratizing production quality videos and photorealistic creations through cutting-edge generative AI.
             </p>
           </div>
           {FOOTER_COLS.map((col) => (

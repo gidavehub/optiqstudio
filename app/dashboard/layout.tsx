@@ -27,13 +27,17 @@ const RAIL = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, profile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [loading, user, router]);
+    if (!loading && !user) {
+      router.replace("/login");
+    } else if (!loading && user && profile && profile.planStatus !== "active" && pathname !== "/dashboard/billing") {
+      router.replace("/dashboard/billing");
+    }
+  }, [loading, user, profile, pathname, router]);
 
   if (loading || !user) {
     return (

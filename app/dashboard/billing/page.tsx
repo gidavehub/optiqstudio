@@ -88,6 +88,12 @@ function BillingInner() {
           Credits power every generation. Subscribe for the best rate, or top up any time.
         </p>
  
+        {!isSubscribed && (
+          <div className="mt-5 rounded-lg border border-violet-900/60 bg-violet-950/40 px-4 py-3 text-sm text-violet-300">
+            Please select a subscription plan to unlock your workspace. Optiq Studio is a paid-only platform.
+          </div>
+        )}
+
         {status === "success" && (
           <div className="mt-5 rounded-lg border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
             Payment received — your credits will appear within a few seconds of
@@ -123,7 +129,7 @@ function BillingInner() {
                 : profile?.plan === "studio-monthly"
                 ? "Optiq Studio"
                 : "Optiq Pro")
-              : "Free"}
+              : "No Active Plan"}
             {isSubscribed && profile?.planRenewsAt && (
               <span className="block text-[11px] font-normal text-neutral-500">
                 Renews {new Date(profile.planRenewsAt).toLocaleDateString()}

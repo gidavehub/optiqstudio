@@ -45,7 +45,7 @@ export default function LoginPage() {
         <p className="text-sm text-muted mb-8">
           {mode === "signin"
             ? "Welcome back. Your worlds are waiting."
-            : "Start creating with 300 free credits."}
+            : "Choose a subscription plan to start creating."}
         </p>
 
         <button

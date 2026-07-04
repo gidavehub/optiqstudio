@@ -239,7 +239,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             } else {
               // Sign-up fallback values until administrative upgrade or cloud trigger runs
               setProfile({
-                credits: 300,
+                credits: 0,
                 plan: null,
                 planStatus: "none",
                 planRenewsAt: null,
