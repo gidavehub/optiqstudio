@@ -337,6 +337,7 @@ exports.modemPayCheckout = onRequest(
             planId: selectedPlanId,
             credits: String(credits),
           },
+          payment_methods: ["card", "mobile_money"],
           return_url: `${appUrl}/dashboard/billing?status=success`,
           cancel_url: `${appUrl}/dashboard/billing?status=cancelled`,
           callback_url: `https://us-east4-davelabs-tools.cloudfunctions.net/modemWebhook`,
