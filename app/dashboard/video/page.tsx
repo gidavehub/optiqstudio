@@ -331,7 +331,7 @@ function VideoWorkspace() {
 
   // Computed / Dynamic pricing properties
   const perSecCost = (pricing?.costs?.videoPerSecond?.[model as string]) ?? ((model as string) === "omni-fast" ? 15 : 30);
-  const cappedDuration = Math.min(Math.max(Number(duration) || 8, 4), 8);
+  const cappedDuration = Math.min(Math.max(Number(duration) || 8, 4), 10);
   const calculatedCost = perSecCost * cappedDuration;
 
   const perSecond = pricing?.costs.videoPerSecond?.[model] ?? (model === "omni" ? 12 : 5);

@@ -480,6 +480,71 @@ async function uploadBase64(base64, path, contentType) {
   return `https://storage.googleapis.com/${STORAGE_BUCKET}/${path}`;
 }
 
+// Reference media (image/video/audio) attached to a generation can easily be
+// several MB once base64-encoded. Firestore documents are hard-capped at 1MB,
+// so storing that inline makes the write throw for anything but a tiny image —
+// which is why images "went all the way" but audio/video never did. Instead we
+// offload each attachment to Cloud Storage and keep only the object path on the
+// Firestore doc, then rehydrate it to base64 at generation time.
+async function uploadInputMedia(base64, path, contentType) {
+  await admin.storage().bucket(STORAGE_BUCKET).file(path).save(Buffer.from(base64, "base64"), {
+    contentType,
+    resumable: false,
+  });
+  return path;
+}
+
+async function downloadInputMedia(path) {
+  const [buf] = await admin.storage().bucket(STORAGE_BUCKET).file(path).download();
+  return buf.toString("base64");
+}
+
+// Persists any inline reference media from the request body to Storage and
+// returns the fields (paths + mime types) to write on the generation doc.
+async function persistReferenceMedia(uid, docId, body) {
+  const base = `generations/${uid}/${docId}/input`;
+  const out = {
+    imagePath: null,
+    imageMimeType: body.imageMimeType || null,
+    videoPath: null,
+    videoMimeType: body.videoMimeType || null,
+    audioPath: null,
+    audioMimeType: body.audioMimeType || null,
+  };
+  if (body.imageBase64 && body.imageMimeType) {
+    out.imagePath = await uploadInputMedia(body.imageBase64, `${base}-image`, body.imageMimeType);
+  }
+  if (body.videoBase64 && body.videoMimeType) {
+    out.videoPath = await uploadInputMedia(body.videoBase64, `${base}-video`, body.videoMimeType);
+  }
+  if (body.audioBase64 && body.audioMimeType) {
+    out.audioPath = await uploadInputMedia(body.audioBase64, `${base}-audio`, body.audioMimeType);
+  }
+  return out;
+}
+
+// Rehydrates reference media back to base64 for the model call. Falls back to
+// any legacy inline base64 fields so in-flight docs created before this change
+// still generate correctly.
+async function loadReferenceMedia(gen) {
+  return {
+    imageBase64: gen.imagePath ? await downloadInputMedia(gen.imagePath) : (gen.imageBase64 || null),
+    videoBase64: gen.videoPath ? await downloadInputMedia(gen.videoPath) : (gen.videoBase64 || null),
+    audioBase64: gen.audioPath ? await downloadInputMedia(gen.audioPath) : (gen.audioBase64 || null),
+  };
+}
+
+// Builds the structured video response_format for the interactions API. This is
+// how output duration and aspect ratio are actually enforced — passing them only
+// as prose in the prompt does nothing, so the model fell back to its ~10s default.
+function buildVideoResponseFormat(gen) {
+  return {
+    type: "video",
+    aspect_ratio: gen.aspectRatio === "9:16" ? "9:16" : "16:9",
+    duration: `${gen.durationSeconds || 8}s`,
+  };
+}
+
 function pcmToWav(pcmBase64, sampleRate) {
   const pcm = Buffer.from(pcmBase64, "base64");
   const header = Buffer.alloc(44);
@@ -753,17 +818,15 @@ exports.videoGenerate = onRequest(
         prompt,
         model = "omni",
         durationSeconds = 8,
-        imageBase64,
-        imageMimeType,
-        videoBase64,
-        videoMimeType,
-        audioBase64,
-        audioMimeType,
+        aspectRatio = "16:9",
+        resolution = "720p",
+        generateAudio = true,
+        negativePrompt = null,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
+      const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
       const pricing = await getPricing();
       const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? (model === "omni-fast" ? 15 : 30);
       const cost = perSecCost * duration;
@@ -771,6 +834,7 @@ exports.videoGenerate = onRequest(
       await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);
 
       const doc = db.collection("generations").doc();
+      const media = await persistReferenceMedia(user.uid, doc.id, req.body);
       await doc.set({
         uid: user.uid,
         type: "video",
@@ -778,12 +842,12 @@ exports.videoGenerate = onRequest(
         prompt,
         model,
         cost,
-        imageBase64: imageBase64 || null,
-        imageMimeType: imageMimeType || null,
-        videoBase64: videoBase64 || null,
-        videoMimeType: videoMimeType || null,
-        audioBase64: audioBase64 || null,
-        audioMimeType: audioMimeType || null,
+        durationSeconds: duration,
+        aspectRatio,
+        resolution,
+        generateAudio,
+        negativePrompt: negativePrompt || null,
+        ...media,
         createdAt: new Date().toISOString(),
       });
 
@@ -846,44 +910,49 @@ exports.videoStatus = onRequest(
         const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
         const modelId = "gemini-omni-flash-preview";
 
-        console.log(`Polling/Generating video for doc: ${id} with prompt: ${gen.prompt}`);
+        const duration = gen.durationSeconds || 8;
+        console.log(`Polling/Generating video for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
         const ai = new GoogleGenAI({
           vertexai: true,
           project: projectId,
           location: "global"
         });
 
+        const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+
         let inputPayload;
-        if (gen.imageBase64 || gen.videoBase64 || gen.audioBase64) {
+        const negativeHint = gen.negativePrompt ? ` Avoid: ${gen.negativePrompt}.` : "";
+        const promptWithDuration = `${gen.prompt} (Please generate a video of exactly ${duration} seconds duration.${negativeHint})`;
+        if (imageBase64 || videoBase64 || audioBase64) {
           const content = [];
-          if (gen.imageBase64 && gen.imageMimeType) {
-            console.log(`Integrating reference image with base64 length: ${gen.imageBase64.length}`);
+          if (imageBase64 && gen.imageMimeType) {
+            console.log(`Integrating reference image with base64 length: ${imageBase64.length}`);
             content.push({
               type: "image",
-              data: gen.imageBase64,
+              data: imageBase64,
               mime_type: gen.imageMimeType
             });
-          } else if (gen.videoBase64 && gen.videoMimeType) {
-            console.log(`Integrating reference video with base64 length: ${gen.videoBase64.length}`);
+          } else if (videoBase64 && gen.videoMimeType) {
+            console.log(`Integrating reference video with base64 length: ${videoBase64.length}`);
             content.push({
               type: "video",
-              data: gen.videoBase64,
+              data: videoBase64,
               mime_type: gen.videoMimeType
             });
           }
 
-          if (gen.audioBase64 && gen.audioMimeType) {
-            console.log(`Integrating reference audio with base64 length: ${gen.audioBase64.length}`);
+          if (audioBase64 && gen.audioMimeType) {
+            console.log(`Integrating reference audio with base64 length: ${audioBase64.length}`);
             content.push({
               type: "audio",
-              data: gen.audioBase64,
+              data: audioBase64,
               mime_type: gen.audioMimeType
             });
           }
 
           content.push({
             type: "text",
-            text: gen.prompt
+            text: promptWithDuration
           });
 
           inputPayload = [
@@ -893,12 +962,13 @@ exports.videoStatus = onRequest(
             }
           ];
         } else {
-          inputPayload = gen.prompt;
+          inputPayload = promptWithDuration;
         }
 
         const interaction = await ai.interactions.create({
           model: modelId,
-          input: inputPayload
+          input: inputPayload,
+          response_format: buildVideoResponseFormat(gen)
         });
 
         if (interaction && interaction.output_video && interaction.output_video.data) {
@@ -1045,23 +1115,22 @@ exports.apiGenerateVideo = onRequest(
         prompt,
         model = "omni",
         durationSeconds = 8,
-        imageBase64,
-        imageMimeType,
-        videoBase64,
-        videoMimeType,
-        audioBase64,
-        audioMimeType,
+        aspectRatio = "16:9",
+        resolution = "720p",
+        generateAudio = true,
+        negativePrompt = null,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 8);
+      const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
       const perSecCost = model === "omni-fast" ? 15 : 30;
       const cost = perSecCost * duration;
 
       await chargeCredits(developer.uid, cost, `API: video (${model}, ${duration}s)`);
 
       const doc = db.collection("generations").doc();
+      const media = await persistReferenceMedia(developer.uid, doc.id, req.body);
       await doc.set({
         uid: developer.uid,
         type: "video",
@@ -1070,12 +1139,12 @@ exports.apiGenerateVideo = onRequest(
         model,
         cost,
         viaApi: true,
-        imageBase64: imageBase64 || null,
-        imageMimeType: imageMimeType || null,
-        videoBase64: videoBase64 || null,
-        videoMimeType: videoMimeType || null,
-        audioBase64: audioBase64 || null,
-        audioMimeType: audioMimeType || null,
+        durationSeconds: duration,
+        aspectRatio,
+        resolution,
+        generateAudio,
+        negativePrompt: negativePrompt || null,
+        ...media,
         createdAt: new Date().toISOString(),
       });
 
@@ -1136,44 +1205,49 @@ exports.apiGetVideoStatus = onRequest(
         const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
         const modelId = "gemini-omni-flash-preview";
 
-        console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt}`);
+        const duration = gen.durationSeconds || 8;
+        console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
         const ai = new GoogleGenAI({
           vertexai: true,
           project: projectId,
           location: "global"
         });
 
+        const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+
         let inputPayload;
-        if (gen.imageBase64 || gen.videoBase64 || gen.audioBase64) {
+        const negativeHint = gen.negativePrompt ? ` Avoid: ${gen.negativePrompt}.` : "";
+        const promptWithDuration = `${gen.prompt} (Please generate a video of exactly ${duration} seconds duration.${negativeHint})`;
+        if (imageBase64 || videoBase64 || audioBase64) {
           const content = [];
-          if (gen.imageBase64 && gen.imageMimeType) {
-            console.log(`Integrating API reference image with base64 length: ${gen.imageBase64.length}`);
+          if (imageBase64 && gen.imageMimeType) {
+            console.log(`Integrating API reference image with base64 length: ${imageBase64.length}`);
             content.push({
               type: "image",
-              data: gen.imageBase64,
+              data: imageBase64,
               mime_type: gen.imageMimeType
             });
-          } else if (gen.videoBase64 && gen.videoMimeType) {
-            console.log(`Integrating API reference video with base64 length: ${gen.videoBase64.length}`);
+          } else if (videoBase64 && gen.videoMimeType) {
+            console.log(`Integrating API reference video with base64 length: ${videoBase64.length}`);
             content.push({
               type: "video",
-              data: gen.videoBase64,
+              data: videoBase64,
               mime_type: gen.videoMimeType
             });
           }
 
-          if (gen.audioBase64 && gen.audioMimeType) {
-            console.log(`Integrating API reference audio with base64 length: ${gen.audioBase64.length}`);
+          if (audioBase64 && gen.audioMimeType) {
+            console.log(`Integrating API reference audio with base64 length: ${audioBase64.length}`);
             content.push({
               type: "audio",
-              data: gen.audioBase64,
+              data: audioBase64,
               mime_type: gen.audioMimeType
             });
           }
 
           content.push({
             type: "text",
-            text: gen.prompt
+            text: promptWithDuration
           });
 
           inputPayload = [
@@ -1183,12 +1257,13 @@ exports.apiGetVideoStatus = onRequest(
             }
           ];
         } else {
-          inputPayload = gen.prompt;
+          inputPayload = promptWithDuration;
         }
 
         const interaction = await ai.interactions.create({
           model: modelId,
-          input: inputPayload
+          input: inputPayload,
+          response_format: buildVideoResponseFormat(gen)
         });
 
         if (interaction && interaction.output_video && interaction.output_video.data) {
