@@ -25,8 +25,10 @@ import {
   orderBy,
   limit,
   getDocs,
+  deleteDoc,
 } from "firebase/firestore";
-import { auth, db, rtdb } from "../lib/firebase";
+import { ref as storageRef, listAll, deleteObject } from "firebase/storage";
+import { auth, db, rtdb, storage } from "../lib/firebase";
 import { ref, onValue } from "firebase/database";
 
 export interface Profile {
@@ -134,8 +136,62 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
       // Intercept /api/generations history loading calls and query Firestore directly
       if (path.startsWith("/api/generations")) {
+        const url = new URL(path, window.location.origin);
+        const id = url.searchParams.get("id");
+
+        // Handle deletion of a generation (documents and associated Storage files)
+        if (init?.method === "DELETE" && id) {
+          try {
+            // 1. Delete Firestore document
+            await deleteDoc(doc(db, "generations", id));
+            console.log(`Deleted Firestore document: generations/${id}`);
+
+            // 2. Recursively delete matching files in Cloud Storage
+            const deleteStoragePrefix = async (prefixPath: string) => {
+              const listRef = storageRef(storage, prefixPath);
+              const res = await listAll(listRef);
+              for (const item of res.items) {
+                try {
+                  await deleteObject(item);
+                  console.log(`Deleted storage file: ${item.fullPath}`);
+                } catch (err) {
+                  console.error(`Failed to delete storage file: ${item.fullPath}`, err);
+                }
+              }
+              for (const prefix of res.prefixes) {
+                await deleteStoragePrefix(prefix.fullPath);
+              }
+            };
+
+            // List generations/${uid} root folder to find output files (id.mp4, id.png, etc.)
+            const rootRef = storageRef(storage, `generations/${current.uid}`);
+            const rootRes = await listAll(rootRef);
+            for (const item of rootRes.items) {
+              if (item.name.startsWith(`${id}.`)) {
+                try {
+                  await deleteObject(item);
+                  console.log(`Deleted output storage file: ${item.fullPath}`);
+                } catch (err) {
+                  console.error(`Failed to delete output storage file: ${item.fullPath}`, err);
+                }
+              }
+            }
+
+            // Recursively delete input files under generations/${uid}/${id}/ folder
+            try {
+              await deleteStoragePrefix(`generations/${current.uid}/${id}`);
+            } catch (err) {
+              console.error(`Failed to delete input storage folder: generations/${current.uid}/${id}`, err);
+            }
+
+            return { success: true } as unknown as T;
+          } catch (err) {
+            console.error("Failed to delete generation and its files:", err);
+            throw err;
+          }
+        }
+
         try {
-          const url = new URL(path, window.location.origin);
           const type = url.searchParams.get("type");
 
           let q = query(

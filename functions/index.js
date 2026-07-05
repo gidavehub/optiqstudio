@@ -985,12 +985,13 @@ exports.videoStatus = onRequest(
         const duration = gen.durationSeconds || 8;
         console.log(`Polling/Generating video for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
 
-        const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
-        if (imageBase64) console.log(`Integrating reference image (${imageBase64.length} b64 chars)`);
+        const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+        if (images.length) console.log(`Integrating ${images.length} reference image(s)`);
         if (videoBase64) console.log(`Integrating reference video (${videoBase64.length} b64 chars)`);
         if (audioBase64) console.log(`Integrating reference audio (${audioBase64.length} b64 chars)`);
 
         const video = await generateOmniVideo(buildVideoPrompt(gen), {
+          images,
           imageBase64,
           imageMimeType: gen.imageMimeType,
           videoBase64,
@@ -1229,12 +1230,13 @@ exports.apiGetVideoStatus = onRequest(
         const duration = gen.durationSeconds || 8;
         console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
 
-        const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
-        if (imageBase64) console.log(`Integrating API reference image (${imageBase64.length} b64 chars)`);
+        const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+        if (images.length) console.log(`Integrating ${images.length} API reference image(s)`);
         if (videoBase64) console.log(`Integrating API reference video (${videoBase64.length} b64 chars)`);
         if (audioBase64) console.log(`Integrating API reference audio (${audioBase64.length} b64 chars)`);
 
         const video = await generateOmniVideo(buildVideoPrompt(gen), {
+          images,
           imageBase64,
           imageMimeType: gen.imageMimeType,
           videoBase64,
