@@ -757,6 +757,8 @@ exports.videoGenerate = onRequest(
         imageMimeType,
         videoBase64,
         videoMimeType,
+        audioBase64,
+        audioMimeType,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
@@ -780,6 +782,8 @@ exports.videoGenerate = onRequest(
         imageMimeType: imageMimeType || null,
         videoBase64: videoBase64 || null,
         videoMimeType: videoMimeType || null,
+        audioBase64: audioBase64 || null,
+        audioMimeType: audioMimeType || null,
         createdAt: new Date().toISOString(),
       });
 
@@ -850,40 +854,42 @@ exports.videoStatus = onRequest(
         });
 
         let inputPayload;
-        if (gen.imageBase64 && gen.imageMimeType) {
-          console.log(`Integrating reference image with base64 length: ${gen.imageBase64.length}`);
+        if (gen.imageBase64 || gen.videoBase64 || gen.audioBase64) {
+          const content = [];
+          if (gen.imageBase64 && gen.imageMimeType) {
+            console.log(`Integrating reference image with base64 length: ${gen.imageBase64.length}`);
+            content.push({
+              type: "image",
+              data: gen.imageBase64,
+              mime_type: gen.imageMimeType
+            });
+          } else if (gen.videoBase64 && gen.videoMimeType) {
+            console.log(`Integrating reference video with base64 length: ${gen.videoBase64.length}`);
+            content.push({
+              type: "video",
+              data: gen.videoBase64,
+              mime_type: gen.videoMimeType
+            });
+          }
+
+          if (gen.audioBase64 && gen.audioMimeType) {
+            console.log(`Integrating reference audio with base64 length: ${gen.audioBase64.length}`);
+            content.push({
+              type: "audio",
+              data: gen.audioBase64,
+              mime_type: gen.audioMimeType
+            });
+          }
+
+          content.push({
+            type: "text",
+            text: gen.prompt
+          });
+
           inputPayload = [
             {
               type: "user_input",
-              content: [
-                {
-                  type: "image",
-                  data: gen.imageBase64,
-                  mime_type: gen.imageMimeType
-                },
-                {
-                  type: "text",
-                  text: gen.prompt
-                }
-              ]
-            }
-          ];
-        } else if (gen.videoBase64 && gen.videoMimeType) {
-          console.log(`Integrating reference video with base64 length: ${gen.videoBase64.length}`);
-          inputPayload = [
-            {
-              type: "user_input",
-              content: [
-                {
-                  type: "video",
-                  data: gen.videoBase64,
-                  mime_type: gen.videoMimeType
-                },
-                {
-                  type: "text",
-                  text: gen.prompt
-                }
-              ]
+              content
             }
           ];
         } else {
@@ -1043,6 +1049,8 @@ exports.apiGenerateVideo = onRequest(
         imageMimeType,
         videoBase64,
         videoMimeType,
+        audioBase64,
+        audioMimeType,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
@@ -1066,6 +1074,8 @@ exports.apiGenerateVideo = onRequest(
         imageMimeType: imageMimeType || null,
         videoBase64: videoBase64 || null,
         videoMimeType: videoMimeType || null,
+        audioBase64: audioBase64 || null,
+        audioMimeType: audioMimeType || null,
         createdAt: new Date().toISOString(),
       });
 
@@ -1134,40 +1144,42 @@ exports.apiGetVideoStatus = onRequest(
         });
 
         let inputPayload;
-        if (gen.imageBase64 && gen.imageMimeType) {
-          console.log(`Integrating API reference image with base64 length: ${gen.imageBase64.length}`);
+        if (gen.imageBase64 || gen.videoBase64 || gen.audioBase64) {
+          const content = [];
+          if (gen.imageBase64 && gen.imageMimeType) {
+            console.log(`Integrating API reference image with base64 length: ${gen.imageBase64.length}`);
+            content.push({
+              type: "image",
+              data: gen.imageBase64,
+              mime_type: gen.imageMimeType
+            });
+          } else if (gen.videoBase64 && gen.videoMimeType) {
+            console.log(`Integrating API reference video with base64 length: ${gen.videoBase64.length}`);
+            content.push({
+              type: "video",
+              data: gen.videoBase64,
+              mime_type: gen.videoMimeType
+            });
+          }
+
+          if (gen.audioBase64 && gen.audioMimeType) {
+            console.log(`Integrating API reference audio with base64 length: ${gen.audioBase64.length}`);
+            content.push({
+              type: "audio",
+              data: gen.audioBase64,
+              mime_type: gen.audioMimeType
+            });
+          }
+
+          content.push({
+            type: "text",
+            text: gen.prompt
+          });
+
           inputPayload = [
             {
               type: "user_input",
-              content: [
-                {
-                  type: "image",
-                  data: gen.imageBase64,
-                  mime_type: gen.imageMimeType
-                },
-                {
-                  type: "text",
-                  text: gen.prompt
-                }
-              ]
-            }
-          ];
-        } else if (gen.videoBase64 && gen.videoMimeType) {
-          console.log(`Integrating API reference video with base64 length: ${gen.videoBase64.length}`);
-          inputPayload = [
-            {
-              type: "user_input",
-              content: [
-                {
-                  type: "video",
-                  data: gen.videoBase64,
-                  mime_type: gen.videoMimeType
-                },
-                {
-                  type: "text",
-                  text: gen.prompt
-                }
-              ]
+              content
             }
           ];
         } else {

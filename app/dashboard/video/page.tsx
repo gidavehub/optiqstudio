@@ -21,6 +21,7 @@ import {
   Flame,
   DollarSign,
   UploadCloud,
+  Mic,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
@@ -178,6 +179,39 @@ function CustomVideoPlayer({ src, aspect }: CustomVideoPlayerProps) {
   );
 }
 
+function AudioPlayerPreview({ audio }: { audio: { preview: string; name: string } }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-neutral-900 border border-neutral-800 px-2.5 py-1.5 shrink-0 select-none">
+      <audio ref={audioRef} src={audio.preview} onEnded={() => setIsPlaying(false)} className="hidden" />
+      <button 
+        type="button"
+        onClick={togglePlay} 
+        className="p-1 rounded-full bg-neutral-800 hover:bg-neutral-700 transition-colors text-violet-400 hover:text-violet-300 flex items-center justify-center shrink-0"
+      >
+        {isPlaying ? <Pause size={10} /> : <Play size={10} />}
+      </button>
+      <span className="text-[10px] text-neutral-300 font-mono max-w-[120px] truncate" title={audio.name}>
+        {audio.name}
+      </span>
+    </div>
+  );
+}
+
 function VideoWorkspace() {
   const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
@@ -219,6 +253,8 @@ function VideoWorkspace() {
       } else if (file.type.startsWith("image/")) {
         attachImage(file);
         setVideoFile(null);
+      } else if (file.type.startsWith("audio/")) {
+        attachAudio(file);
       }
     }
   };
@@ -259,6 +295,8 @@ function VideoWorkspace() {
       } else if (file.type.startsWith("image/")) {
         attachImage(file);
         setVideoFile(null);
+      } else if (file.type.startsWith("audio/")) {
+        attachAudio(file);
       }
     }
   };
@@ -277,6 +315,7 @@ function VideoWorkspace() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [videoFile, setVideoFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  const [audioFile, setAudioFile] = useState<{ base64: string; mimeType: string; preview: string; name: string } | null>(null);
 
   // States
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -370,6 +409,16 @@ function VideoWorkspace() {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
       setVideoFile({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const attachAudio = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setAudioFile({ base64, mimeType: file.type, preview: dataUrl, name: file.name });
     };
     reader.readAsDataURL(file);
   };
@@ -488,11 +537,14 @@ function VideoWorkspace() {
           imageMimeType: image?.mimeType,
           videoBase64: videoFile?.base64,
           videoMimeType: videoFile?.mimeType,
+          audioBase64: audioFile?.base64,
+          audioMimeType: audioFile?.mimeType,
         }),
       });
 
       setImage(null);
       setVideoFile(null);
+      setAudioFile(null);
       void refreshProfile();
       setPhase("idle");
 
@@ -577,11 +629,14 @@ function VideoWorkspace() {
           imageMimeType: image?.mimeType,
           videoBase64: videoFile?.base64,
           videoMimeType: videoFile?.mimeType,
+          audioBase64: audioFile?.base64,
+          audioMimeType: audioFile?.mimeType,
         }),
       });
 
       setImage(null);
       setVideoFile(null);
+      setAudioFile(null);
       void refreshProfile();
       setPhase("idle");
 
@@ -839,6 +894,16 @@ function VideoWorkspace() {
                       </div>
                     )}
 
+                    {audioFile && (
+                      <div className="flex items-center gap-3">
+                        <AudioPlayerPreview audio={audioFile} />
+                        <button onClick={() => setAudioFile(null)} className="text-neutral-500 hover:text-white">
+                          <X size={14} />
+                        </button>
+                        <span className="text-[10px] text-neutral-500 font-mono">Voice reference attached</span>
+                      </div>
+                    )}
+
                     <div 
                       className="relative flex items-center gap-3 rounded-xl border border-neutral-800 bg-[#0c0c0e] p-2.5 shadow-inner transition-all duration-300"
                       onDragEnter={handleDragEnterRefine}
@@ -854,25 +919,40 @@ function VideoWorkspace() {
                         </div>
                       )}
 
-                      <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
-                        <ImagePlus size={16} />
-                        <input
-                          type="file"
-                          accept="image/*,video/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.type.startsWith("video/")) {
-                              attachVideo(file);
-                              setImage(null);
-                            } else {
-                              attachImage(file);
-                              setVideoFile(null);
-                            }
-                          }}
-                        />
-                      </label>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
+                          <ImagePlus size={16} />
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.type.startsWith("video/")) {
+                                attachVideo(file);
+                                setImage(null);
+                              } else {
+                                attachImage(file);
+                                setVideoFile(null);
+                              }
+                            }}
+                          />
+                        </label>
+                        <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach voice reference (audio)">
+                          <Mic size={16} />
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              attachAudio(file);
+                            }}
+                          />
+                        </label>
+                      </div>
                       
                       <textarea
                         rows={1}
@@ -1054,6 +1134,16 @@ function VideoWorkspace() {
               </div>
             )}
 
+            {audioFile && (
+              <div className="mb-3 flex items-center gap-3">
+                <AudioPlayerPreview audio={audioFile} />
+                <button onClick={() => setAudioFile(null)} className="text-neutral-500 hover:text-white">
+                  <X size={14} />
+                </button>
+                <span className="text-xs text-neutral-500">Voice reference attached</span>
+              </div>
+            )}
+
             <div 
               className="relative flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 w-full shadow-inner transition-all duration-300"
               onDragEnter={handleDragEnterBottom}
@@ -1065,30 +1155,45 @@ function VideoWorkspace() {
               {isDraggingBottom && (
                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
                   <UploadCloud size={24} className="text-white animate-pulse animate-bounce-subtle" />
-                  <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Image or Video</span>
-                  <span className="text-[10px] text-neutral-500 mt-1">To use as a visual generation reference</span>
+                  <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Image, Video or Audio</span>
+                  <span className="text-[10px] text-neutral-500 mt-1">To use as a visual reference or voice profile</span>
                 </div>
               )}
 
-              <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
-                <ImagePlus size={17} />
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.type.startsWith("video/")) {
-                      attachVideo(file);
-                      setImage(null);
-                    } else {
-                      attachImage(file);
-                      setVideoFile(null);
-                    }
-                  }}
-                />
-              </label>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
+                  <ImagePlus size={17} />
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.type.startsWith("video/")) {
+                        attachVideo(file);
+                        setImage(null);
+                      } else {
+                        attachImage(file);
+                        setVideoFile(null);
+                      }
+                    }}
+                  />
+                </label>
+                <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach voice reference (audio)">
+                  <Mic size={17} />
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      attachAudio(file);
+                    }}
+                  />
+                </label>
+              </div>
               <textarea
                 rows={1}
                 value={prompt}

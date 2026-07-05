@@ -109,6 +109,18 @@ curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateVide
     "videoMimeType": "video/mp4"
   }'
 
+Request Example (With Audio Reference Attachment):
+curl -X POST "https://us-east4-davelabs-tools.cloudfunctions.net/apiGenerateVideo" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "Cinematic tracking shot of a presenter talking, Yoruba traditional clothes, matching the voice tone of the attached sample",
+    "model": "omni",
+    "durationSeconds": 8,
+    "audioBase64": "UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+    "audioMimeType": "audio/wav"
+  }'
+
 Response Example:
 {
   "id": "gen_4jSk2Lp0As1",
@@ -460,7 +472,7 @@ Response Example:
                       </div>
                       
                       <p className="text-[13px] leading-relaxed text-neutral-400">
-                        Generates high-motion cinematic video using <code className="font-mono text-neutral-300">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion. You can optionally attach reference images or videos (using <code className="font-mono text-neutral-300">imageBase64</code>/<code className="font-mono text-neutral-300">imageMimeType</code> or <code className="font-mono text-neutral-300">videoBase64</code>/<code className="font-mono text-neutral-300">videoMimeType</code>) to guide the first frame of the generated output.
+                        Generates high-motion cinematic video using <code className="font-mono text-neutral-300">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion. You can optionally attach reference images or videos (using <code className="font-mono text-neutral-300">imageBase64</code>/<code className="font-mono text-neutral-300">imageMimeType</code> or <code className="font-mono text-neutral-300">videoBase64</code>/<code className="font-mono text-neutral-300">videoMimeType</code>) to guide the first frame of the generated output, as well as an audio voice reference (using <code className="font-mono text-neutral-300">audioBase64</code>/<code className="font-mono text-neutral-300">audioMimeType</code>) to extract and clone custom voice profiles for character speech.
                       </p>
 
                       <div>
