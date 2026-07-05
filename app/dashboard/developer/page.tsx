@@ -276,7 +276,7 @@ Response Example (Completed):
 --------------------------------------------------
 
 D. TEXT-TO-SPEECH (POST /apiGenerateTTS)
-Compiles studio-grade narrative speech recordings using gemini-2.5-flash-preview-tts.
+Compiles studio-grade narrative speech recordings using gemini-3.1-flash-preview-tts.
 Cost: 1 Credit / 100 Characters
 
 Request Example:
@@ -694,7 +694,7 @@ Response Example:
                       </span>
                     </div>
                     <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Generate hyper-realistic natural speech audio using <code className="font-mono text-neutral-300">gemini-2.5-flash-preview-tts</code>. Customize delivery style directions like accents, dramatic pause, and tone.
+                      Generate hyper-realistic natural speech audio using <code className="font-mono text-neutral-300">gemini-3.1-flash-preview-tts</code>. Customize delivery style directions like accents, dramatic pause, and tone.
                     </p>
 
                     <div>

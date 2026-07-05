@@ -35,7 +35,7 @@ async function testTTS(url, payload) {
 }
 
 async function run() {
-  const model = "gemini-2.5-flash-tts";
+  const model = "gemini-3.1-flash-tts";
   const body = {
     contents: [{ role: "user", parts: [{ text: "Hello from The Gambia. Today we talk about Giga." }] }],
     generationConfig: {

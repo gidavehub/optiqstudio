@@ -110,7 +110,7 @@ function pcmToWav(pcmBase64, sampleRate) {
 async function vertexFetch(endpoint, body) {
   const token = await getAccessToken();
   let url;
-  if (endpoint.includes("gemini-3.1-flash") || endpoint.includes("gemini-omni-flash-preview") || endpoint.includes("gemini-2.5-flash")) {
+  if (endpoint.includes("gemini-3.1-flash") || endpoint.includes("gemini-omni-flash-preview") || endpoint.includes("gemini-3.5-flash")) {
     url = `https://aiplatform.googleapis.com/v1beta1/projects/${PROJECT}/locations/global${endpoint}`;
   } else {
     url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT}/locations/${LOCATION}${endpoint}`;

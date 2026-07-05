@@ -28,9 +28,9 @@ export const MODELS = {
   /** Image generation — gemini-3.1-flash-image-preview. */
   image: "gemini-3.1-flash-image-preview",
   /** Text: prompt enhancement, titles, metadata. */
-  text: process.env.TEXT_MODEL_ID || "gemini-2.5-flash",
+  text: process.env.TEXT_MODEL_ID || "gemini-3.5-flash",
   /** Native TTS with prebuilt voices. */
-  tts: process.env.TTS_MODEL_ID || "gemini-2.5-flash-preview-tts",
+  tts: process.env.TTS_MODEL_ID || "gemini-3.1-flash-preview-tts",
 };
 
 export class VertexError extends Error {

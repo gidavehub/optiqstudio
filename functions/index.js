@@ -16,7 +16,6 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleAuth } = require("google-auth-library");
-const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
@@ -257,32 +256,17 @@ exports.generateVideo = onRequest(
         return res.status(400).json({ error: "Missing prompt" });
       }
 
-      const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
       const model = "gemini-omni-flash-preview";
+      console.log(`Starting video generation with model: ${model} via generateContent`);
 
-      console.log(`Starting video generation with model: ${model} using unified GenAI SDK`);
-      const ai = new GoogleGenAI({
-        vertexai: true,
-        project: projectId,
-        location: "global"
-      });
-
-      const interaction = await ai.interactions.create({
+      const video = await generateOmniVideo(prompt);
+      console.log(`Successfully generated video with model: ${model}`);
+      return res.status(200).json({
+        success: true,
         model: model,
-        input: prompt
+        base64: video.base64,
+        mimeType: video.mimeType,
       });
-
-      if (interaction && interaction.output_video && interaction.output_video.data) {
-        console.log(`Successfully generated video with model: ${model}`);
-        return res.status(200).json({
-          success: true,
-          model: model,
-          base64: interaction.output_video.data,
-          mimeType: interaction.output_video.mime_type || "video/mp4"
-        });
-      } else {
-        throw new Error("No video data in interaction response");
-      }
     } catch (error) {
       console.error("generateVideo error:", error);
       return res.status(500).json({ error: error.message });
@@ -408,7 +392,7 @@ async function vertexFetch(path, body) {
   const token = await getAccessToken();
   const projectId = "davelabs-tools";
   let url;
-  if (path.includes("gemini-3.1-flash-image-preview") || path.includes("gemini-omni-flash-preview") || path.includes("gemini-2.5-flash")) {
+  if (path.includes("gemini-3.1-flash-image-preview") || path.includes("gemini-omni-flash-preview") || path.includes("gemini-3.5-flash")) {
     url = `https://aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/global${path}`;
   } else {
     url = `https://us-east4-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-east4${path}`;
@@ -534,15 +518,49 @@ async function loadReferenceMedia(gen) {
   };
 }
 
-// Builds the structured video response_format for the interactions API. This is
-// how output duration and aspect ratio are actually enforced — passing them only
-// as prose in the prompt does nothing, so the model fell back to its ~10s default.
-function buildVideoResponseFormat(gen) {
-  return {
-    type: "video",
-    aspect_ratio: gen.aspectRatio === "9:16" ? "9:16" : "16:9",
-    duration: `${gen.durationSeconds || 8}s`,
-  };
+// Generates a video with gemini-omni-flash-preview via generateContent. This
+// model only emits video through the TEXT+VIDEO response modality — a bare
+// ["VIDEO"] request is rejected with INVALID_ARGUMENT — and its video_config
+// exposes no duration/aspect fields, so the previous interactions.create call
+// (which just hung indefinitely) and any structured duration control are not
+// options here. Returns { base64, mimeType }.
+async function generateOmniVideo(prompt, media) {
+  const model = "gemini-omni-flash-preview";
+  const parts = [];
+  if (media && media.imageBase64 && media.imageMimeType) {
+    parts.push({ inlineData: { data: media.imageBase64, mimeType: media.imageMimeType } });
+  } else if (media && media.videoBase64 && media.videoMimeType) {
+    parts.push({ inlineData: { data: media.videoBase64, mimeType: media.videoMimeType } });
+  }
+  if (media && media.audioBase64 && media.audioMimeType) {
+    parts.push({ inlineData: { data: media.audioBase64, mimeType: media.audioMimeType } });
+  }
+  parts.push({ text: prompt });
+
+  const response = await vertexFetch(
+    `/publishers/google/models/${model}:generateContent`,
+    {
+      contents: [{ role: "user", parts }],
+      generationConfig: { responseModalities: ["TEXT", "VIDEO"] },
+    }
+  );
+
+  const videoPart = response.candidates?.[0]?.content?.parts?.find(
+    (p) => p.inlineData && String(p.inlineData.mimeType || "").startsWith("video")
+  );
+  if (!videoPart?.inlineData?.data) {
+    throw new Error("No video data in Vertex AI response");
+  }
+  return { base64: videoPart.inlineData.data, mimeType: videoPart.inlineData.mimeType || "video/mp4" };
+}
+
+// gemini-omni-flash-preview has no structured video config, so duration/aspect/
+// negative hints are woven into the prompt on a best-effort basis.
+function buildVideoPrompt(gen) {
+  const duration = gen.durationSeconds || 8;
+  const aspectHint = gen.aspectRatio ? ` Framed for a ${gen.aspectRatio} aspect ratio.` : "";
+  const negativeHint = gen.negativePrompt ? ` Avoid: ${gen.negativePrompt}.` : "";
+  return `${gen.prompt} (Render an approximately ${duration}-second video.${aspectHint}${negativeHint})`;
 }
 
 function pcmToWav(pcmBase64, sampleRate) {
@@ -574,7 +592,7 @@ exports.enhancePrompt = onRequest(
       const { prompt } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const textModel = "gemini-2.5-flash";
+      const textModel = "gemini-3.5-flash";
       const response = await vertexFetch(
         `/publishers/google/models/${textModel}:generateContent`,
         {
@@ -754,7 +772,7 @@ exports.voiceGenerate = onRequest(
       let audio;
       try {
         const promptText = style ? `${style}:\n\n${text}` : text;
-        const model = "gemini-2.5-flash-preview-tts";
+        const model = "gemini-3.1-flash-preview-tts";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {
@@ -907,89 +925,38 @@ exports.videoStatus = onRequest(
       }
 
       try {
-        const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
-        const modelId = "gemini-omni-flash-preview";
-
         const duration = gen.durationSeconds || 8;
         console.log(`Polling/Generating video for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
-        const ai = new GoogleGenAI({
-          vertexai: true,
-          project: projectId,
-          location: "global"
-        });
 
         const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+        if (imageBase64) console.log(`Integrating reference image (${imageBase64.length} b64 chars)`);
+        if (videoBase64) console.log(`Integrating reference video (${videoBase64.length} b64 chars)`);
+        if (audioBase64) console.log(`Integrating reference audio (${audioBase64.length} b64 chars)`);
 
-        let inputPayload;
-        const negativeHint = gen.negativePrompt ? ` Avoid: ${gen.negativePrompt}.` : "";
-        const promptWithDuration = `${gen.prompt} (Please generate a video of exactly ${duration} seconds duration.${negativeHint})`;
-        if (imageBase64 || videoBase64 || audioBase64) {
-          const content = [];
-          if (imageBase64 && gen.imageMimeType) {
-            console.log(`Integrating reference image with base64 length: ${imageBase64.length}`);
-            content.push({
-              type: "image",
-              data: imageBase64,
-              mime_type: gen.imageMimeType
-            });
-          } else if (videoBase64 && gen.videoMimeType) {
-            console.log(`Integrating reference video with base64 length: ${videoBase64.length}`);
-            content.push({
-              type: "video",
-              data: videoBase64,
-              mime_type: gen.videoMimeType
-            });
-          }
-
-          if (audioBase64 && gen.audioMimeType) {
-            console.log(`Integrating reference audio with base64 length: ${audioBase64.length}`);
-            content.push({
-              type: "audio",
-              data: audioBase64,
-              mime_type: gen.audioMimeType
-            });
-          }
-
-          content.push({
-            type: "text",
-            text: promptWithDuration
-          });
-
-          inputPayload = [
-            {
-              type: "user_input",
-              content
-            }
-          ];
-        } else {
-          inputPayload = promptWithDuration;
-        }
-
-        const interaction = await ai.interactions.create({
-          model: modelId,
-          input: inputPayload,
-          response_format: buildVideoResponseFormat(gen)
+        const video = await generateOmniVideo(buildVideoPrompt(gen), {
+          imageBase64,
+          imageMimeType: gen.imageMimeType,
+          videoBase64,
+          videoMimeType: gen.videoMimeType,
+          audioBase64,
+          audioMimeType: gen.audioMimeType,
         });
 
-        if (interaction && interaction.output_video && interaction.output_video.data) {
-          const videoUrl = await uploadBase64(
-            interaction.output_video.data,
-            `generations/${gen.uid}/${id}.mp4`,
-            interaction.output_video.mime_type || "video/mp4"
-          );
+        const videoUrl = await uploadBase64(
+          video.base64,
+          `generations/${gen.uid}/${id}.mp4`,
+          video.mimeType
+        );
 
-          const update = {
-            status: "succeeded",
-            videoUrl,
-            mimeType: interaction.output_video.mime_type || "video/mp4",
-            completedAt: new Date().toISOString(),
-          };
+        const update = {
+          status: "succeeded",
+          videoUrl,
+          mimeType: video.mimeType,
+          completedAt: new Date().toISOString(),
+        };
 
-          await ref.update(update);
-          return res.status(200).json({ id, ...update });
-        } else {
-          throw new Error("No video data in interaction response");
-        }
+        await ref.update(update);
+        return res.status(200).json({ id, ...update });
       } catch (err) {
         console.error("Video generation background process failed:", err);
         await refundCredits(gen.uid, gen.cost || 0, `video ${id} failed`);
@@ -1202,89 +1169,38 @@ exports.apiGetVideoStatus = onRequest(
       }
 
       try {
-        const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
-        const modelId = "gemini-omni-flash-preview";
-
         const duration = gen.durationSeconds || 8;
         console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
-        const ai = new GoogleGenAI({
-          vertexai: true,
-          project: projectId,
-          location: "global"
-        });
 
         const { imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+        if (imageBase64) console.log(`Integrating API reference image (${imageBase64.length} b64 chars)`);
+        if (videoBase64) console.log(`Integrating API reference video (${videoBase64.length} b64 chars)`);
+        if (audioBase64) console.log(`Integrating API reference audio (${audioBase64.length} b64 chars)`);
 
-        let inputPayload;
-        const negativeHint = gen.negativePrompt ? ` Avoid: ${gen.negativePrompt}.` : "";
-        const promptWithDuration = `${gen.prompt} (Please generate a video of exactly ${duration} seconds duration.${negativeHint})`;
-        if (imageBase64 || videoBase64 || audioBase64) {
-          const content = [];
-          if (imageBase64 && gen.imageMimeType) {
-            console.log(`Integrating API reference image with base64 length: ${imageBase64.length}`);
-            content.push({
-              type: "image",
-              data: imageBase64,
-              mime_type: gen.imageMimeType
-            });
-          } else if (videoBase64 && gen.videoMimeType) {
-            console.log(`Integrating API reference video with base64 length: ${videoBase64.length}`);
-            content.push({
-              type: "video",
-              data: videoBase64,
-              mime_type: gen.videoMimeType
-            });
-          }
-
-          if (audioBase64 && gen.audioMimeType) {
-            console.log(`Integrating API reference audio with base64 length: ${audioBase64.length}`);
-            content.push({
-              type: "audio",
-              data: audioBase64,
-              mime_type: gen.audioMimeType
-            });
-          }
-
-          content.push({
-            type: "text",
-            text: promptWithDuration
-          });
-
-          inputPayload = [
-            {
-              type: "user_input",
-              content
-            }
-          ];
-        } else {
-          inputPayload = promptWithDuration;
-        }
-
-        const interaction = await ai.interactions.create({
-          model: modelId,
-          input: inputPayload,
-          response_format: buildVideoResponseFormat(gen)
+        const video = await generateOmniVideo(buildVideoPrompt(gen), {
+          imageBase64,
+          imageMimeType: gen.imageMimeType,
+          videoBase64,
+          videoMimeType: gen.videoMimeType,
+          audioBase64,
+          audioMimeType: gen.audioMimeType,
         });
 
-        if (interaction && interaction.output_video && interaction.output_video.data) {
-          const videoUrl = await uploadBase64(
-            interaction.output_video.data,
-            `generations/${gen.uid}/${id}.mp4`,
-            interaction.output_video.mime_type || "video/mp4"
-          );
+        const videoUrl = await uploadBase64(
+          video.base64,
+          `generations/${gen.uid}/${id}.mp4`,
+          video.mimeType
+        );
 
-          const update = {
-            status: "succeeded",
-            videoUrl,
-            mimeType: interaction.output_video.mime_type || "video/mp4",
-            completedAt: new Date().toISOString(),
-          };
+        const update = {
+          status: "succeeded",
+          videoUrl,
+          mimeType: video.mimeType,
+          completedAt: new Date().toISOString(),
+        };
 
-          await ref.update(update);
-          return res.status(200).json({ id, ...update });
-        } else {
-          throw new Error("No video data in interaction response");
-        }
+        await ref.update(update);
+        return res.status(200).json({ id, ...update });
       } catch (err) {
         console.error("Video generation background process (API) failed:", err);
         await refundCredits(gen.uid, gen.cost || 0, `API: video ${id} failed`);
@@ -1323,7 +1239,7 @@ exports.apiGenerateTTS = onRequest(
       let audio;
       try {
         const promptText = style ? `${style}:\n\n${text}` : text;
-        const model = "gemini-2.5-flash-preview-tts";
+        const model = "gemini-3.1-flash-preview-tts";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {

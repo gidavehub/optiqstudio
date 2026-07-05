@@ -94,4 +94,4 @@ npm run dev
 | Cloud Functions (public webhook + plan expiry sweep) | `functions/index.js` |
 | Asset generator | `scripts/generate-assets.mjs` |
 
-Model IDs default to `gemini-omni-flash-preview`, `gemini-3.1-flash-image-preview`, `gemini-2.5-flash`, and `gemini-2.5-flash-preview-tts`.
+Model IDs default to `gemini-omni-flash-preview`, `gemini-3.1-flash-image-preview`, `gemini-3.5-flash`, and `gemini-3.1-flash-preview-tts`.
