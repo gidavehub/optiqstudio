@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { Download, ImagePlus, Loader2, Users, Wand2, X } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Download, ImagePlus, Loader2, UploadCloud, Users, Wand2, X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 
 interface CharacterItem {
@@ -21,6 +21,40 @@ export default function CharacterStudio() {
   const [error, setError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [characters, setCharacters] = useState<CharacterItem[]>([]);
+
+  // Drag and drop states and counters
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (dragCounter.current === 1) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      attach(file);
+    }
+  };
 
   const cost = pricing?.costs.characterSheet ?? 15;
 
@@ -104,7 +138,13 @@ export default function CharacterStudio() {
 
       <div className="mt-8 grid gap-8 md:grid-cols-[1fr_320px]">
         <div>
-          <div className="rounded-2xl border border-line bg-surface p-3">
+          <div 
+            className="relative rounded-2xl border border-line bg-surface p-3 transition-all duration-300"
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {reference && (
               <div className="mb-3 flex items-center gap-3 px-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -138,6 +178,15 @@ export default function CharacterStudio() {
                 {busy ? "Creating…" : `Create · ${cost}`}
               </button>
             </div>
+
+            {/* Gorgeous Drop Overlay for Characters Studio */}
+            {isDragging && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+                <UploadCloud size={24} className="text-white animate-pulse animate-bounce-subtle" />
+                <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Reference Image</span>
+                <span className="text-[10px] text-neutral-500 mt-1">To use as a character consistency model</span>
+              </div>
+            )}
           </div>
 
           {error && (

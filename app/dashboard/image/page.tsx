@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Image as ImageIcon,
@@ -11,6 +11,7 @@ import {
   Trash2,
   Check,
   Zap,
+  UploadCloud,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
@@ -50,6 +51,40 @@ export default function ImageStudioPage() {
 
   // Reference image attachment state
   const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+
+  // Drag and drop states and counters
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (dragCounter.current === 1) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      attachImage(file);
+    }
+  };
 
   const attachImage = (file: File) => {
     const reader = new FileReader();
@@ -210,7 +245,13 @@ export default function ImageStudioPage() {
             </div>
 
             {/* Reference Image Attachment (Optional) */}
-            <div className="space-y-2">
+            <div 
+              className="relative space-y-2 rounded-xl transition-all duration-300"
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <label className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest block">
                 Reference Image (Optional)
               </label>
@@ -246,11 +287,20 @@ export default function ImageStudioPage() {
                   <button
                     type="button"
                     onClick={() => setImage(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5 text-neutral-400 hover:text-red-400 transition-colors"
+                    className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5 text-neutral-400 hover:text-red-400 transition-colors cursor-pointer"
                     title="Remove attachment"
                   >
                     <Trash2 size={13} />
                   </button>
+                </div>
+              )}
+
+              {/* Gorgeous Drop Overlay for Image Studio */}
+              {isDragging && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+                  <UploadCloud size={24} className="text-white animate-pulse animate-bounce-subtle" />
+                  <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Image</span>
+                  <span className="text-[9px] text-neutral-500 mt-0.5">To use as style/composition reference</span>
                 </div>
               )}
             </div>

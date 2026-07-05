@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   Settings,
   Flame,
-  DollarSign
+  DollarSign,
+  UploadCloud,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
@@ -181,6 +182,86 @@ function VideoWorkspace() {
   const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Drag and drop states for Refinement Console
+  const [isDraggingRefine, setIsDraggingRefine] = useState(false);
+  const dragCounterRefine = useRef(0);
+
+  const handleDragEnterRefine = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRefine.current++;
+    if (dragCounterRefine.current === 1) {
+      setIsDraggingRefine(true);
+    }
+  };
+
+  const handleDragLeaveRefine = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRefine.current--;
+    if (dragCounterRefine.current === 0) {
+      setIsDraggingRefine(false);
+    }
+  };
+
+  const handleDragOverRefine = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropRefine = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRefine.current = 0;
+    setIsDraggingRefine(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith("video/")) {
+        attachVideo(file);
+        setImage(null);
+      } else if (file.type.startsWith("image/")) {
+        attachImage(file);
+        setVideoFile(null);
+      }
+    }
+  };
+
+  // Drag and drop states for Bottom Console
+  const [isDraggingBottom, setIsDraggingBottom] = useState(false);
+  const dragCounterBottom = useRef(0);
+
+  const handleDragEnterBottom = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterBottom.current++;
+    if (dragCounterBottom.current === 1) {
+      setIsDraggingBottom(true);
+    }
+  };
+
+  const handleDragLeaveBottom = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterBottom.current--;
+    if (dragCounterBottom.current === 0) {
+      setIsDraggingBottom(false);
+    }
+  };
+
+  const handleDragOverBottom = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropBottom = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterBottom.current = 0;
+    setIsDraggingBottom(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith("video/")) {
+        attachVideo(file);
+        setImage(null);
+      } else if (file.type.startsWith("image/")) {
+        attachImage(file);
+        setVideoFile(null);
+      }
+    }
+  };
 
   // Active inputs
   const [prompt, setPrompt] = useState(searchParams.get("prompt") ?? "");
@@ -758,7 +839,21 @@ function VideoWorkspace() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-[#0c0c0e] p-2.5 shadow-inner">
+                    <div 
+                      className="relative flex items-center gap-3 rounded-xl border border-neutral-800 bg-[#0c0c0e] p-2.5 shadow-inner transition-all duration-300"
+                      onDragEnter={handleDragEnterRefine}
+                      onDragOver={handleDragOverRefine}
+                      onDragLeave={handleDragLeaveRefine}
+                      onDrop={handleDropRefine}
+                    >
+                      {/* Gorgeous Drop Overlay for Refinement Console */}
+                      {isDraggingRefine && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+                          <UploadCloud size={20} className="text-white animate-pulse animate-bounce-subtle" />
+                          <span className="text-[10px] font-mono tracking-widest text-white mt-1 uppercase">Drop Media</span>
+                        </div>
+                      )}
+
                       <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
                         <ImagePlus size={16} />
                         <input
@@ -959,7 +1054,22 @@ function VideoWorkspace() {
               </div>
             )}
 
-            <div className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 w-full shadow-inner">
+            <div 
+              className="relative flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 w-full shadow-inner transition-all duration-300"
+              onDragEnter={handleDragEnterBottom}
+              onDragOver={handleDragOverBottom}
+              onDragLeave={handleDragLeaveBottom}
+              onDrop={handleDropBottom}
+            >
+              {/* Gorgeous Drop Overlay for Bottom Console */}
+              {isDraggingBottom && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+                  <UploadCloud size={24} className="text-white animate-pulse animate-bounce-subtle" />
+                  <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Image or Video</span>
+                  <span className="text-[10px] text-neutral-500 mt-1">To use as a visual generation reference</span>
+                </div>
+              )}
+
               <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media">
                 <ImagePlus size={17} />
                 <input

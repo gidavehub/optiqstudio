@@ -8,6 +8,7 @@ import {
   Loader2,
   Mic,
   Sparkles,
+  UploadCloud,
   UserSquare,
   Volume2,
   X,
@@ -57,6 +58,74 @@ export default function AvatarPage() {
   const [voiceName, setVoiceName] = useState<string>("");
   const [text, setText] = useState("");
   const [backend, setBackend] = useState<Backend>("musetalk");
+
+  // Drag and drop states and counters
+  const [isDraggingFace, setIsDraggingFace] = useState(false);
+  const dragCounterFace = useRef(0);
+
+  const [isDraggingVoice, setIsDraggingVoice] = useState(false);
+  const dragCounterVoice = useRef(0);
+
+  const handleDragEnterFace = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterFace.current++;
+    if (dragCounterFace.current === 1) {
+      setIsDraggingFace(true);
+    }
+  };
+
+  const handleDragLeaveFace = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterFace.current--;
+    if (dragCounterFace.current === 0) {
+      setIsDraggingFace(false);
+    }
+  };
+
+  const handleDragOverFace = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropFace = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterFace.current = 0;
+    setIsDraggingFace(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      setFace(await fileToUpload(file));
+    }
+  };
+
+  const handleDragEnterVoice = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterVoice.current++;
+    if (dragCounterVoice.current === 1) {
+      setIsDraggingVoice(true);
+    }
+  };
+
+  const handleDragLeaveVoice = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterVoice.current--;
+    if (dragCounterVoice.current === 0) {
+      setIsDraggingVoice(false);
+    }
+  };
+
+  const handleDragOverVoice = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropVoice = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterVoice.current = 0;
+    setIsDraggingVoice(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("audio/")) {
+      setVoice(await fileToUpload(file));
+      setVoiceName(file.name);
+    }
+  };
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -129,42 +198,70 @@ export default function AvatarPage() {
         </div>
 
         {/* Face */}
-        <div>
+        <div 
+          className="relative rounded-xl transition-all duration-300"
+          onDragEnter={handleDragEnterFace}
+          onDragOver={handleDragOverFace}
+          onDragLeave={handleDragLeaveFace}
+          onDrop={handleDropFace}
+        >
           <p className="eyebrow mb-2">Face image</p>
           {face ? (
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={face.preview} alt="Face" className="h-16 w-16 rounded-lg border border-neutral-800 object-cover" />
-              <button onClick={() => setFace(null)} className="text-neutral-500 hover:text-white">
+              <button onClick={() => setFace(null)} className="text-neutral-500 hover:text-white cursor-pointer">
                 <X size={16} />
               </button>
             </div>
           ) : (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-[#0d0d0e] px-3 py-3 text-xs text-neutral-400 hover:border-neutral-700">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-[#0d0d0e] px-3 py-3 text-xs text-neutral-400 hover:border-neutral-700 transition-colors">
               <ImagePlus size={16} /> Upload a frontal portrait
               <input type="file" accept="image/*" className="hidden"
                 onChange={async (e) => { const f = e.target.files?.[0]; if (f) setFace(await fileToUpload(f)); }} />
             </label>
           )}
+
+          {/* Gorgeous Drop Overlay for Face */}
+          {isDraggingFace && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/40 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+              <UploadCloud size={20} className="text-white animate-pulse animate-bounce-subtle" />
+              <span className="text-[10px] font-mono tracking-widest text-white mt-1 uppercase">Drop Portrait</span>
+            </div>
+          )}
         </div>
 
         {/* Voice */}
-        <div>
+        <div 
+          className="relative rounded-xl transition-all duration-300"
+          onDragEnter={handleDragEnterVoice}
+          onDragOver={handleDragOverVoice}
+          onDragLeave={handleDragLeaveVoice}
+          onDrop={handleDropVoice}
+        >
           <p className="eyebrow mb-2">Voice sample (6–15s)</p>
           {voice ? (
             <div className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2.5">
               <Volume2 size={15} className="text-neutral-300" />
               <span className="flex-1 truncate text-xs text-neutral-300">{voiceName || "voice sample"}</span>
-              <button onClick={() => { setVoice(null); setVoiceName(""); }} className="text-neutral-500 hover:text-white">
+              <button onClick={() => { setVoice(null); setVoiceName(""); }} className="text-neutral-500 hover:text-white cursor-pointer">
                 <X size={14} />
               </button>
             </div>
           ) : (
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-[#0d0d0e] px-3 py-3 text-xs text-neutral-400 hover:border-neutral-700">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-800 bg-[#0d0d0e] px-3 py-3 text-xs text-neutral-400 hover:border-neutral-700 transition-colors">
               <Mic size={16} /> Upload a voice clip to clone
               <input type="file" accept="audio/*" className="hidden"
                 onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setVoice(await fileToUpload(f)); setVoiceName(f.name); } }} />
             </label>
+          )}
+
+          {/* Gorgeous Drop Overlay for Voice */}
+          {isDraggingVoice && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/40 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+              <UploadCloud size={20} className="text-white animate-pulse animate-bounce-subtle" />
+              <span className="text-[10px] font-mono tracking-widest text-white mt-1 uppercase">Drop Audio</span>
+            </div>
           )}
         </div>
 
