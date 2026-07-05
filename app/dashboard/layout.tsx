@@ -14,6 +14,7 @@ import {
   Users,
   Code,
   Image,
+  UserSquare,
 } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 
@@ -22,6 +23,7 @@ const RAIL = [
   { label: "Video Studio", href: "/dashboard/video", icon: Clapperboard },
   { label: "Image Studio", href: "/dashboard/image", icon: Image },
   { label: "Voice Studio", href: "/dashboard/audio", icon: Mic },
+  { label: "Avatar Studio", href: "/dashboard/avatar", icon: UserSquare },
   { label: "Characters", href: "/dashboard/characters", icon: Users },
   { label: "Assets", href: "/dashboard/assets", icon: FolderOpen },
   { label: "Plan & Credits", href: "/dashboard/billing", icon: CreditCard },

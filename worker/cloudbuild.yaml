@@ -1,0 +1,36 @@
+# Builds one backend image in Cloud Build (no local Docker) and pushes to
+# Artifact Registry. Invoke per backend:
+#
+#   gcloud builds submit worker \
+#     --config worker/cloudbuild.yaml \
+#     --substitutions=_BACKEND=musetalk
+#
+#   gcloud builds submit worker \
+#     --config worker/cloudbuild.yaml \
+#     --substitutions=_BACKEND=latentsync
+#
+# GPU model builds are large; the e2-highcpu-32 machine keeps them reasonable.
+substitutions:
+  _BACKEND: musetalk
+  _REGION: us-central1
+  _REPO: optiq-avatar
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=LIPSYNC_BACKEND=${_BACKEND}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_BACKEND}:latest
+      - -f
+      - Dockerfile
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_BACKEND}:latest
+
+options:
+  machineType: E2_HIGHCPU_32
+  diskSizeGb: 200
+
+timeout: 3600s

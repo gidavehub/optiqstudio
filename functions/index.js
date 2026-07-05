@@ -1231,6 +1231,106 @@ exports.apiGenerateTTS = onRequest(
   }
 );
 
+function avatarSeconds(text) {
+  return Math.max(1, Math.ceil(text.length / 15));
+}
+
+function avatarCost(text, backend) {
+  const ttsCost = Math.max(15, Math.ceil(text.length / 100) * 10);
+  const perSec = backend === "latentsync" ? 60 : 20;
+  return ttsCost + perSec * avatarSeconds(text);
+}
+
+exports.avatarGenerate = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 300 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const user = await requireAuth(req);
+      const {
+        text,
+        backend = "musetalk",
+        faceBase64,
+        faceMimeType = "image/png",
+        voiceBase64,
+        voiceMimeType = "audio/wav",
+      } = req.body;
+
+      if (!text) return res.status(400).json({ error: "Script text is required" });
+      if (!faceBase64) return res.status(400).json({ error: "A face image is required" });
+      if (!voiceBase64) return res.status(400).json({ error: "A voice sample is required" });
+
+      const submitUrl = process.env.MODAL_SUBMIT_URL || "https://davelabs01--optiq-avatar-submit.modal.run";
+      const submitToken = process.env.OPTIQ_SUBMIT_TOKEN || "f8f3ebbc85ff9b47a686c849ab0635910a7dc9e65595e5cd";
+
+      if (!submitUrl || !submitToken) {
+        return res.status(500).json({ error: "Avatar service is not configured" });
+      }
+
+      const cost = avatarCost(text, backend);
+      try {
+        await chargeCredits(user.uid, cost, `avatar:${backend}`);
+      } catch (e) {
+        return res.status(402).json({ error: e.message || "Insufficient credits" });
+      }
+
+      const jobId = `avatar_${crypto.randomUUID()}`;
+      const faceExt = faceMimeType.includes("png") ? "png" : "jpg";
+      const facePath = `inputs/${jobId}/face.${faceExt}`;
+      const voicePath = `inputs/${jobId}/voice.wav`;
+      const outputPath = `outputs/${jobId}.mp4`;
+
+      try {
+        const bucket = admin.storage().bucket(STORAGE_BUCKET);
+        await bucket.file(facePath).save(Buffer.from(faceBase64, "base64"), {
+          contentType: faceMimeType,
+          resumable: false,
+        });
+        await bucket.file(voicePath).save(Buffer.from(voiceBase64, "base64"), {
+          contentType: voiceMimeType,
+          resumable: false,
+        });
+
+        await db.collection("generations").doc(jobId).set({
+          uid: user.uid,
+          type: "avatar",
+          backend,
+          text,
+          prompt: text,
+          faceImagePath: facePath,
+          voiceSamplePath: voicePath,
+          outputPath,
+          status: "queued",
+          progress: 0,
+          error: null,
+          cost,
+          createdAt: new Date().toISOString(),
+        });
+
+        const r = await fetch(submitUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId, backend, token: submitToken }),
+        });
+        if (!r.ok) throw new Error(`Render service rejected the job (${r.status})`);
+
+        return res.status(200).json({ id: jobId });
+      } catch (e) {
+        await refundCredits(user.uid, cost, `avatar failed: ${jobId}`).catch(() => {});
+        await db
+          .collection("generations")
+          .doc(jobId)
+          .set({ status: "failed", error: String(e.message || e) }, { merge: true })
+          .catch(() => {});
+        return res.status(500).json({ error: e.message || "Failed to start render" });
+      }
+    } catch (err) {
+      console.error("avatarGenerate error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 /**
  * Auth trigger: Automatically initializes newly registered users in Firestore.
  */

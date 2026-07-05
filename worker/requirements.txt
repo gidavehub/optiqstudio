@@ -1,0 +1,9 @@
+# Common deps shared by both backend images. Torch/CUDA come from the base image.
+# Backend-specific deps (MuseTalk / LatentSync) are installed in the Dockerfile
+# from each cloned repo's own requirements to keep versions isolated.
+
+google-cloud-storage>=2.16
+google-cloud-firestore>=2.16
+chatterbox-tts>=0.1.1
+PyYAML>=6.0
+# torch, torchaudio, ffmpeg provided by base image / apt

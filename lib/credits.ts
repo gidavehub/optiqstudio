@@ -62,6 +62,19 @@ export function ttsCost(text: string): number {
   return Math.max(COSTS.ttsMinimum, Math.ceil(text.length / 100) * COSTS.ttsPer100Chars);
 }
 
+/** Talking-avatar (voice clone + lip sync), per generated second of video. */
+export const AVATAR_COSTS = { musetalk: 20, latentsync: 60 } as Record<string, number>;
+
+/** Estimate video seconds from script length (~15 chars/sec of speech). */
+export function avatarSeconds(text: string): number {
+  return Math.max(1, Math.ceil(text.length / 15));
+}
+
+export function avatarCost(text: string, backend: "musetalk" | "latentsync"): number {
+  const perSec = AVATAR_COSTS[backend] ?? AVATAR_COSTS.musetalk;
+  return ttsCost(text) + perSec * avatarSeconds(text);
+}
+
 export class InsufficientCreditsError extends Error {
   status = 402;
   constructor(needed: number, available: number) {
