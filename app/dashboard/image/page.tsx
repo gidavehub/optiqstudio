@@ -12,9 +12,11 @@ import {
   Check,
   Zap,
   UploadCloud,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import AssetPickerModal from "../../../components/AssetPickerModal";
 
 interface GenerationItem {
   id: string;
@@ -48,6 +50,7 @@ export default function ImageStudioPage() {
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   // Reference image attachment state
   const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
@@ -220,19 +223,30 @@ export default function ImageStudioPage() {
                 <label className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
                   Describe your image
                 </label>
-                <button
-                  type="button"
-                  onClick={handleEnhance}
-                  disabled={enhancing || !prompt.trim() || generating}
-                  className="flex items-center gap-1 text-[10px] font-bold font-mono text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
-                >
-                  {enhancing ? (
-                    <Loader2 size={10} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={10} />
-                  )}
-                  Enhance
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAssetPickerOpen(true)}
+                    disabled={generating}
+                    className="flex items-center gap-1.5 text-[10px] font-bold font-mono text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                  >
+                    <Plus size={11} />
+                    Compose
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEnhance}
+                    disabled={enhancing || !prompt.trim() || generating}
+                    className="flex items-center gap-1 text-[10px] font-bold font-mono text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                  >
+                    {enhancing ? (
+                      <Loader2 size={10} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={10} />
+                    )}
+                    Enhance
+                  </button>
+                </div>
               </div>
               <textarea
                 value={prompt}
@@ -481,6 +495,46 @@ export default function ImageStudioPage() {
         title="Confirm Image Generation"
         description="You are about to launch a high-fidelity image generation using Gemini-3.1-Flash model."
         actionLabel="Generate Image"
+      />
+
+      {/* Asset Picker Modal */}
+      <AssetPickerModal
+        isOpen={assetPickerOpen}
+        onClose={() => setAssetPickerOpen(false)}
+        onSelectCharacter={(character) => {
+          setPrompt((prev) => {
+            const charPrompt = `[Character: ${character.name}${character.imageDescription ? ` - ${character.imageDescription}` : ""}]`;
+            return prev ? `${prev}\n${charPrompt}` : charPrompt;
+          });
+
+          if (character.imageUrl) {
+            setError(null);
+            fetch(character.imageUrl)
+              .then((res) => res.blob())
+              .then((blob) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  setImage({
+                    base64: dataUrl.split(",")[1],
+                    mimeType: blob.type || "image/png",
+                    preview: dataUrl,
+                  });
+                };
+                reader.readAsDataURL(blob);
+              })
+              .catch(() => {
+                setError("Failed to convert character portrait for consistency");
+              });
+          }
+        }}
+        onSelectTrait={(trait) => {
+          setPrompt((prev) => (prev ? `${prev}, ${trait}` : trait));
+        }}
+        onUploadFile={(file) => {
+          attachImage(file);
+        }}
+        allowedUploadTypes="image/*"
       />
 
     </div>

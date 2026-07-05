@@ -17,9 +17,11 @@ import {
   Sparkles,
   ChevronLeft,
   CheckCircle,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import AssetPickerModal from "../../../components/AssetPickerModal";
 
 const VOICES = [
   { id: "Kore", label: "Awa (Wolof)", vibe: "Soft, warm female Wolof speaker" },
@@ -160,6 +162,7 @@ export default function VoiceStudio() {
   const [history, setHistory] = useState<AudioItem[]>([]);
   const [activeItem, setActiveItem] = useState<AudioItem | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
@@ -554,6 +557,14 @@ export default function VoiceStudio() {
                 {engine === "clone" ? "AI Voice Cloning Workspace" : "Studio Voiceover Terminal"}
               </h2>
             </div>
+
+            <button
+              onClick={() => setAssetPickerOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-neutral-800 bg-[#0d0d0e]/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
+            >
+              <Plus size={13} />
+              Asset Composer
+            </button>
           </div>
 
           <div className="space-y-6">
@@ -690,6 +701,55 @@ export default function VoiceStudio() {
         }
         actionLabel={engine === "clone" ? "Clone Custom Voice" : "Synthesize Voice"}
       />
+
+      {/* Asset Picker Modal */}
+      <AssetPickerModal
+        isOpen={assetPickerOpen}
+        onClose={() => setAssetPickerOpen(false)}
+        onSelectCharacter={(character) => {
+          setText((prev) => {
+            const greeting = `[Actor: ${character.name}] hello! I am ready to read this script.`;
+            return prev ? `${prev}\n${greeting}` : greeting;
+          });
+
+          if (character.voiceUrl) {
+            setEngine("clone");
+            setError(null);
+            fetch(character.voiceUrl)
+              .then((res) => res.blob())
+              .then((blob) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  setVoiceFile({
+                    base64: dataUrl.split(",")[1],
+                    mimeType: blob.type || "audio/wav",
+                    preview: dataUrl,
+                    name: `${character.name}_voice.wav`,
+                  });
+                };
+                reader.readAsDataURL(blob);
+              })
+              .catch(() => {
+                setError("Failed to convert character voice for cloning reference");
+              });
+          } else if (character.voiceType === "synthesize") {
+            setEngine("prebuilt");
+            const matchingVoice = VOICES.find((v) => v.id.toLowerCase() === character.voiceDescription?.toLowerCase() || v.label.toLowerCase().includes(character.voiceDescription?.toLowerCase() || ""));
+            if (matchingVoice) {
+              setVoice(matchingVoice.id);
+            }
+          }
+        }}
+        onSelectTrait={(trait) => {
+          setStyle((prev) => (prev ? `${prev}, ${trait}` : trait));
+        }}
+        onUploadFile={(file) => {
+          attachVoiceFile(file);
+        }}
+        allowedUploadTypes="audio/*"
+      />
+
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Clapperboard,
   Download,
@@ -22,9 +22,11 @@ import {
   DollarSign,
   UploadCloud,
   Mic,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import AssetPickerModal from "../../../components/AssetPickerModal";
 
 interface HistoryItem {
   id: string;
@@ -106,7 +108,7 @@ function CustomVideoPlayer({ src, aspect }: CustomVideoPlayerProps) {
   };
 
   useEffect(() => {
-    setIsPlaying(true);
+    Promise.resolve().then(() => setIsPlaying(true));
   }, [src]);
 
   return (
@@ -215,7 +217,6 @@ function AudioPlayerPreview({ audio }: { audio: { preview: string; name: string 
 function VideoWorkspace() {
   const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   // Drag and drop states for Refinement Console
   const [isDraggingRefine, setIsDraggingRefine] = useState(false);
@@ -324,6 +325,7 @@ function VideoWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
@@ -365,82 +367,8 @@ function VideoWorkspace() {
       .catch(() => {});
   }, [apiFetch]);
 
-  useEffect(() => {
-    loadHistory();
-    return () => {
-      // Clean up all active generation polls on unmount
-      Object.values(pollRefs.current).forEach((interval) => clearInterval(interval));
-    };
-  }, [loadHistory]);
-
-  // Click-away listener for popover menu
-  useEffect(() => {
-    const handleGlobalClick = () => {
-      setOpenedMenuId(null);
-    };
-    window.addEventListener("click", handleGlobalClick);
-    return () => {
-      window.removeEventListener("click", handleGlobalClick);
-    };
-  }, []);
-
-  // Resume background polling on page load for any item in rendering state
-  useEffect(() => {
-    history.forEach((item) => {
-      if (item.status === "rendering" && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
-        startSingleGenerationPolling(item.id, item.prompt);
-      }
-    });
-  }, [history]);
-
-  const attachImage = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1];
-      setImage({ base64, mimeType: file.type, preview: dataUrl });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const attachVideo = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1];
-      setVideoFile({ base64, mimeType: file.type, preview: dataUrl });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const attachAudio = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1];
-      setAudioFile({ base64, mimeType: file.type, preview: dataUrl, name: file.name });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const enhance = async () => {
-    if (!prompt.trim() || enhancing) return;
-    setEnhancing(true);
-    try {
-      const data = await apiFetch<{ prompt: string }>("/api/enhance", {
-        method: "POST",
-        body: JSON.stringify({ prompt }),
-      });
-      setPrompt(data.prompt);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Enhance failed");
-    } finally {
-      setEnhancing(false);
-    }
-  };
-
   // Triggers polling for a single specific background rendering item
-  const startSingleGenerationPolling = (id: string, initialPrompt: string) => {
+  const startSingleGenerationPolling = useCallback((id: string) => {
     if (pollRefs.current[id]) clearInterval(pollRefs.current[id]);
 
     pollRefs.current[id] = setInterval(async () => {
@@ -499,7 +427,84 @@ function VideoWorkspace() {
         // Ignore status query glitches
       }
     }, 5000);
+  }, [apiFetch, loadHistory, refreshProfile, setHistory, setActiveItem]);
+
+  useEffect(() => {
+    loadHistory();
+    const activePolls = pollRefs.current;
+    return () => {
+      // Clean up all active generation polls on unmount
+      Object.values(activePolls).forEach((interval) => clearInterval(interval));
+    };
+  }, [loadHistory]);
+
+  // Click-away listener for popover menu
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setOpenedMenuId(null);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, []);
+
+  // Resume background polling on page load for any item in rendering state
+  useEffect(() => {
+    history.forEach((item) => {
+      if (item.status === "rendering" && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
+        startSingleGenerationPolling(item.id);
+      }
+    });
+  }, [history, startSingleGenerationPolling]);
+
+  const attachImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setImage({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
   };
+
+  const attachVideo = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setVideoFile({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const attachAudio = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(",")[1];
+      setAudioFile({ base64, mimeType: file.type, preview: dataUrl, name: file.name });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const enhance = async () => {
+    if (!prompt.trim() || enhancing) return;
+    setEnhancing(true);
+    try {
+      const data = await apiFetch<{ prompt: string }>("/api/enhance", {
+        method: "POST",
+        body: JSON.stringify({ prompt }),
+      });
+      setPrompt(data.prompt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Enhance failed");
+    } finally {
+      setEnhancing(false);
+    }
+  };
+
+
 
   // Submit Prompt (Google Flow Style: Creates dynamic card container on the screen instantly)
   const generate = async () => {
@@ -556,7 +561,7 @@ function VideoWorkspace() {
       );
 
       // Spin up polling thread for this item
-      startSingleGenerationPolling(start.id, originalPrompt);
+      startSingleGenerationPolling(start.id);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
@@ -651,7 +656,7 @@ function VideoWorkspace() {
       setActiveItem((prev) => prev && prev.id === tempId ? { ...prev, id: start.id } : prev);
 
       // Spin up polling thread for this item
-      startSingleGenerationPolling(start.id, originalEditPrompt);
+      startSingleGenerationPolling(start.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Edit failed");
       setPhase("failed");
@@ -920,6 +925,14 @@ function VideoWorkspace() {
                       )}
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setAssetPickerOpen(true)}
+                          className="p-1.5 text-neutral-400 hover:text-white transition-colors"
+                          title="Open Asset Composer"
+                        >
+                          <Plus size={16} />
+                        </button>
                         <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
                           <ImagePlus size={16} />
                           <input
@@ -1161,6 +1174,14 @@ function VideoWorkspace() {
               )}
 
               <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAssetPickerOpen(true)}
+                  className="p-1.5 text-neutral-400 hover:text-white transition-colors"
+                  title="Open Asset Composer"
+                >
+                  <Plus size={17} />
+                </button>
                 <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
                   <ImagePlus size={17} />
                   <input
@@ -1240,6 +1261,76 @@ function VideoWorkspace() {
             : `You are about to generate a ${cappedDuration}s video. This will deduct ${calculatedCost} credits from your balance.`
         }
         actionLabel={pendingAction === "edit" ? "Omni Edit" : "Generate Video"}
+      />
+
+      {/* Asset Picker Modal */}
+      <AssetPickerModal
+        isOpen={assetPickerOpen}
+        onClose={() => setAssetPickerOpen(false)}
+        onSelectCharacter={(character) => {
+          setPrompt((prev) => {
+            const charPrompt = `[Character: ${character.name}${character.imageDescription ? ` - ${character.imageDescription}` : ""}]`;
+            return prev ? `${prev}\n${charPrompt}` : charPrompt;
+          });
+
+          if (character.imageUrl) {
+            setError(null);
+            fetch(character.imageUrl)
+              .then((res) => res.blob())
+              .then((blob) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  setImage({
+                    base64: dataUrl.split(",")[1],
+                    mimeType: blob.type || "image/png",
+                    preview: dataUrl,
+                  });
+                };
+                reader.readAsDataURL(blob);
+              })
+              .catch(() => {
+                setError("Failed to convert character portrait for consistency");
+              });
+          }
+
+          if (character.voiceUrl) {
+            setError(null);
+            fetch(character.voiceUrl)
+              .then((res) => res.blob())
+              .then((blob) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  setAudioFile({
+                    base64: dataUrl.split(",")[1],
+                    mimeType: blob.type || "audio/wav",
+                    preview: dataUrl,
+                    name: `${character.name}_voice.wav`,
+                  });
+                };
+                reader.readAsDataURL(blob);
+              })
+              .catch(() => {
+                setError("Failed to convert character voice for cloning reference");
+              });
+          }
+        }}
+        onSelectTrait={(trait) => {
+          setPrompt((prev) => (prev ? `${prev}, ${trait}` : trait));
+        }}
+        onUploadFile={(file) => {
+          if (file.type.startsWith("video/")) {
+            attachVideo(file);
+            setImage(null);
+          } else if (file.type.startsWith("image/")) {
+            attachImage(file);
+            setVideoFile(null);
+          } else if (file.type.startsWith("audio/")) {
+            attachAudio(file);
+          }
+        }}
+        allowedUploadTypes="image/*,video/*,audio/*"
       />
     </div>
   );
