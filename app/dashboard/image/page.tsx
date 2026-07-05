@@ -121,6 +121,35 @@ export default function ImageStudioPage() {
     loadHistory();
   }, []);
 
+  // Delete a specific image generation
+  const deleteGeneration = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      await apiFetch(`/api/generations?id=${id}`, {
+        method: "DELETE"
+      });
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      setActiveItem((prev) => {
+        if (prev?.id === id) {
+          const remaining = history.filter((item) => item.id !== id);
+          return remaining.length > 0 ? remaining[0] : null;
+        }
+        return prev;
+      });
+      void refreshProfile();
+    } catch {
+      // Optimistic delete
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      setActiveItem((prev) => {
+        if (prev?.id === id) {
+          const remaining = history.filter((item) => item.id !== id);
+          return remaining.length > 0 ? remaining[0] : null;
+        }
+        return prev;
+      });
+    }
+  };
+
   // Enhance prompt with AI
   const handleEnhance = async () => {
     if (!prompt.trim()) return;
@@ -416,6 +445,13 @@ export default function ImageStudioPage() {
                     >
                       <Download size={15} />
                     </a>
+                    <button
+                      onClick={(e) => deleteGeneration(activeItem.id, e)}
+                      className="flex items-center justify-center rounded-lg bg-black/80 border border-white/10 hover:bg-red-950 p-2.5 text-neutral-400 hover:text-white transition-colors"
+                      title="Delete image"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
 
                 </div>
@@ -469,7 +505,19 @@ export default function ImageStudioPage() {
                       alt={item.prompt}
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2 text-[10px] text-neutral-300 leading-tight">
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 text-[10px] text-neutral-300 leading-tight">
+                      <div className="flex justify-end">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteGeneration(item.id, e);
+                          }}
+                          className="p-1.5 rounded-lg bg-black/60 hover:bg-red-950 border border-white/5 text-neutral-400 hover:text-white transition-colors"
+                          title="Delete image"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                       <p className="line-clamp-2">{item.prompt}</p>
                     </div>
                   </button>

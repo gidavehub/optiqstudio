@@ -593,6 +593,10 @@ function VideoWorkspace() {
     e.stopPropagation();
     setOpenedMenuId(null);
     try {
+      if (pollRefs.current[id]) {
+        clearInterval(pollRefs.current[id]);
+        delete pollRefs.current[id];
+      }
       await apiFetch(`/api/generations?id=${id}`, {
         method: "DELETE"
       });
@@ -603,7 +607,14 @@ function VideoWorkspace() {
       void refreshProfile();
     } catch {
       // Optimistic delete
+      if (pollRefs.current[id]) {
+        clearInterval(pollRefs.current[id]);
+        delete pollRefs.current[id];
+      }
       setHistory((prev) => prev.filter((item) => item.id !== id));
+      if (activeItem?.id === id) {
+        setActiveItem(null);
+      }
     }
   };
 

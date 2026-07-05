@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Download, FolderOpen, Mic } from "lucide-react";
+import { Download, FolderOpen, Mic, Trash2 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 
 interface AssetItem {
@@ -30,6 +30,20 @@ export default function AssetsPage() {
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, [apiFetch, filter]);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await apiFetch(`/api/generations?id=${id}`, {
+        method: "DELETE"
+      });
+      setItems((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error("Failed to delete asset:", err);
+      // Optimistic delete
+      setItems((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
 
   useEffect(load, [load]);
 
@@ -94,14 +108,23 @@ export default function AssetsPage() {
                     </div>
                   )}
                   {url && (
-                    <a
-                      href={url}
-                      download
-                      className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
-                      title="Download"
-                    >
-                      <Download size={13} />
-                    </a>
+                    <div className="absolute right-2 top-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm z-10">
+                      <a
+                        href={url}
+                        download
+                        className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 hover:bg-neutral-900 border border-white/5 text-white"
+                        title="Download"
+                      >
+                        <Download size={13} />
+                      </a>
+                      <button
+                        onClick={(e) => handleDelete(item.id, e)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 hover:bg-red-950 border border-white/5 text-neutral-400 hover:text-white"
+                        title="Delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="px-3 py-2.5">

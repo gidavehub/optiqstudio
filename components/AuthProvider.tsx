@@ -18,6 +18,7 @@ import {
 } from "firebase/auth";
 import {
   doc,
+  getDoc,
   onSnapshot,
   collection,
   query,
@@ -142,11 +143,45 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // Handle deletion of a generation (documents and associated Storage files)
         if (init?.method === "DELETE" && id) {
           try {
+            const docRef = doc(db, "generations", id);
+            const docSnap = await getDoc(docRef);
+            const docData = docSnap.exists() ? docSnap.data() : null;
+
             // 1. Delete Firestore document
-            await deleteDoc(doc(db, "generations", id));
+            await deleteDoc(docRef);
             console.log(`Deleted Firestore document: generations/${id}`);
 
-            // 2. Recursively delete matching files in Cloud Storage
+            // 2. Helper to delete a specific file path from storage
+            const deleteFileIfExists = async (path: string) => {
+              if (!path) return;
+              try {
+                const ref = storageRef(storage, path);
+                await deleteObject(ref);
+                console.log(`Deleted referenced storage file: ${path}`);
+              } catch (err) {
+                console.warn(`Could not delete referenced storage file: ${path}`, err);
+              }
+            };
+
+            // 3. Delete referenced files explicitly if they exist in metadata
+            if (docData) {
+              if (docData.voiceSamplePath) {
+                await deleteFileIfExists(docData.voiceSamplePath);
+              }
+              if (docData.imagePath) await deleteFileIfExists(docData.imagePath);
+              if (docData.videoPath) await deleteFileIfExists(docData.videoPath);
+              if (docData.audioPath) await deleteFileIfExists(docData.audioPath);
+
+              if (Array.isArray(docData.images)) {
+                for (const img of docData.images) {
+                  if (img.path) {
+                    await deleteFileIfExists(img.path);
+                  }
+                }
+              }
+            }
+
+            // 4. Recursively delete matching files in Cloud Storage
             const deleteStoragePrefix = async (prefixPath: string) => {
               const listRef = storageRef(storage, prefixPath);
               const res = await listAll(listRef);

@@ -371,6 +371,37 @@ export default function VoiceStudio() {
     }
   };
 
+  // Delete an audio take via API
+  const deleteTake = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (pollRefs.current[id]) {
+        clearInterval(pollRefs.current[id]);
+        delete pollRefs.current[id];
+      }
+      await apiFetch(`/api/generations?id=${id}`, {
+        method: "DELETE"
+      });
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      if (activeItem?.id === id) {
+        setActiveItem(null);
+        setResultUrl(null);
+      }
+      void refreshProfile();
+    } catch {
+      // Optimistic delete
+      if (pollRefs.current[id]) {
+        clearInterval(pollRefs.current[id]);
+        delete pollRefs.current[id];
+      }
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      if (activeItem?.id === id) {
+        setActiveItem(null);
+        setResultUrl(null);
+      }
+    }
+  };
+
   const selectTake = (item: AudioItem) => {
     if (item.audioUrl) {
       setResultUrl(item.audioUrl);
@@ -667,9 +698,18 @@ export default function VoiceStudio() {
                                 <span className="text-[10px] font-mono font-bold text-neutral-400 block uppercase tracking-widest">
                                   {h.id.startsWith("voice_") ? "AI CLONED TAKE" : "PREBUILT SPEAKER"}
                                 </span>
-                                <span className="text-[9px] text-neutral-600 font-mono">
-                                  {new Date(h.createdAt).toLocaleDateString()}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] text-neutral-600 font-mono group-hover:hidden">
+                                    {new Date(h.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <button
+                                    onClick={(e) => deleteTake(h.id, e)}
+                                    className="hidden group-hover:flex items-center justify-center text-neutral-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-neutral-850/50"
+                                    title="Delete take"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
                               </div>
                               <p className="text-[11px] text-neutral-300 truncate mt-0.5 italic leading-relaxed">
                                 &ldquo;{h.prompt}&rdquo;
