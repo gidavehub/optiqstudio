@@ -246,16 +246,22 @@ function VideoWorkspace() {
     e.preventDefault();
     dragCounterRefine.current = 0;
     setIsDraggingRefine(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (file.type.startsWith("video/")) {
-        attachVideo(file);
-        setImage(null);
-      } else if (file.type.startsWith("image/")) {
-        attachImage(file);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      const video = files.find(f => f.type.startsWith("video/"));
+      const audio = files.find(f => f.type.startsWith("audio/"));
+      const imageFiles = files.filter(f => f.type.startsWith("image/"));
+
+      if (video) {
+        attachVideo(video);
+        setImages([]);
+      } else if (imageFiles.length > 0) {
+        imageFiles.forEach(img => attachImage(img));
         setVideoFile(null);
-      } else if (file.type.startsWith("audio/")) {
-        attachAudio(file);
+      }
+
+      if (audio) {
+        attachAudio(audio);
       }
     }
   };
@@ -288,16 +294,22 @@ function VideoWorkspace() {
     e.preventDefault();
     dragCounterBottom.current = 0;
     setIsDraggingBottom(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      if (file.type.startsWith("video/")) {
-        attachVideo(file);
-        setImage(null);
-      } else if (file.type.startsWith("image/")) {
-        attachImage(file);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) {
+      const video = files.find(f => f.type.startsWith("video/"));
+      const audio = files.find(f => f.type.startsWith("audio/"));
+      const imageFiles = files.filter(f => f.type.startsWith("image/"));
+
+      if (video) {
+        attachVideo(video);
+        setImages([]);
+      } else if (imageFiles.length > 0) {
+        imageFiles.forEach(img => attachImage(img));
         setVideoFile(null);
-      } else if (file.type.startsWith("audio/")) {
-        attachAudio(file);
+      }
+
+      if (audio) {
+        attachAudio(audio);
       }
     }
   };
@@ -314,7 +326,7 @@ function VideoWorkspace() {
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>("720p");
   const [audioOn, setAudioOn] = useState(true);
   const [negativePrompt, setNegativePrompt] = useState("");
-  const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  const [images, setImages] = useState<{ id: string; base64: string; mimeType: string; preview: string }[]>([]);
   const [videoFile, setVideoFile] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const [audioFile, setAudioFile] = useState<{ base64: string; mimeType: string; preview: string; name: string } | null>(null);
 
@@ -463,7 +475,10 @@ function VideoWorkspace() {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
-      setImage({ base64, mimeType: file.type, preview: dataUrl });
+      setImages((prev) => [
+        ...prev,
+        { id: Math.random().toString(36).substring(2, 9), base64, mimeType: file.type, preview: dataUrl }
+      ]);
     };
     reader.readAsDataURL(file);
   };
@@ -538,8 +553,9 @@ function VideoWorkspace() {
           resolution,
           generateAudio: audioOn,
           negativePrompt: negativePrompt || undefined,
-          imageBase64: image?.base64,
-          imageMimeType: image?.mimeType,
+          imageBase64: images[0]?.base64 || undefined,
+          imageMimeType: images[0]?.mimeType || undefined,
+          images: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
           videoBase64: videoFile?.base64,
           videoMimeType: videoFile?.mimeType,
           audioBase64: audioFile?.base64,
@@ -547,7 +563,7 @@ function VideoWorkspace() {
         }),
       });
 
-      setImage(null);
+      setImages([]);
       setVideoFile(null);
       setAudioFile(null);
       void refreshProfile();
@@ -630,8 +646,9 @@ function VideoWorkspace() {
           resolution,
           generateAudio: audioOn,
           negativePrompt: negativePrompt || undefined,
-          imageBase64: image?.base64,
-          imageMimeType: image?.mimeType,
+          imageBase64: images[0]?.base64 || undefined,
+          imageMimeType: images[0]?.mimeType || undefined,
+          images: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
           videoBase64: videoFile?.base64,
           videoMimeType: videoFile?.mimeType,
           audioBase64: audioFile?.base64,
@@ -639,7 +656,7 @@ function VideoWorkspace() {
         }),
       });
 
-      setImage(null);
+      setImages([]);
       setVideoFile(null);
       setAudioFile(null);
       void refreshProfile();
@@ -878,14 +895,21 @@ function VideoWorkspace() {
 
                   {/* Refinement Prompt Input Box */}
                   <div className="space-y-3 mt-4">
-                    {image && (
-                      <div className="flex items-center gap-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={image.preview} alt="Reference" className="h-12 w-14 rounded-lg object-cover border border-neutral-800" />
-                        <button onClick={() => setImage(null)} className="text-neutral-500 hover:text-white">
-                          <X size={14} />
-                        </button>
-                        <span className="text-[10px] text-neutral-500 font-mono">Reference image attached</span>
+                    {images.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3">
+                        {images.map((img) => (
+                          <div key={img.id} className="relative group flex items-center gap-1.5">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.preview} alt="Reference" className="h-12 w-14 rounded-lg object-cover border border-neutral-800" />
+                            <button 
+                              onClick={() => setImages((prev) => prev.filter((i) => i.id !== img.id))} 
+                              className="absolute -top-1.5 -right-1.5 bg-neutral-900/90 text-neutral-400 hover:text-white rounded-full p-0.5 border border-neutral-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                        <span className="text-[10px] text-neutral-500 font-mono">{images.length} Reference image{images.length > 1 ? 's' : ''} attached</span>
                       </div>
                     )}
 
@@ -938,15 +962,19 @@ function VideoWorkspace() {
                           <input
                             type="file"
                             accept="image/*,video/*"
+                            multiple
                             className="hidden"
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              if (file.type.startsWith("video/")) {
-                                attachVideo(file);
-                                setImage(null);
-                              } else {
-                                attachImage(file);
+                              const files = Array.from(e.target.files || []);
+                              if (files.length === 0) return;
+                              const video = files.find(f => f.type.startsWith("video/"));
+                              const imageFiles = files.filter(f => f.type.startsWith("image/"));
+
+                              if (video) {
+                                attachVideo(video);
+                                setImages([]);
+                              } else if (imageFiles.length > 0) {
+                                imageFiles.forEach(img => attachImage(img));
                                 setVideoFile(null);
                               }
                             }}
@@ -1126,14 +1154,23 @@ function VideoWorkspace() {
         {!activeItem && (
           <div className="border-t border-neutral-900 p-5 bg-[#070707]/90 backdrop-blur-md relative z-40">
             
-            {image && (
-              <div className="mb-3 flex items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.preview} alt="Reference" className="h-14 w-14 rounded-lg object-cover border border-neutral-800" />
-                <button onClick={() => setImage(null)} className="text-neutral-500 hover:text-white">
-                  <X size={14} />
-                </button>
-                <span className="text-xs text-neutral-500">First-frame reference attached</span>
+            {images.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-3">
+                {images.map((img) => (
+                  <div key={img.id} className="relative group flex items-center gap-1.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.preview} alt="Reference" className="h-14 w-14 rounded-lg object-cover border border-neutral-800" />
+                    <button 
+                      onClick={() => setImages((prev) => prev.filter((i) => i.id !== img.id))} 
+                      className="absolute -top-1.5 -right-1.5 bg-neutral-900/90 text-neutral-400 hover:text-white rounded-full p-0.5 border border-neutral-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+                <span className="text-xs text-neutral-500">
+                  {images.length} Reference image{images.length > 1 ? 's' : ''} attached
+                </span>
               </div>
             )}
 
@@ -1187,15 +1224,19 @@ function VideoWorkspace() {
                   <input
                     type="file"
                     accept="image/*,video/*"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (file.type.startsWith("video/")) {
-                        attachVideo(file);
-                        setImage(null);
-                      } else {
-                        attachImage(file);
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      const video = files.find(f => f.type.startsWith("video/"));
+                      const imageFiles = files.filter(f => f.type.startsWith("image/"));
+
+                      if (video) {
+                        attachVideo(video);
+                        setImages([]);
+                      } else if (imageFiles.length > 0) {
+                        imageFiles.forEach(img => attachImage(img));
                         setVideoFile(null);
                       }
                     }}
@@ -1281,11 +1322,15 @@ function VideoWorkspace() {
                 const reader = new FileReader();
                 reader.onload = () => {
                   const dataUrl = reader.result as string;
-                  setImage({
-                    base64: dataUrl.split(",")[1],
-                    mimeType: blob.type || "image/png",
-                    preview: dataUrl,
-                  });
+                  setImages((prev) => [
+                    ...prev,
+                    {
+                      id: Math.random().toString(36).substring(2, 9),
+                      base64: dataUrl.split(",")[1],
+                      mimeType: blob.type || "image/png",
+                      preview: dataUrl,
+                    }
+                  ]);
                 };
                 reader.readAsDataURL(blob);
               })
@@ -1322,7 +1367,7 @@ function VideoWorkspace() {
         onUploadFile={(file) => {
           if (file.type.startsWith("video/")) {
             attachVideo(file);
-            setImage(null);
+            setImages([]);
           } else if (file.type.startsWith("image/")) {
             attachImage(file);
             setVideoFile(null);

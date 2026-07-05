@@ -494,10 +494,33 @@ async function persistReferenceMedia(uid, docId, body) {
     videoMimeType: body.videoMimeType || null,
     audioPath: null,
     audioMimeType: body.audioMimeType || null,
+    images: null,
   };
-  if (body.imageBase64 && body.imageMimeType) {
+
+  if (Array.isArray(body.images) && body.images.length > 0) {
+    out.images = [];
+    for (let i = 0; i < body.images.length; i++) {
+      const img = body.images[i];
+      if (img.base64 && img.mimeType) {
+        const path = await uploadInputMedia(img.base64, `${base}-image-${i}`, img.mimeType);
+        out.images.push({
+          path,
+          mimeType: img.mimeType,
+        });
+      }
+    }
+    if (out.images.length > 0) {
+      out.imagePath = out.images[0].path;
+      out.imageMimeType = out.images[0].mimeType;
+    }
+  } else if (body.imageBase64 && body.imageMimeType) {
     out.imagePath = await uploadInputMedia(body.imageBase64, `${base}-image`, body.imageMimeType);
+    out.images = [{
+      path: out.imagePath,
+      mimeType: out.imageMimeType,
+    }];
   }
+
   if (body.videoBase64 && body.videoMimeType) {
     out.videoPath = await uploadInputMedia(body.videoBase64, `${base}-video`, body.videoMimeType);
   }
@@ -511,8 +534,34 @@ async function persistReferenceMedia(uid, docId, body) {
 // any legacy inline base64 fields so in-flight docs created before this change
 // still generate correctly.
 async function loadReferenceMedia(gen) {
+  const images = [];
+  if (Array.isArray(gen.images) && gen.images.length > 0) {
+    for (const img of gen.images) {
+      if (img.path) {
+        const base64 = await downloadInputMedia(img.path);
+        images.push({
+          base64,
+          mimeType: img.mimeType || "image/png",
+        });
+      }
+    }
+  } else if (gen.imagePath) {
+    const base64 = await downloadInputMedia(gen.imagePath);
+    images.push({
+      base64,
+      mimeType: gen.imageMimeType || "image/png",
+    });
+  } else if (gen.imageBase64) {
+    images.push({
+      base64: gen.imageBase64,
+      mimeType: gen.imageMimeType || "image/png",
+    });
+  }
+
   return {
-    imageBase64: gen.imagePath ? await downloadInputMedia(gen.imagePath) : (gen.imageBase64 || null),
+    images,
+    imageBase64: images[0]?.base64 || null,
+    imageMimeType: images[0]?.mimeType || null,
     videoBase64: gen.videoPath ? await downloadInputMedia(gen.videoPath) : (gen.videoBase64 || null),
     audioBase64: gen.audioPath ? await downloadInputMedia(gen.audioPath) : (gen.audioBase64 || null),
   };
@@ -527,11 +576,19 @@ async function loadReferenceMedia(gen) {
 async function generateOmniVideo(prompt, media) {
   const model = "gemini-omni-flash-preview";
   const parts = [];
-  if (media && media.imageBase64 && media.imageMimeType) {
+
+  if (media && Array.isArray(media.images) && media.images.length > 0) {
+    for (const img of media.images) {
+      if (img.base64 && img.mimeType) {
+        parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
+      }
+    }
+  } else if (media && media.imageBase64 && media.imageMimeType) {
     parts.push({ inlineData: { data: media.imageBase64, mimeType: media.imageMimeType } });
   } else if (media && media.videoBase64 && media.videoMimeType) {
     parts.push({ inlineData: { data: media.videoBase64, mimeType: media.videoMimeType } });
   }
+
   if (media && media.audioBase64 && media.audioMimeType) {
     parts.push({ inlineData: { data: media.audioBase64, mimeType: media.audioMimeType } });
   }
