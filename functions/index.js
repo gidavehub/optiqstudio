@@ -13,6 +13,7 @@
 
 const functions = require("firebase-functions/v1");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleAuth } = require("google-auth-library");
@@ -934,16 +935,98 @@ exports.videoGenerate = onRequest(
   }
 );
 
+// Runs the actual video generation for a generation doc, entirely server-side.
+// Invoked by the Firestore onCreate trigger below so generation no longer
+// depends on the client polling (a backgrounded/closed tab previously left docs
+// stuck at "generating" forever). Idempotent: claims the doc
+// (generating -> processing) in a transaction so an at-least-once duplicate
+// event delivery can't double-generate, and errors are caught (never thrown) so
+// the platform doesn't retry a charge-refunded job.
+async function runVideoGeneration(id, ref, gen) {
+  const claimed = await db.runTransaction(async (tx) => {
+    const dSnap = await tx.get(ref);
+    if (dSnap.exists && dSnap.data().status === "generating") {
+      tx.update(ref, { status: "processing" });
+      return true;
+    }
+    return false;
+  });
+  if (!claimed) {
+    console.log(`[video ${id}] not in 'generating' state, skipping (already claimed/done)`);
+    return;
+  }
+
+  const label = gen.viaApi ? "API: video" : "video";
+  try {
+    const duration = gen.durationSeconds || 8;
+    console.log(`[video ${id}] generating server-side (requested duration: ${duration}s)`);
+
+    const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
+    if (images.length) console.log(`[video ${id}] integrating ${images.length} reference image(s)`);
+    if (videoBase64) console.log(`[video ${id}] integrating reference video`);
+    if (audioBase64) console.log(`[video ${id}] integrating reference audio`);
+
+    const video = await generateOmniVideo(buildVideoPrompt(gen), {
+      images,
+      imageBase64,
+      imageMimeType: gen.imageMimeType,
+      videoBase64,
+      videoMimeType: gen.videoMimeType,
+      audioBase64,
+      audioMimeType: gen.audioMimeType,
+    });
+
+    const videoUrl = await uploadBase64(
+      video.base64,
+      `generations/${gen.uid}/${id}.mp4`,
+      video.mimeType
+    );
+
+    await ref.update({
+      status: "succeeded",
+      videoUrl,
+      mimeType: video.mimeType,
+      completedAt: new Date().toISOString(),
+    });
+    console.log(`[video ${id}] succeeded`);
+  } catch (err) {
+    console.error(`[video ${id}] generation failed:`, err);
+    await refundCredits(gen.uid, gen.cost || 0, `${label} ${id} failed`);
+    await ref.update({
+      status: "failed",
+      error: err.message || "Generation failed",
+      completedAt: new Date().toISOString(),
+    });
+  }
+}
+
+// Server-side driver: fires the moment videoGenerate/apiGenerateVideo creates a
+// video doc, so generation happens without any client involvement. Must run in
+// us-central1 because the Firestore database is the nam5 multi-region (Eventarc
+// delivers nam5 Firestore events there); the rest of the API stays in us-east4.
+exports.processVideoGeneration = onDocumentCreated(
+  { document: "generations/{id}", region: "us-central1", timeoutSeconds: 540, memory: "512MiB", maxInstances: 10 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const gen = snap.data();
+    if (gen.type !== "video" || gen.status !== "generating") return;
+    await runVideoGeneration(event.params.id, snap.ref, gen);
+  }
+);
+
+// Pure status read — the client polls this only to observe progress; it no
+// longer drives generation (processVideoGeneration does). "processing" is an
+// internal in-flight state surfaced to the client as "generating".
 exports.videoStatus = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 300 },
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       const user = await requireAuth(req);
       const id = req.query.id || req.body.id;
       if (!id) return res.status(400).json({ error: "Missing id" });
 
-      const ref = db.collection("generations").doc(id);
-      const snap = await ref.get();
+      const snap = await db.collection("generations").doc(id).get();
       if (!snap.exists) return res.status(404).json({ error: "Not found" });
 
       const gen = snap.data();
@@ -951,81 +1034,16 @@ exports.videoStatus = onRequest(
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      if (gen.status === "succeeded" || gen.status === "failed") {
-        return res.status(200).json({
-          id,
-          status: gen.status,
-          videoUrl: gen.videoUrl || null,
-          audioUrl: gen.audioUrl || null,
-          error: gen.error || null,
-          prompt: gen.prompt,
-          completedAt: gen.completedAt || null,
-        });
-      }
-
-      if (gen.status === "processing") {
-        return res.status(200).json({ id, status: "generating" });
-      }
-
-      // If status is generating, transition to processing to prevent parallel overlapping polls
-      const hasStarted = await db.runTransaction(async (tx) => {
-        const dSnap = await tx.get(ref);
-        if (dSnap.data().status === "generating") {
-          tx.update(ref, { status: "processing" });
-          return true;
-        }
-        return false;
+      const done = gen.status === "succeeded" || gen.status === "failed";
+      return res.status(200).json({
+        id,
+        status: done ? gen.status : "generating",
+        videoUrl: gen.videoUrl || null,
+        audioUrl: gen.audioUrl || null,
+        error: gen.error || null,
+        prompt: gen.prompt,
+        completedAt: gen.completedAt || null,
       });
-
-      if (!hasStarted) {
-        return res.status(200).json({ id, status: "generating" });
-      }
-
-      try {
-        const duration = gen.durationSeconds || 8;
-        console.log(`Polling/Generating video for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
-
-        const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
-        if (images.length) console.log(`Integrating ${images.length} reference image(s)`);
-        if (videoBase64) console.log(`Integrating reference video (${videoBase64.length} b64 chars)`);
-        if (audioBase64) console.log(`Integrating reference audio (${audioBase64.length} b64 chars)`);
-
-        const video = await generateOmniVideo(buildVideoPrompt(gen), {
-          images,
-          imageBase64,
-          imageMimeType: gen.imageMimeType,
-          videoBase64,
-          videoMimeType: gen.videoMimeType,
-          audioBase64,
-          audioMimeType: gen.audioMimeType,
-        });
-
-        const videoUrl = await uploadBase64(
-          video.base64,
-          `generations/${gen.uid}/${id}.mp4`,
-          video.mimeType
-        );
-
-        const update = {
-          status: "succeeded",
-          videoUrl,
-          mimeType: video.mimeType,
-          completedAt: new Date().toISOString(),
-        };
-
-        await ref.update(update);
-        return res.status(200).json({ id, ...update });
-      } catch (err) {
-        console.error("Video generation background process failed:", err);
-        await refundCredits(gen.uid, gen.cost || 0, `video ${id} failed`);
-        const update = {
-          status: "failed",
-          error: err.message || "Generation failed",
-          completedAt: new Date().toISOString(),
-        };
-        await ref.update(update);
-        return res.status(200).json({ id, ...update });
-      }
     } catch (err) {
       console.error("videoStatus error:", err);
       return res.status(500).json({ error: err.message });
@@ -1181,16 +1199,17 @@ exports.apiGenerateVideo = onRequest(
   }
 );
 
+// Pure status read for API consumers. Generation is driven server-side by the
+// processVideoGeneration Firestore trigger, so this only reports progress.
 exports.apiGetVideoStatus = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 300 },
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       const developer = await requireApiKey(req);
       const id = req.query.id || req.body.id;
       if (!id) return res.status(400).json({ error: "Missing id" });
 
-      const ref = db.collection("generations").doc(id);
-      const snap = await ref.get();
+      const snap = await db.collection("generations").doc(id).get();
       if (!snap.exists) return res.status(404).json({ error: "Not found" });
 
       const gen = snap.data();
@@ -1198,79 +1217,15 @@ exports.apiGetVideoStatus = onRequest(
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      if (gen.status === "succeeded" || gen.status === "failed") {
-        return res.status(200).json({
-          id,
-          status: gen.status,
-          videoUrl: gen.videoUrl || null,
-          error: gen.error || null,
-          prompt: gen.prompt,
-          completedAt: gen.completedAt || null,
-        });
-      }
-
-      if (gen.status === "processing") {
-        return res.status(200).json({ id, status: "generating" });
-      }
-
-      const hasStarted = await db.runTransaction(async (tx) => {
-        const dSnap = await tx.get(ref);
-        if (dSnap.data().status === "generating") {
-          tx.update(ref, { status: "processing" });
-          return true;
-        }
-        return false;
+      const done = gen.status === "succeeded" || gen.status === "failed";
+      return res.status(200).json({
+        id,
+        status: done ? gen.status : "generating",
+        videoUrl: gen.videoUrl || null,
+        error: gen.error || null,
+        prompt: gen.prompt,
+        completedAt: gen.completedAt || null,
       });
-
-      if (!hasStarted) {
-        return res.status(200).json({ id, status: "generating" });
-      }
-
-      try {
-        const duration = gen.durationSeconds || 8;
-        console.log(`Polling/Generating video (API) for doc: ${id} with prompt: ${gen.prompt} (requested duration: ${duration}s)`);
-
-        const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
-        if (images.length) console.log(`Integrating ${images.length} API reference image(s)`);
-        if (videoBase64) console.log(`Integrating API reference video (${videoBase64.length} b64 chars)`);
-        if (audioBase64) console.log(`Integrating API reference audio (${audioBase64.length} b64 chars)`);
-
-        const video = await generateOmniVideo(buildVideoPrompt(gen), {
-          images,
-          imageBase64,
-          imageMimeType: gen.imageMimeType,
-          videoBase64,
-          videoMimeType: gen.videoMimeType,
-          audioBase64,
-          audioMimeType: gen.audioMimeType,
-        });
-
-        const videoUrl = await uploadBase64(
-          video.base64,
-          `generations/${gen.uid}/${id}.mp4`,
-          video.mimeType
-        );
-
-        const update = {
-          status: "succeeded",
-          videoUrl,
-          mimeType: video.mimeType,
-          completedAt: new Date().toISOString(),
-        };
-
-        await ref.update(update);
-        return res.status(200).json({ id, ...update });
-      } catch (err) {
-        console.error("Video generation background process (API) failed:", err);
-        await refundCredits(gen.uid, gen.cost || 0, `API: video ${id} failed`);
-        const update = {
-          status: "failed",
-          error: err.message || "Generation failed",
-          completedAt: new Date().toISOString(),
-        };
-        await ref.update(update);
-        return res.status(200).json({ id, ...update });
-      }
     } catch (err) {
       console.error("apiGetVideoStatus error:", err);
       return res.status(err.message.includes("Unauthorized") ? 401 : 500).json({ error: err.message });
