@@ -1,6 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  memoryLocalCache 
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from "firebase/database";
 
@@ -18,7 +23,17 @@ const firebaseConfig = {
 // Initialize Firebase for Client-side
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Enable robust, high-performance offline persistence across multiple tabs (Client only)
+const isBrowser = typeof window !== "undefined";
+export const db = initializeFirestore(app, {
+  localCache: isBrowser
+    ? persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      })
+    : memoryLocalCache(),
+});
+
 export const storage = getStorage(app);
 export const rtdb = getDatabase(app);
 export default app;
