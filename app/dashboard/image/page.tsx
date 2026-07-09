@@ -13,6 +13,7 @@ import {
   Zap,
   UploadCloud,
   Plus,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
@@ -52,8 +53,8 @@ export default function ImageStudioPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
-  // Reference image attachment state
-  const [image, setImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  // Reference images attachment state
+  const [images, setImages] = useState<{ id: string; base64: string; mimeType: string; preview: string }[]>([]);
 
   // Drag and drop states and counters
   const [isDragging, setIsDragging] = useState(false);
@@ -83,10 +84,9 @@ export default function ImageStudioPage() {
     e.preventDefault();
     dragCounter.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      attachImage(file);
-    }
+    const files = Array.from(e.dataTransfer.files || []);
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    imageFiles.forEach((file) => attachImage(file));
   };
 
   const attachImage = (file: File) => {
@@ -94,7 +94,10 @@ export default function ImageStudioPage() {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const base64 = dataUrl.split(",")[1];
-      setImage({ base64, mimeType: file.type, preview: dataUrl });
+      setImages((prev) => [
+        ...prev,
+        { id: Math.random().toString(36).substring(2, 9), base64, mimeType: file.type, preview: dataUrl }
+      ]);
     };
     reader.readAsDataURL(file);
   };
@@ -181,7 +184,7 @@ export default function ImageStudioPage() {
             prompt,
             aspectRatio,
             purpose: "image",
-            referenceImages: image ? [{ base64: image.base64, mimeType: image.mimeType }] : [],
+            referenceImages: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
           }),
         }
       );
@@ -197,7 +200,7 @@ export default function ImageStudioPage() {
 
       setHistory((prev) => [newItem, ...prev]);
       setActiveItem(newItem);
-      setImage(null);
+      setImages([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image generation failed");
     } finally {
@@ -296,10 +299,10 @@ export default function ImageStudioPage() {
               onDrop={handleDrop}
             >
               <label className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest block">
-                Reference Image (Optional)
+                Reference Images (Optional)
               </label>
               
-              {!image ? (
+              {images.length === 0 ? (
                 <label className="flex flex-col items-center justify-center border border-dashed border-neutral-900 bg-neutral-950/40 rounded-xl p-5 hover:border-neutral-800 hover:bg-neutral-950/60 transition-all cursor-pointer group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 border border-white/5 text-neutral-500 group-hover:text-white transition-colors mb-2">
                     <ImageIcon size={14} />
@@ -309,32 +312,43 @@ export default function ImageStudioPage() {
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) attachImage(file);
+                      const files = Array.from(e.target.files || []);
+                      files.forEach((file) => attachImage(file));
                     }}
                     className="hidden"
                   />
                 </label>
               ) : (
-                <div className="relative border border-neutral-900 bg-neutral-950/60 rounded-xl p-3.5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-white/5 shrink-0 bg-black">
-                      <img src={image.preview} alt="Attached reference" className="h-full w-full object-cover" />
+                <div className="grid grid-cols-4 gap-3 bg-neutral-950/40 border border-neutral-900 rounded-xl p-3">
+                  {images.map((img) => (
+                    <div key={img.id} className="relative group aspect-square rounded-lg overflow-hidden border border-neutral-800 bg-black">
+                      <img src={img.preview} alt="Reference" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setImages((prev) => prev.filter((i) => i.id !== img.id))}
+                        className="absolute top-1 right-1 bg-black/80 hover:bg-red-600/90 text-neutral-400 hover:text-white rounded-md p-1 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        title="Remove image"
+                      >
+                        <Trash2 size={11} />
+                      </button>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-medium text-white truncate">Attached Reference Image</p>
-                      <p className="text-[9px] text-neutral-500 font-mono mt-0.5 uppercase">{(image.mimeType || "image/png").split("/")[1]}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setImage(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5 text-neutral-400 hover:text-red-400 transition-colors cursor-pointer"
-                    title="Remove attachment"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  ))}
+                  <label className="flex flex-col items-center justify-center border border-dashed border-neutral-800 bg-neutral-950/20 hover:bg-neutral-950/50 hover:border-neutral-700 rounded-lg aspect-square cursor-pointer group transition-all">
+                    <Plus size={14} className="text-neutral-500 group-hover:text-neutral-300 transition-colors" />
+                    <span className="text-[9px] text-neutral-500 mt-1">Add</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        files.forEach((file) => attachImage(file));
+                      }}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               )}
 
@@ -563,11 +577,15 @@ export default function ImageStudioPage() {
                 const reader = new FileReader();
                 reader.onload = () => {
                   const dataUrl = reader.result as string;
-                  setImage({
-                    base64: dataUrl.split(",")[1],
-                    mimeType: blob.type || "image/png",
-                    preview: dataUrl,
-                  });
+                  setImages((prev) => [
+                    ...prev,
+                    {
+                      id: Math.random().toString(36).substring(2, 9),
+                      base64: dataUrl.split(",")[1],
+                      mimeType: blob.type || "image/png",
+                      preview: dataUrl,
+                    }
+                  ]);
                 };
                 reader.readAsDataURL(blob);
               })
