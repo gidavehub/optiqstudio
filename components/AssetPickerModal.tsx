@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { X, Users, Sparkles, UploadCloud, CheckCircle, Loader2 } from "lucide-react";
+import { X, Users, Wand2, UploadCloud, CheckCircle, Loader2 } from "lucide-react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useAuth } from "./AuthProvider";
@@ -134,7 +134,7 @@ export default function AssetPickerModal({
         <div className="flex items-center justify-between border-b border-neutral-900 px-6 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600/10 text-violet-400">
-              <Sparkles size={14} />
+              <Wand2 size={14} />
             </div>
             <h3 className="text-sm font-bold font-mono text-white tracking-widest uppercase">
               STUDIO ASSET COMPOSER

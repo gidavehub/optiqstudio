@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Zap, ArrowRight, Sparkles, ShieldCheck, HelpCircle } from "lucide-react";
+import { Check, Loader2, Zap, ArrowRight, ShieldCheck, HelpCircle } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 
 const PLAN_FEATURES_MAP: Record<string, string[]> = {
@@ -179,7 +179,7 @@ export default function PlansPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Sparkles className="text-violet-400" size={18} />
+              <Zap className="text-violet-400" size={18} />
               Pay-As-You-Go Credit Top-ups
             </h3>
             <p className="text-xs text-neutral-500 mt-1">

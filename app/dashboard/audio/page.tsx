@@ -14,7 +14,7 @@ import {
   UploadCloud,
   DollarSign,
   Trash2,
-  Sparkles,
+  Wand2,
   ChevronLeft,
   CheckCircle,
   Plus,
@@ -166,9 +166,8 @@ export default function VoiceStudio() {
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
-  const per100 = pricing?.costs.ttsPer100Chars ?? 10;
-  const minCharge = pricing?.costs.ttsMinimum ?? 15;
-  const cost = Math.max(engine === "clone" ? 30 : minCharge, Math.ceil(text.length / 100) * per100);
+  // Flat-rate GMD 100.00 as specified
+  const cost = 100;
 
   const loadHistory = useCallback(() => {
     apiFetch<{ items: AudioItem[] }>("/api/generations?type=audio")
@@ -542,34 +541,34 @@ export default function VoiceStudio() {
           </div>
         </div>
 
-        {/* Dynamic dynamic billing guide */}
+        {/* Wallet Balance Guide */}
         <div className="border-t border-neutral-900 pt-4 mt-auto">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign size={13} className="text-neutral-400" />
             <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
-              BILLING GUIDE
+              Wallet Balance Guide
             </span>
           </div>
           
           <div className="bg-[#050506] rounded-xl p-3 border border-neutral-900 text-[10px] space-y-2">
             <p className="text-neutral-500 font-sans leading-relaxed">
-              Synthesize and clone premium narration using specialized deep synthesis:
+              Your wallet balance is consumed on a flat-rate per-action basis:
             </p>
             <div className="space-y-1 font-mono text-[9px] text-neutral-400 border-t border-neutral-900 pt-2">
               <div className="flex justify-between">
-                <span>Prebuilt Voiceover:</span>
-                <span className="text-white font-semibold">10 cr / 100 chars</span>
+                <span>Direct Audio Synth:</span>
+                <span className="text-white font-semibold">GMD 100.00</span>
               </div>
               <div className="flex justify-between">
                 <span>AI Custom Cloning:</span>
-                <span className="text-white font-semibold">30 cr flat-rate</span>
+                <span className="text-white font-semibold">GMD 100.00</span>
               </div>
             </div>
           </div>
 
           <div className="rounded-xl border border-neutral-900 bg-[#0d0d0e]/40 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between items-center">
-            <span>Cost: <strong className="text-white font-semibold">{cost} cr</strong></span>
-            <span>Balance: <strong className="text-neutral-200">{profile ? profile.credits.toLocaleString() : "—"}</strong></span>
+            <span>Synth Cost: <strong className="text-white font-semibold">GMD 100.00</strong></span>
+            <span>Balance: <strong className="text-neutral-200">{profile ? `GMD ${profile.credits.toLocaleString()}` : "—"}</strong></span>
           </div>
         </div>
       </aside>
@@ -612,7 +611,7 @@ export default function VoiceStudio() {
               />
               <div className="mt-1 flex justify-between text-[10px] font-mono text-neutral-500">
                 <span>{text.length.toLocaleString()} / 4,000 characters</span>
-                <span>{cost} credits estimate</span>
+                <span>GMD {cost}.00 estimate</span>
               </div>
             </div>
 
@@ -736,8 +735,8 @@ export default function VoiceStudio() {
         title={engine === "clone" ? "Confirm AI Custom Cloning" : "Confirm Voice Synthesis"}
         description={
           engine === "clone"
-            ? `You are about to run our advanced AI voice cloner using your custom voice sample. This GPU operation flat-rates at ${cost} credits.`
-            : `You are about to synthesize a take using the selected localized prebuilt profile. This will deduct ${cost} credits from your ledger.`
+            ? `You are about to run our advanced AI voice cloner using your custom voice sample. This GPU operation flat-rates at GMD ${cost.toFixed(2)}.`
+            : `You are about to synthesize a take using the selected localized prebuilt profile. This will deduct GMD ${cost.toFixed(2)} from your wallet balance.`
         }
         actionLabel={engine === "clone" ? "Clone Custom Voice" : "Synthesize Voice"}
       />

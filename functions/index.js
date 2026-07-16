@@ -1310,6 +1310,150 @@ exports.apiGenerateTTS = onRequest(
 
 // Avatar pipelines completely retired. Voice Studio retains local Gemini synthesis and high-performance custom voice cloning on Modal.
 
+exports.storyGenerate = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      await requireAuth(req);
+      const { prompt, length, brandName, product, characterName, characterDesc, logo } = req.body;
+      if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+      const numScenes = length === "90s" ? 9 : length === "30s" ? 3 : 6;
+
+      const systemPrompt = `You are a legendary cinema director and advertising mastermind operating THE STORYBOARD FILM SYSTEM.
+Your task is to generate a premium, multi-scene video storyboard that matches the Storyboard Doctrine.
+
+THE STORYBOARD DOCTRINE:
+- We do not capture scenes. We capture MOMENTS: specific physical events with a beginning, middle, and end, caught by a witness camera that happened to be there.
+- Focus on VERBS about HANDS and physical changes of state.
+- BANNED VOCABULARY: "establishing...", "grounding the viewer...", "conveying the weight...", "embodying her struggle", "determined but exhausted", "face that tells the story", "golden hour", "golden light", "glorious warm sun" (use "flat, hazy, honest daylight"), "dust motes catching light", "embers drifting", "jolly", "beaming with pride", "laughing joyfully", "dramatically", "cinematically sweeping", "epic".
+- Eyelines: Nobody looks at the lens. Eyelines must go to other people, objects, the floor, etc.
+- Specificity Ladder: Do not say "a Gambian market". Describe wooden-and-zinc stalls, faded fabric awnings, packed uneven dirt roads, specific local items like gele-gele, attaya corner, tapalapa bread, bitik kiosk.
+- Every person in background must be described (age, garments, specific active work).
+
+PROMPT ARCHITECTURE (Canonical Block Order):
+Combine blocks to output a single, copy-ready prompt block for each scene. The order must be:
+1. Locked Character Block (LCB) - verbatim across scenes.
+2. Build / Wardrobe / Skin line.
+3. Wardrobe (this scene).
+4. Style header (visual contract).
+5. Absolute rules (e.g. no looking at camera, no slow-mo for people).
+6. Setting / The World (rung 4 details).
+7. People (background).
+8. Sequence / Action (timestamped beats like [0.0-3.0s]).
+9. Dialogue (with translation if in Wolof).
+10. Camera.
+11. Lighting (motivated and named source).
+12. Color (warm, earthy, lightly desaturated - not teal-and-orange).
+13. Sound (diegetic only, voiceover separate).
+14. Closing restatement (repeats identity, wardrobe, event, light, motion, no-text rule).
+
+Respond with a JSON object of this exact schema:
+{
+  "title": "A captivating, short film title",
+  "concept": "The advertising concept/narrative strategy",
+  "characterLock": {
+    "name": "Character Name",
+    "description": "An exquisite Locked Character Block (LCB) 50-100 words (Anchors: skin, face shape/features, hair, facial hair/eyes/brows, age/build, state marker of honest sweat/dust). No fluff, physical only.",
+    "wardrobe": "Locked stand-out outfit description (solid colors, named closure, wristwatch/bracelet constant)"
+  },
+  "styleHeader": "STYLE HEADER block matching the visual contract",
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "setting": "Detailed local environment using the specificity ladder",
+      "action": "Timestamped action beats [0.0-3.0s], [3.0-7.0s], [7.0-10.0s] focusing on physical verbs",
+      "dialogue": "Character spoken lines with parenthetical delivery notes and English translations",
+      "sound": "Diegetic sound (ambience, actions, reactions)",
+      "fullPrompt": "The ultimate, compiled, 100% COPY-READY scene prompt containing Blocks 1 to 14, in the canonical order. All identity, wardrobe, setting, sequence, dialogue, camera, lighting, color, sound, and closing restatements are embedded into this single, copy-pasteable block."
+    }
+  ]
+}
+
+Make sure there are exactly ${numScenes} scenes, each exactly 10s.
+Brand Info:
+- Brand Name: ${brandName || "Client"}
+- Main Product/Service: ${product || "Client offering"}
+- Logo uploaded: ${logo ? "Yes (follow One-Logo Rule: specify label/logo graphics clearly, no multiple logos)" : "No"}
+- Target Character name: ${characterName || "Nyima"}
+- Target Character description: ${characterDesc || "A hardworking Gambian youth"}`;
+
+      const textModel = "gemini-3.5-flash";
+      const response = await vertexFetch(
+        `/publishers/google/models/${textModel}:generateContent`,
+        {
+          contents: [{ role: "user", parts: [{ text: `User request: ${prompt}\n\nGenerate the complete film storyboard with exactly ${numScenes} scenes.` }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: {
+            temperature: 0.8,
+            responseMimeType: "application/json"
+          }
+        }
+      );
+
+      const candidates = response.candidates || [];
+      const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      if (!text) throw new Error("Empty response from Vertex");
+
+      return res.status(200).json(JSON.parse(text));
+    } catch (err) {
+      console.error("storyGenerate error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+exports.storyRevise = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      await requireAuth(req);
+      const { scenePrompt, revisionRequest, characterLock, styleHeader } = req.body;
+      if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
+
+      const systemPrompt = `You are a cinematography director revising a Storyboard scene prompt.
+Your task is to take the original full scene prompt and apply the user's revision request.
+
+You MUST follow all Storyboard doctrines:
+- Moments, not mood. Physical verbs.
+- Banned vocabulary remains strictly banned.
+- Maintain the original Locked Character Block, wardrobe details, and style header.
+- Re-compile the prompt into the exact 14-block Canonical Block Order.
+- Output ONLY the newly revised compiled prompt, with no JSON formatting, no preamble, and no quotes. Just the plain compiled text.`;
+
+      const textModel = "gemini-3.5-flash";
+      const response = await vertexFetch(
+        `/publishers/google/models/${textModel}:generateContent`,
+        {
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `Original Scene Prompt:\n${scenePrompt}\n\nRevision Request:\n${revisionRequest}\n\nCharacter Lock:\n${JSON.stringify(characterLock)}\n\nStyle Header:\n${styleHeader}`
+                }
+              ]
+            }
+          ],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { temperature: 0.8 }
+        }
+      );
+
+      const candidates = response.candidates || [];
+      const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      if (!text) throw new Error("Empty response from Vertex");
+
+      return res.status(200).json({ revisedPrompt: text.trim() });
+    } catch (err) {
+      console.error("storyRevise error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 /**
  * Auth trigger: Automatically initializes newly registered users in Firestore.
  */

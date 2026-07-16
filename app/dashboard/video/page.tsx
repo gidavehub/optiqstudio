@@ -10,7 +10,7 @@ import {
   Maximize,
   Pause,
   Play,
-  Sparkles,
+  Wand2,
   Volume2,
   VolumeX,
   X,
@@ -341,13 +341,9 @@ function VideoWorkspace() {
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
-  // Computed / Dynamic pricing properties
-  const perSecCost = (pricing?.costs?.videoPerSecond?.[model as string]) ?? ((model as string) === "omni-fast" ? 15 : 30);
-  const cappedDuration = Math.min(Math.max(Number(duration) || 8, 4), 10);
-  const calculatedCost = perSecCost * cappedDuration;
-
-  const perSecond = pricing?.costs.videoPerSecond?.[model] ?? (model === "omni" ? 12 : 5);
-  const cost = perSecond * duration;
+  // Computed / Dynamic pricing properties — Flat-rate GMD 100.00 as specified
+  const calculatedCost = 100;
+  const cost = 100;
 
   const triggerGenerate = () => {
     if (!prompt.trim() || phase === "generating") return;
@@ -757,39 +753,44 @@ function VideoWorkspace() {
           <div className="flex items-center gap-2 mb-2">
             <DollarSign size={14} className="text-neutral-300" />
             <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
-              Credit Utility Guide
+              Wallet Balance Guide
             </span>
           </div>
           <div className="bg-[#040405] rounded-xl p-3.5 border border-neutral-900 text-[11px] space-y-2.5">
             <p className="text-[10px] text-neutral-500 leading-normal font-sans">
-              Credits power every workspace generation on Optiq Studio. Here is a breakdown of active generation costs:
+              Your wallet balance is consumed on a per-action flat rate basis. No complex credit conversions:
             </p>
             <div className="space-y-1.5 font-mono text-[10px] text-neutral-400 border-t border-neutral-900 pt-2.5">
               <div className="flex justify-between">
-                <span>Video Generation:</span>
-                <span className="text-white font-semibold">30 cr / sec</span>
+                <span>Direct Video Clip:</span>
+                <span className="text-white font-semibold font-mono">GMD 100.00</span>
               </div>
               <div className="flex justify-between">
-                <span>Standard Image:</span>
-                <span className="text-white font-semibold">50 cr</span>
+                <span>Direct Audio Synth:</span>
+                <span className="text-white font-semibold font-mono">GMD 100.00</span>
               </div>
               <div className="flex justify-between">
-                <span>Character Sheet:</span>
-                <span className="text-white font-semibold">150 cr</span>
+                <span>Direct Image Gen:</span>
+                <span className="text-white font-semibold font-mono">GMD 100.00</span>
               </div>
               <div className="flex justify-between">
-                <span>Audio Synthesis:</span>
-                <span className="text-white font-semibold">10 cr / 100 chars</span>
+                <span>Storyboard (30s):</span>
+                <span className="text-white font-semibold font-mono">GMD 300.00</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Storyboard (60s):</span>
+                <span className="text-white font-semibold font-mono">GMD 600.00</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Storyboard (90s):</span>
+                <span className="text-white font-semibold font-mono">GMD 900.00</span>
               </div>
             </div>
-            <p className="text-[9px] text-neutral-500 leading-normal border-t border-neutral-900 pt-2 font-sans italic">
-              * A standard 10-second scene generation consumes exactly 300 credits.
-            </p>
           </div>
           
           <div className="rounded-lg border border-neutral-900 bg-[#0d0d0e]/50 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between">
-            <span>Run Cost: <strong className="text-white font-semibold">{cost} cr</strong></span>
-            <span>Balance: <strong className="text-neutral-200">{profile ? profile.credits.toLocaleString() : "—"}</strong></span>
+            <span>Clip Cost: <strong className="text-white font-semibold">GMD 100.00</strong></span>
+            <span>Balance: <strong className="text-neutral-200">{profile ? `GMD ${profile.credits.toLocaleString()}` : "—"}</strong></span>
           </div>
         </div>
       </aside>
@@ -1024,7 +1025,7 @@ function VideoWorkspace() {
                         title="Enhance prompt"
                         className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
                       >
-                        {enhancing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                        {enhancing ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
                       </button>
 
                       <button
@@ -1284,7 +1285,7 @@ function VideoWorkspace() {
                 title="Enhance prompt"
                 className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
               >
-                {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
               </button>
 
               <button
@@ -1309,8 +1310,8 @@ function VideoWorkspace() {
         title={pendingAction === "edit" ? "Confirm Video Modification" : "Confirm Video Generation"}
         description={
           pendingAction === "edit"
-            ? `You are about to modify the selected video. This will deduct ${calculatedCost} credits from your balance.`
-            : `You are about to generate a ${cappedDuration}s video. This will deduct ${calculatedCost} credits from your balance.`
+            ? `You are about to modify the selected video. This will deduct GMD ${calculatedCost.toFixed(2)} from your wallet balance.`
+            : `You are about to generate a video clip. This will deduct GMD ${calculatedCost.toFixed(2)} from your wallet balance.`
         }
         actionLabel={pendingAction === "edit" ? "Omni Edit" : "Generate Video"}
       />

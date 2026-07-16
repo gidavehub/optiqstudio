@@ -23,6 +23,7 @@ const RAIL = [
   { label: "Video Studio", href: "/dashboard/video", icon: Clapperboard },
   { label: "Image Studio", href: "/dashboard/image", icon: Image },
   { label: "Voice Studio", href: "/dashboard/audio", icon: Mic },
+  { label: "Avatar Studio", href: "/dashboard/avatar", icon: UserSquare },
   { label: "Characters", href: "/dashboard/characters", icon: Users },
   { label: "Assets", href: "/dashboard/assets", icon: FolderOpen },
   { label: "Plan & Credits", href: "/dashboard/billing", icon: CreditCard },
@@ -52,114 +53,92 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initial = (user.displayName || user.email || "?").charAt(0).toUpperCase();
 
   return (
-    <div className="flex h-screen flex-col bg-black text-white">
-      <div className="flex min-h-0 flex-1 relative overflow-hidden">
-        {/* Animated Expandable Sidebar */}
-        <aside
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          className={`flex shrink-0 flex-col items-start border-r border-white/5 bg-[#0a0a0a] py-4 transition-all duration-300 ease-in-out z-30 ${
-            hovered ? "w-[220px] px-3" : "w-[52px] px-2 items-center"
-          }`}
+    <div className="flex h-screen flex-col bg-black text-white relative overflow-hidden">
+      {/* Symmetrical Glassmorphic Top-Left Logo / Brand */}
+      <Link
+        href="/dashboard"
+        className="absolute top-4 left-6 z-50 flex items-center gap-3 rounded-full bg-[#0d0d0d]/80 border border-white/10 backdrop-blur-md px-5 py-3 shadow-2xl transition-all hover:border-white/20 select-none cursor-pointer"
+      >
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+          <circle cx="16" cy="16" r="16" fill="white" />
+          <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+        </svg>
+        <span className="font-mono text-[14px] font-bold tracking-tight lowercase text-white">
+          optiq studio
+        </span>
+      </Link>
+
+      {/* Floating Glassmorphic Top Bar / Settings Menu */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-4.5 rounded-full bg-[#0d0d0d]/80 border border-white/10 backdrop-blur-md px-5 py-2.5 text-xs shadow-2xl transition-all hover:border-white/20">
+        {/* Profile Initial and Email */}
+        <Link
+          href="/dashboard/billing"
+          className="flex items-center gap-2 border-r border-white/15 pr-3.5"
+          title={user.displayName || user.email || ""}
         >
-          {/* Logo Section */}
-          <Link
-            href="/"
-            className={`flex items-center gap-2 w-full mb-5 hover:opacity-80 transition-opacity ${
-              hovered ? "px-1.5" : "justify-center"
-            }`}
-            title="optiq studio"
-          >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3.2" />
-                <circle cx="12" cy="12" r="4.2" fill="currentColor" />
-              </svg>
-            </div>
-            <span
-              className={`text-[15px] font-bold tracking-tight text-white transition-all duration-300 origin-left ${
-                hovered ? "opacity-100 scale-100" : "opacity-0 scale-75 w-0 overflow-hidden"
-              }`}
-            >
-              optiq studio
-            </span>
-          </Link>
-
-          {/* Navigation Rails */}
-          <nav className="flex flex-col gap-1.5 w-full">
-            {RAIL.map((item) => {
-              const active =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={hovered ? undefined : item.label}
-                  className={`flex h-9 items-center rounded-lg transition-colors gap-3 w-full ${
-                    hovered ? "px-2.5" : "justify-center"
-                  } ${
-                    active
-                      ? "bg-white/10 text-white font-medium"
-                      : "text-neutral-500 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <Icon size={17} strokeWidth={1.8} className="shrink-0" />
-                  <span
-                    className={`text-[13px] transition-all duration-300 origin-left ${
-                      hovered ? "opacity-100 scale-100" : "opacity-0 scale-75 w-0 overflow-hidden"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Footer Controls */}
-          <div className="mt-auto flex flex-col gap-2 w-full">
-            <button
-              onClick={() => void signOut()}
-              title={hovered ? undefined : "Sign out"}
-              className={`flex h-9 items-center rounded-lg text-neutral-600 hover:text-white hover:bg-white/5 transition-colors gap-3 w-full ${
-                hovered ? "px-2.5" : "justify-center"
-              }`}
-            >
-              <LogOut size={15} className="shrink-0" />
-              <span
-                className={`text-[13px] transition-all duration-300 origin-left ${
-                  hovered ? "opacity-100 scale-100" : "opacity-0 scale-75 w-0 overflow-hidden"
-                }`}
-              >
-                Sign out
-              </span>
-            </button>
-            <Link
-              href="/dashboard/billing"
-              title={hovered ? undefined : (user.displayName || user.email || "")}
-              className={`flex h-9 items-center rounded-lg hover:bg-white/5 transition-colors gap-3 w-full ${
-                hovered ? "px-1" : "justify-center"
-              }`}
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-[13px] font-semibold text-white">
-                {initial}
-              </div>
-              <span
-                className={`text-[12px] font-medium text-neutral-300 truncate transition-all duration-300 origin-left ${
-                  hovered ? "opacity-100 scale-100" : "opacity-0 scale-75 w-0 overflow-hidden"
-                }`}
-              >
-                {user.displayName || user.email || ""}
-              </span>
-            </Link>
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-[11px] font-bold text-white uppercase">
+            {initial}
           </div>
-        </aside>
+          <span className="hidden sm:inline font-medium text-neutral-300 max-w-[100px] truncate">
+            {user.displayName || user.email || ""}
+          </span>
+        </Link>
 
-        {/* Page content */}
-        <div className="min-w-0 flex-1 overflow-hidden transition-all duration-300">{children}</div>
+        {/* Real-time Wallet Display */}
+        <Link
+          href="/dashboard/billing"
+          className="flex items-center gap-1.5 border-r border-white/15 pr-3.5"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span className="font-bold text-emerald-400">
+            GMD {(profile?.credits ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <span className="text-neutral-500 font-medium">Balance</span>
+        </Link>
+
+        {/* Navigation Links */}
+        <nav className="flex items-center gap-3.5">
+          <Link
+            href="/dashboard"
+            className={`font-semibold hover:text-white transition-colors ${
+              pathname === "/dashboard" ? "text-white" : "text-neutral-400"
+            }`}
+          >
+            Home
+          </Link>
+          <Link
+            href="/dashboard/billing"
+            className={`font-semibold hover:text-white transition-colors ${
+              pathname.startsWith("/dashboard/billing") ? "text-white" : "text-neutral-400"
+            }`}
+          >
+            Billing
+          </Link>
+          <Link
+            href="/dashboard/developer"
+            className={`font-semibold hover:text-white transition-colors ${
+              pathname.startsWith("/dashboard/developer") ? "text-white" : "text-neutral-400"
+            }`}
+          >
+            API
+          </Link>
+        </nav>
+
+        {/* Sign Out Action */}
+        <button
+          onClick={() => void signOut()}
+          className="border-l border-white/15 pl-3.5 font-bold text-neutral-500 hover:text-red-400 transition-colors flex items-center gap-1.5"
+        >
+          <span>Sign Out</span>
+          <LogOut size={13} />
+        </button>
+      </div>
+
+      {/* Main Full-Screen Layout Wrapper */}
+      <div className="flex min-h-0 flex-1 relative overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-y-auto transition-all duration-300">
+          {children}
+        </div>
       </div>
     </div>
   );

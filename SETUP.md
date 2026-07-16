@@ -85,7 +85,7 @@ npm run dev
 
 | Piece | Where |
 | --- | --- |
-| Vertex AI client (Veo video, image, TTS, prompt-enhance) | `lib/vertex.ts` |
+| Vertex AI client (Omni video, image, TTS, prompt-enhance) | `lib/vertex.ts` |
 | Credit economy + Firestore transactions | `lib/credits.ts` |
 | ModemPay client + webhook signature verification | `lib/modempay.ts` |
 | API routes (generate/status/user/checkout/webhook) | `app/api/**` |

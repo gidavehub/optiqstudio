@@ -7,26 +7,26 @@ import { useAuth } from "../../../components/AuthProvider";
  
 const PLAN_FEATURES_MAP: Record<string, string[]> = {
   "pro-monthly": [
-    "10,000 credits every month ($100 value)",
+    "GMD 1,000.00 wallet credit every month",
     "Gemini Omni Flash video generation",
-    "30 credits/second rendering (high quality)",
+    "Flat rate of GMD 100.00 per direct generation",
     "Character consistency tools",
     "Voice Studio with all profiles",
     "Standard rendering queue",
   ],
   "studio-monthly": [
-    "28,000 credits every month ($280 value — $30 bonus)",
+    "GMD 2,500.00 wallet credit every month",
     "Gemini Omni Flash video generation",
-    "30 credits/second rendering (high quality)",
+    "Flat rate of GMD 100.00 per direct generation",
     "Character consistency tools",
     "Voice Studio with all profiles",
     "2x faster priority queue",
     "Dedicated rendering slots",
   ],
   "enterprise-monthly": [
-    "55,000 credits every month ($550 value — $100 bonus)",
+    "GMD 4,500.00 wallet credit every month",
     "Gemini Omni Flash video generation",
-    "30 credits/second rendering (high quality)",
+    "Flat rate of GMD 100.00 per direct generation",
     "Character consistency tools",
     "Voice Studio with all profiles",
     "Ultra-priority VIP queue",
@@ -105,19 +105,29 @@ function BillingInner() {
       setBusyId(null);
     }
   };
- 
-  const plans = pricing?.plans ?? [
-    { id: "pro-monthly", name: "Optiq Pro", priceUsd: 100, monthlyCredits: 10_000, label: "Professional creator" },
-    { id: "studio-monthly", name: "Optiq Studio", priceUsd: 250, monthlyCredits: 28_000, label: "Team & studio production" },
-    { id: "enterprise-monthly", name: "Optiq Enterprise", priceUsd: 450, monthlyCredits: 55_000, label: "Unlimited power & scaling" },
-  ];
-  const packs = pricing?.packs ?? [
-    { id: "pack-1000", credits: 1_000, priceUsd: 12, label: "Starter pack" },
-    { id: "pack-5000", credits: 5_000, priceUsd: 50, label: "Creator pack" },
-    { id: "pack-12000", credits: 12_000, priceUsd: 100, label: "Studio pack" },
-  ];
   const isSubscribed = profile?.planStatus === "active";
- 
+
+  const convertTxAmount = (amount: string) => {
+    const clean = amount.replace(/[^0-9.]/g, "");
+    const num = parseFloat(clean);
+    if (!isNaN(num)) {
+      if (num === 100) return "GMD 7,000.00";
+      if (num === 50) return "GMD 3,500.00";
+      if (num === 12 || num === 15) return "GMD 1,000.00";
+      if (num === 1000) return "GMD 7,000.00";
+      if (num === 500) return "GMD 3,500.00";
+      if (num === 10000) return "GMD 7,000.00";
+      return `GMD ${(num * 70).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return amount.replace("$", "GMD ");
+  };
+
+  const gmdPacks = [
+    { id: "pack-1000", credits: 1000, priceGmd: 1000, label: "Starter Top-up (GMD 1,000)" },
+    { id: "pack-5000", credits: 3500, priceGmd: 3500, label: "Creator Top-up (GMD 3,500)" },
+    { id: "pack-12000", credits: 7000, priceGmd: 7000, label: "Studio Top-up (GMD 7,000)" },
+  ];
+
   return (
     <div className="h-full overflow-y-auto bg-black text-white">
       <div className="mx-auto max-w-5xl px-8 py-10">
@@ -126,23 +136,16 @@ function BillingInner() {
         <div className="flex items-center gap-3">
           <CreditCard className="text-neutral-400" size={24} />
           <div>
-            <h1 className="text-[24px] font-bold tracking-tight">Plan & Credits</h1>
+            <h1 className="text-[24px] font-bold tracking-tight">Plans & Wallet</h1>
             <p className="mt-1 text-xs text-neutral-500">
-              Credits power every generation. Subscribe for high-volume creator discounts, or buy top-up packs.
+              Your wallet balance powers every generation. Top up with Gambian Dalasis (GMD) to fund your creative campaign pipeline.
             </p>
           </div>
         </div>
- 
-        {!isSubscribed && (
-          <div className="mt-6 rounded-xl border border-violet-900/50 bg-violet-950/20 px-4 py-3.5 text-xs text-violet-300 flex items-center gap-2">
-            <ShieldCheck size={14} className="text-violet-400 shrink-0" />
-            <span>Please select a subscription plan to unlock your workspace. Optiq Studio is a paid-only platform.</span>
-          </div>
-        )}
- 
+
         {status === "success" && (
           <div className="mt-6 rounded-xl border border-emerald-950 bg-emerald-950/30 px-4 py-3.5 text-xs text-emerald-300">
-            Payment received — your credits will appear within a few seconds of confirmation.
+            Payment received — your balance will appear in your wallet within a few seconds of confirmation.
           </div>
         )}
         {status === "cancelled" && (
@@ -155,17 +158,17 @@ function BillingInner() {
             {error}
           </div>
         )}
- 
+
         {/* Balance Status Container */}
         <div className="mt-8 flex items-center justify-between rounded-xl border border-neutral-900 bg-[#08080a] px-6 py-5 shadow-inner">
           <div>
             <p className="text-[10px] font-bold font-mono text-neutral-500 uppercase tracking-widest">
-              CURRENT LEDGER BALANCE
+              CURRENT WALLET BALANCE
             </p>
             <p className="mt-2 text-3xl font-extrabold tracking-tight tabular-nums text-white">
-              {profile ? profile.credits.toLocaleString() : "—"}
+              GMD {profile ? profile.credits.toLocaleString() : "—"}
               <span className="ml-2 text-xs font-normal font-mono text-neutral-500 uppercase tracking-wider">
-                credits
+                GMD Balance
               </span>
             </p>
           </div>
@@ -174,98 +177,88 @@ function BillingInner() {
               ACTIVE ACCOUNT PLAN
             </p>
             <p className="mt-2 text-sm font-semibold text-neutral-200">
-              {isSubscribed
-                ? (profile?.plan === "enterprise-monthly"
-                  ? "Optiq Enterprise"
-                  : profile?.plan === "studio-monthly"
-                  ? "Optiq Studio"
-                  : "Optiq Pro")
-                : "No Active Plan"}
-              {isSubscribed && profile?.planRenewsAt && (
-                <span className="block text-[10px] font-normal font-mono text-neutral-500 mt-1 uppercase">
-                  Renews {new Date(profile.planRenewsAt).toLocaleDateString()}
-                </span>
-              )}
+              Optiq Studio Production Workspace
             </p>
           </div>
         </div>
- 
-        {/* Choose Subscription Plan Section */}
+
+        {/* Platform Production Rates Section */}
         <div className="mt-10">
-          <p className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest mb-4">
-            Choose subscription plan
+          <p className="text-[10px] font-bold font-mono text-violet-400 uppercase tracking-widest mb-4">
+            Platform Production Rates & Pricing (GMD)
           </p>
-          <div className="grid gap-6 md:grid-cols-3">
-            {plans.map((p: any) => {
-              const isActive = profile?.plan === p.id && isSubscribed;
-              const features = PLAN_FEATURES_MAP[p.id] ?? PLAN_FEATURES_MAP["pro-monthly"];
-              return (
-                <div
-                  key={p.id}
-                  className={`flex flex-col justify-between rounded-xl border p-5 transition-all bg-[#08080a]/60 ${
-                    isActive ? "border-white/40 shadow-xl shadow-white/5" : "border-neutral-900 hover:border-neutral-800"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-sm font-bold text-white">{p.name}</h2>
-                        <p className="text-[10px] text-neutral-400 mt-0.5">{p.label}</p>
-                      </div>
-                      {p.id === "studio-monthly" && (
-                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[8px] font-bold tracking-wider text-neutral-200 uppercase font-mono border border-white/5">
-                          POPULAR
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 text-xl font-bold text-white tracking-tight">
-                      ${p.priceUsd}
-                      <span className="text-[10px] font-normal font-mono text-neutral-500"> / month</span>
-                    </p>
-                    <ul className="mt-4 space-y-2">
-                      {features.map((f) => (
-                        <li key={f} className="flex items-start gap-1.5 text-[11px] text-neutral-300 leading-normal">
-                          <Check size={12} className="mt-0.5 shrink-0 text-white" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Cinematic Production Videos Card */}
+            <div className="rounded-2xl border border-white/5 bg-[#08080a]/60 p-6 flex flex-col justify-between">
+              <div>
+                <span className="rounded bg-violet-500/10 px-2 py-0.5 text-[8px] font-bold font-mono text-violet-400 uppercase tracking-widest border border-violet-500/15">
+                  Cinematic Ads
+                </span>
+                <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">Multi-Scene Director Specs</h3>
+                <p className="mt-1 text-[10px] text-neutral-500">Fully synthesized multi-scene advertising campaigns matching your exact brand accents and actors.</p>
+                
+                <div className="mt-6 space-y-3 font-sans">
+                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
+                    <span className="text-xs text-neutral-300">30-Second Commercial Spec</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 3,500.00</span>
                   </div>
-                  <button
-                    onClick={() => void checkout("subscription", p.id)}
-                    disabled={busyId !== null || isActive}
-                    className={`mt-6 flex w-full items-center justify-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-all ${
-                      isActive
-                        ? "bg-neutral-900 text-neutral-500 border border-neutral-800 cursor-not-allowed"
-                        : "bg-white text-black hover:bg-neutral-200"
-                    }`}
-                  >
-                    {busyId === p.id ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Zap size={12} />
-                    )}
-                    {isActive ? "Your Active Plan" : `Subscribe to ${p.name}`}
-                  </button>
+                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
+                    <span className="text-xs text-neutral-300">60-Second Commercial Spec</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 7,000.00</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2">
+                    <span className="text-xs text-neutral-300">90-Second Commercial Spec</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 10,500.00</span>
+                  </div>
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Individual Assets Card */}
+            <div className="rounded-2xl border border-white/5 bg-[#08080a]/60 p-6 flex flex-col justify-between">
+              <div>
+                <span className="rounded bg-fuchsia-500/10 px-2 py-0.5 text-[8px] font-bold font-mono text-fuchsia-400 uppercase tracking-widest border border-fuchsia-500/15">
+                  Individual Assets
+                </span>
+                <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">A-La-Carte Syntheses</h3>
+                <p className="mt-1 text-[10px] text-neutral-500">Direct studio asset generation rates. Charged per single generation request from your wallet balance.</p>
+                
+                <div className="mt-6 space-y-3 font-sans">
+                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
+                    <span className="text-xs text-neutral-300">6-Second Premium B-Roll Clip</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 300.00</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
+                    <span className="text-xs text-neutral-300">10-Second Premium B-Roll Clip</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 500.00</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
+                    <span className="text-xs text-neutral-300">Brand Style Logo / Creative AI Image</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 50.00</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2">
+                    <span className="text-xs text-neutral-300">Custom Audio track / Voiceover Synthesis</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 100.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Credit Packs Section */}
         <div className="mt-12">
           <p className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest mb-4">
-            Top up credits
+            Top up wallet balance
           </p>
           <div className="grid gap-4 md:grid-cols-3">
-            {packs.map((pack) => (
+            {gmdPacks.map((pack) => (
               <div
                 key={pack.id}
                 className="flex flex-col justify-between rounded-xl border border-neutral-900 bg-[#08080a]/60 p-4 hover:border-neutral-800 transition-colors"
               >
                 <div>
-                  <p className="text-sm font-semibold text-white">{pack.credits.toLocaleString()} credits</p>
+                  <p className="text-sm font-semibold text-white">GMD {pack.priceGmd.toLocaleString()}.00</p>
                   <p className="text-[10px] text-neutral-500 mt-0.5">{pack.label}</p>
                 </div>
                 <button
@@ -276,14 +269,14 @@ function BillingInner() {
                   {busyId === pack.id ? (
                     <Loader2 size={12} className="animate-spin" />
                   ) : (
-                    `Purchase · $${pack.priceUsd}`
+                    `Purchase Pack`
                   )}
                 </button>
               </div>
             ))}
           </div>
           <p className="mt-3 text-[10px] leading-relaxed text-neutral-500 font-sans">
-            Payments are processed securely by ModemPay. Credits are added to your balance immediately once confirmed.
+            Payments are processed securely by ModemPay. Balance is added to your wallet immediately once confirmed.
           </p>
         </div>
 
@@ -332,7 +325,7 @@ function BillingInner() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-white">
-                          {tx.amount?.startsWith("$") ? tx.amount : `$${tx.amount}`}
+                          {convertTxAmount(tx.amount)}
                         </td>
                       </tr>
                     ))}
@@ -342,7 +335,7 @@ function BillingInner() {
             </div>
           ) : (
             <div className="rounded-xl border border-neutral-900 bg-[#050506] p-6 text-center text-neutral-500 text-xs font-mono uppercase tracking-wider">
-              No transactions found on this account yet. Top up credits or subscribe above to see receipts.
+              No transactions found on this account yet. Top up your wallet or subscribe above to see receipts.
             </div>
           )}
         </div>

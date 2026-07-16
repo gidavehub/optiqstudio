@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Image as ImageIcon,
   Loader2,
-  Sparkles,
+  Wand2,
   Download,
   Maximize2,
   Trash2,
@@ -102,8 +102,8 @@ export default function ImageStudioPage() {
     reader.readAsDataURL(file);
   };
 
-  // Cost dynamic deduction
-  const generationCost = pricing?.costs?.image ?? 50;
+  // Cost dynamic deduction — Flat-rate GMD 100.00 as specified
+  const generationCost = 100;
   const userBalance = profile?.credits ?? 0;
 
   // Fetch image generation history
@@ -274,7 +274,7 @@ export default function ImageStudioPage() {
                     {enhancing ? (
                       <Loader2 size={10} className="animate-spin" />
                     ) : (
-                      <Sparkles size={10} />
+                      <Wand2 size={10} />
                     )}
                     Enhance
                   </button>
@@ -417,7 +417,7 @@ export default function ImageStudioPage() {
               ) : (
                 <>
                   <Zap size={12} />
-                  Generate Image · {generationCost} Credits
+                  Generate Image · GMD {generationCost}.00
                 </>
               )}
             </button>
@@ -555,7 +555,7 @@ export default function ImageStudioPage() {
         cost={generationCost}
         balance={userBalance}
         title="Confirm Image Generation"
-        description="You are about to launch a high-fidelity image generation using Gemini-3.1-Flash model."
+        description={`You are about to launch a high-fidelity image generation using Gemini-3.1-Flash model. This will deduct GMD ${generationCost.toFixed(2)} from your wallet balance.`}
         actionLabel="Generate Image"
       />
 
