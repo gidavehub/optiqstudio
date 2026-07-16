@@ -26,7 +26,10 @@ import {
   Eye,
   Copy,
   Paperclip,
-  CreditCard
+  CreditCard,
+  ChevronUp,
+  ChevronDown,
+  Music
 } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 import { db } from "../../lib/firebase";
@@ -205,6 +208,14 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
+  // Compilation and Timeline states
+  const [compileStatus, setCompileStatus] = useState<"idle" | "compiling" | "succeeded" | "failed">("idle");
+  const [compileVideoUrl, setCompileVideoUrl] = useState<string>("");
+  const [compileError, setCompileError] = useState<string>("");
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [musicUrl, setMusicUrl] = useState<string>("");
+  const [musicVolume, setMusicVolume] = useState<number>(0.2);
+
   // Core navigation states
   const [view, setView] = useState<"home" | "wizard" | "storyboard">("home");
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
@@ -309,6 +320,12 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
           title: storyboard.title,
           concept: storyboard.concept,
           productionMode: productionMode || "manual",
+          compileStatus,
+          compileVideoUrl,
+          compileError,
+          timeline,
+          musicUrl,
+          musicVolume,
           updatedAt: new Date().toISOString(),
         }));
       } catch (err) {
@@ -322,17 +339,80 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
     }, 1500);
 
     return () => clearTimeout(timeout);
-  }, [videoStatus, activeProjectId, storyboard, productionMode, user]);
+  }, [videoStatus, activeProjectId, storyboard, productionMode, user, compileStatus, compileVideoUrl, compileError, timeline, musicUrl, musicVolume]);
 
   // ─── AUTO-RESUME DETAILED PROJECT VIA PROP ID ──────────────────────────
   useEffect(() => {
     if (projectId && projects.length > 0) {
       const match = projects.find((p) => p.id === projectId);
       if (match) {
-        loadProject(match);
+        if (activeProjectId !== match.id) {
+          loadProject(match);
+        } else {
+          // Live sync cloud-side compilation status changes to active workspace
+          if (match.compileStatus !== compileStatus) {
+            setCompileStatus(match.compileStatus || "idle");
+          }
+          if (match.compileVideoUrl !== compileVideoUrl) {
+            setCompileVideoUrl(match.compileVideoUrl || "");
+          }
+          if (match.compileError !== compileError) {
+            setCompileError(match.compileError || "");
+          }
+        }
       }
     }
-  }, [projectId, projects]);
+  }, [projectId, projects, activeProjectId, compileStatus, compileVideoUrl, compileError]);
+
+  // ─── INITIALIZE TIMELINE FROM COMPLETED VIDEOS ──────────────────────────
+  useEffect(() => {
+    if (!storyboard || !videoStatus) return;
+    const completedCount = storyboard.scenes.filter((_, idx) => videoStatus[idx]?.status === "succeeded").length;
+    if (completedCount === storyboard.scenes.length && timeline.length === 0) {
+      const defaultTimeline = storyboard.scenes.map((_, idx) => ({
+        sceneIndex: idx,
+        videoUrl: videoStatus[idx]?.url || "",
+        trimStart: 0,
+        trimEnd: 10,
+        volume: 1.0,
+      }));
+      setTimeline(defaultTimeline);
+    }
+  }, [storyboard, videoStatus, timeline.length]);
+
+  const handleCompileProject = async () => {
+    if (!activeProjectId || timeline.length === 0) return;
+    
+    setCompileStatus("compiling");
+    setCompileError("");
+    
+    try {
+      const payload = {
+        projectId: activeProjectId,
+        timeline: timeline.map((item, idx) => ({
+          sceneIndex: item.sceneIndex,
+          videoUrl: videoStatus[item.sceneIndex]?.url || item.videoUrl,
+          trimStart: Number(item.trimStart) ?? 0,
+          trimEnd: Number(item.trimEnd) ?? 10,
+          volume: Number(item.volume) ?? 1.0,
+          playOrder: idx
+        })),
+        musicUrl: musicUrl || null,
+        musicVolume: Number(musicVolume) ?? 0.2
+      };
+      
+      await apiFetch<{ status: string }>("/api/project/compile", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      
+      console.log("Compilation triggered successfully");
+    } catch (err: any) {
+      console.error("Failed to trigger project compilation:", err);
+      setCompileStatus("failed");
+      setCompileError(err.message || "Request failed");
+    }
+  };
 
   // ─── PROJECTS MANAGEMENT METHODS ─────────────────────────────────────────
   const loadProject = (proj: any) => {
@@ -352,6 +432,12 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
     setVideoStatus(proj.videoStatus || {});
     setActiveProjectId(proj.id);
     setProductionMode(proj.productionMode || "manual");
+    setCompileStatus(proj.compileStatus || "idle");
+    setCompileVideoUrl(proj.compileVideoUrl || "");
+    setCompileError(proj.compileError || "");
+    setTimeline(proj.timeline || []);
+    setMusicUrl(proj.musicUrl || "");
+    setMusicVolume(proj.musicVolume ?? 0.2);
     setView("storyboard");
 
     // Sync browser address bar to shareable path segment in real-time
@@ -1517,9 +1603,17 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         <span className="flex items-center gap-1 text-[9px] font-bold text-yellow-400 bg-yellow-500/10 rounded px-2 py-0.5 uppercase border border-yellow-500/15 animate-pulse">
                           Compiling Reels ({completedCount}/{totalScenes})
                         </span>
-                      ) : (
+                      ) : compileStatus === "compiling" ? (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-violet-400 bg-violet-500/10 rounded px-2 py-0.5 uppercase border border-violet-500/15 animate-pulse">
+                          Stitching & Rendering Final Film...
+                        </span>
+                      ) : compileStatus === "succeeded" ? (
                         <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 rounded px-2 py-0.5 uppercase border border-emerald-500/15">
-                          Commercial Film Ready
+                          Commercial Film Rendered
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-indigo-400 bg-indigo-500/10 rounded px-2 py-0.5 uppercase border border-indigo-500/15">
+                          Timeline Editing
                         </span>
                       )}
                     </div>
@@ -1590,8 +1684,52 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         </div>
                       </div>
                     </div>
+                  ) : compileStatus === "compiling" ? (
+                    /* CASE B: FINAL FILM STITCHING / COMPILING PIPELINE SCREEN */
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-6 bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.08)_0%,rgba(0,0,0,1)_100%)] bg-black">
+                      <div className="relative flex items-center justify-center h-20 w-20">
+                        <span className="absolute h-full w-full rounded-full border-2 border-violet-500/20 animate-ping duration-1000" />
+                        <span className="absolute h-16 w-16 rounded-full border border-violet-500/35 animate-spin border-t-violet-500" />
+                        <Zap className="text-violet-400 animate-pulse relative" size={26} />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <h3 className="text-sm font-bold text-white uppercase tracking-widest font-mono flex items-center justify-center gap-2">
+                          Assembling Cinematic Master
+                        </h3>
+                        <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed">
+                          Processing timeline operations on Google Cloud Run. We are cutting, trimming, stitching scene segments, and mixing background soundtracks into a final MP4 film.
+                        </p>
+                      </div>
+
+                      <div className="bg-neutral-950/80 border border-white/5 rounded-2xl p-4 w-full max-w-sm space-y-2 text-left">
+                        <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-400">
+                          <span className="h-1.5 w-1.5 bg-violet-400 rounded-full animate-ping" />
+                          <span>Standardizing frame rates & layout...</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-400">
+                          <span className="h-1.5 w-1.5 bg-fuchsia-400 rounded-full animate-ping" />
+                          <span>Blending background soundtrack...</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : compileStatus === "succeeded" && compileVideoUrl ? (
+                    /* CASE C: SINGLE FULLY-COMPILED FILM PLAYER */
+                    <div className="absolute inset-0 flex items-center justify-center bg-black group/player">
+                      <video
+                        src={compileVideoUrl}
+                        controls
+                        autoPlay={theaterPlaying}
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-4 left-4 rounded-lg bg-black/70 backdrop-blur-md border border-white/5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                        Final Multi-scene Compiled Film
+                      </div>
+                    </div>
                   ) : (
-                    /* CASE B: CINEMATIC SEAMLESS PLAYER */
+                    /* CASE D: SEAMLESS LIVE EDITS PREVIEW PLAYLIST PLAYER */
                     <div className="absolute inset-0 flex items-center justify-center bg-black group/player">
                       <video
                         key={currentScenePlayIdx}
@@ -1611,7 +1749,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
 
                       {/* Quick HUD overlay */}
                       <div className="absolute top-4 left-4 rounded-lg bg-black/60 backdrop-blur-md border border-white/5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-violet-300">
-                        Active segment: {currentScenePlayIdx + 1} of {totalScenes}
+                        Active segment: {currentScenePlayIdx + 1} of {totalScenes} (Trim: {((timeline[currentScenePlayIdx]?.trimEnd || 10) - (timeline[currentScenePlayIdx]?.trimStart || 0)).toFixed(1)}s)
                       </div>
 
                       {/* Giant Play/Pause Overlay Toggle on hover */}
@@ -1671,68 +1809,256 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     })}
                   </div>
                 ) : (
-                  /* THEATER INTERACTIVE PLAYER CONTROLLER HUD */
-                  <div className="space-y-4 animate-in fade-in duration-500">
-                    {/* Filmstrip timeline and custom controls */}
-                    <div className="rounded-2xl border border-white/5 bg-[#09090c] p-4 space-y-4">
-                      <div className="flex items-center justify-between text-xs text-neutral-400">
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => setTheaterPlaying(!theaterPlaying)}
-                            className="h-9 w-9 rounded-full bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center shadow-lg shadow-violet-500/15 transition-all"
+                  /* THEATER INTERACTIVE TIMELINE AND AUDIO CONTROLLERS */
+                  <div className="space-y-6 animate-in fade-in duration-500">
+                    {/* Compilation Errors */}
+                    {compileError && (
+                      <div className="rounded-xl border border-red-500/10 bg-red-950/10 p-4 text-xs text-red-400 flex items-center gap-2">
+                        <AlertCircle size={14} className="shrink-0" />
+                        <span>Render Error: {compileError}</span>
+                      </div>
+                    )}
+
+                    {/* Background Audio Selection */}
+                    <div className="rounded-2xl border border-white/5 bg-[#09090c] p-5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div>
+                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-violet-400">
+                            <Music size={13} /> Cloud Audio Overlay
+                          </span>
+                          <p className="text-[10px] text-neutral-500 mt-0.5">Select a royalty-free soundtrack preset and adjust background volume blend.</p>
+                        </div>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-[9px] font-mono text-neutral-500 uppercase tracking-widest mb-1.5">Select Soundtrack Theme</label>
+                          <select
+                            value={musicUrl}
+                            onChange={(e) => setMusicUrl(e.target.value)}
+                            className="w-full rounded-xl bg-neutral-950 border border-white/10 px-3 py-2.5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
                           >
-                            {theaterPlaying ? <><span className="h-3 w-1 bg-white rounded-sm inline-block mr-1" /><span className="h-3 w-1 bg-white rounded-sm inline-block" /></> : <Play className="text-white fill-white translate-x-0.5" size={14} />}
-                          </button>
-                          <div>
-                            <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px]">Cinema Control Bar</span>
-                            <p className="text-[10px] text-neutral-500 mt-0.5">Click any segment of the film strip to jump directly to it.</p>
-                          </div>
+                            <option value="">No Background Music (Mute Soundtrack)</option>
+                            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">Neon Synthwave Theme</option>
+                            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3">Cinematic Uplift Orchestral</option>
+                            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3">Modern Lo-Fi Beat</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-mono text-neutral-500 uppercase tracking-widest mb-1.5">Soundtrack Volume: {Math.round(musicVolume * 100)}%</label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={musicVolume}
+                            onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                            className="w-full accent-violet-600 h-1 bg-neutral-900 rounded-lg appearance-none cursor-pointer mt-4"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Timeline Tracks */}
+                    <div className="rounded-2xl border border-white/5 bg-[#09090c] p-5 space-y-5">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <div>
+                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-violet-400">
+                            <Video size={13} /> Interactive Clip Timeline
+                          </span>
+                          <p className="text-[10px] text-neutral-500 mt-0.5">Trim clip regions, click any segment to jump preview, and reorder clips in sequence.</p>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            storyboard.scenes.forEach((_, idx) => {
-                              const url = videoStatus[idx]?.url;
-                              if (url) {
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = `${storyboard.title.replace(/\s+/g, "_")}_Scene_${idx + 1}.mp4`;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                              }
-                            });
-                          }}
-                          className="flex items-center gap-1.5 rounded-xl bg-violet-500/10 border border-violet-500/15 text-violet-400 px-4 py-2 text-xs font-semibold hover:bg-violet-500/20 transition-all shadow-md"
-                        >
-                          <Video size={12} /> Download Completed Film (All Clips)
-                        </button>
+                        {compileStatus === "succeeded" && compileVideoUrl && (
+                          <a
+                            href={compileVideoUrl}
+                            download={`${storyboard.title.replace(/\s+/g, "_")}_full.mp4`}
+                            className="flex items-center gap-1.5 rounded-xl bg-violet-500/10 border border-violet-500/15 text-violet-400 px-4 py-2 text-xs font-semibold hover:bg-violet-500/20 transition-all shadow-md"
+                          >
+                            <Video size={12} /> Download Final Movie MP4
+                          </a>
+                        )}
                       </div>
 
-                      {/* Horizontal Strip Selection */}
-                      <div className="grid gap-2 grid-cols-3 sm:grid-cols-6 md:grid-cols-9">
-                        {storyboard.scenes.map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              setCurrentScenePlayIdx(idx);
-                              setTheaterPlaying(true);
-                            }}
-                            className={`group flex flex-col items-center justify-center rounded-lg border p-2.5 text-center transition-all duration-300 ${
-                              currentScenePlayIdx === idx
-                                ? "border-violet-500 bg-violet-500/10 text-white shadow-[0_0_15px_rgba(124,58,237,0.25)]"
-                                : "border-white/5 bg-neutral-950 hover:bg-[#121216]"
-                            }`}
-                          >
-                            <span className="text-[10px] font-mono font-bold tracking-wider">REEL</span>
-                            <span className={`text-base font-extrabold mt-1 font-mono group-hover:text-violet-400 transition-colors ${
-                              currentScenePlayIdx === idx ? "text-violet-400 animate-pulse" : "text-neutral-500"
-                            }`}>
-                              0{idx + 1}
-                            </span>
-                          </button>
-                        ))}
+                      <div className="space-y-4">
+                        {timeline.length > 0 ? (
+                          timeline.map((item, idx) => {
+                            const scene = storyboard.scenes[item.sceneIndex];
+                            if (!scene) return null;
+                            const start = item.trimStart ?? 0;
+                            const end = item.trimEnd ?? 10;
+                            const duration = end - start;
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`bg-neutral-950/80 border rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 hover:border-violet-500/20 transition-colors ${
+                                  currentScenePlayIdx === item.sceneIndex ? "border-violet-500/15 bg-violet-950/[0.01]" : "border-white/5"
+                                }`}
+                              >
+                                {/* Left column: Scene Indicator & Jump Preview button */}
+                                <div className="w-full md:w-44 shrink-0 flex flex-row items-center gap-3">
+                                  <button
+                                    onClick={() => {
+                                      setCurrentScenePlayIdx(item.sceneIndex);
+                                      setTheaterPlaying(true);
+                                    }}
+                                    className={`h-11 w-11 rounded-lg flex flex-col items-center justify-center border font-mono transition-colors shrink-0 ${
+                                      currentScenePlayIdx === item.sceneIndex
+                                        ? "border-violet-500 bg-violet-500/10 text-violet-400 shadow-[0_0_10px_rgba(124,58,237,0.15)]"
+                                        : "border-white/5 bg-neutral-900 text-neutral-400 hover:text-white hover:border-white/10"
+                                    }`}
+                                  >
+                                    <span className="text-[8px] font-bold">REEL</span>
+                                    <span className="text-sm font-extrabold">0{item.sceneIndex + 1}</span>
+                                  </button>
+                                  <div className="min-w-0">
+                                    <h4 className="text-xs font-bold text-white truncate">{scene.setting || "Ad Moment"}</h4>
+                                    <span className="text-[9px] font-mono text-neutral-500 block mt-0.5 uppercase tracking-wide">
+                                      Span: {start.toFixed(1)}s - {end.toFixed(1)}s
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Center column: Visual Dual Trim Sliders */}
+                                <div className="flex-1 flex flex-col gap-2">
+                                  <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500">
+                                    <span>TRIM START</span>
+                                    <span className="text-violet-400 font-bold bg-violet-500/10 rounded px-1.5 py-0.5">{duration.toFixed(1)}s ACTIVE</span>
+                                    <span>TRIM END</span>
+                                  </div>
+                                  
+                                  {/* Glowing Visual Clip Bar with active range */}
+                                  <div className="h-6 w-full bg-neutral-900 border border-white/5 rounded-lg relative overflow-hidden flex items-center">
+                                    {/* Grayscale background before start */}
+                                    <div className="h-full bg-black/50 absolute left-0 animate-in fade-in duration-300" style={{ width: `${start * 10}%` }} />
+                                    {/* Active Highlight Range */}
+                                    <div className="h-full bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border-l border-r border-violet-500/30 absolute" style={{ left: `${start * 10}%`, right: `${(10 - end) * 10}%` }}>
+                                      <span className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.15),transparent)]" />
+                                    </div>
+                                    {/* Grayscale background after end */}
+                                    <div className="h-full bg-black/50 absolute right-0 animate-in fade-in duration-300" style={{ width: `${(10 - end) * 10}%` }} />
+                                    
+                                    {/* Small visual film clip frames inside the track */}
+                                    <div className="absolute inset-0 flex justify-between px-3 pointer-events-none opacity-5">
+                                      {[...Array(10)].map((_, i) => (
+                                        <div key={i} className="w-[1px] h-full bg-white border-dashed border-r border-white/30" />
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Dual Range Controls */}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[8px] font-mono text-neutral-500">START:</span>
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max={Math.max(0, end - 0.5)}
+                                        step="0.1"
+                                        value={start}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value);
+                                          setTimeline(prev => {
+                                            const next = [...prev];
+                                            next[idx] = { ...next[idx], trimStart: val };
+                                            return next;
+                                          });
+                                        }}
+                                        className="flex-1 accent-violet-500 h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
+                                      />
+                                      <span className="text-[9px] font-mono text-neutral-300 w-8 text-right">{start.toFixed(1)}s</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[8px] font-mono text-neutral-500">END:</span>
+                                      <input
+                                        type="range"
+                                        min={start + 0.5}
+                                        max="10"
+                                        step="0.1"
+                                        value={end}
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value);
+                                          setTimeline(prev => {
+                                            const next = [...prev];
+                                            next[idx] = { ...next[idx], trimEnd: val };
+                                            return next;
+                                          });
+                                        }}
+                                        className="flex-1 accent-violet-500 h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
+                                      />
+                                      <span className="text-[9px] font-mono text-neutral-300 w-8 text-right">{end.toFixed(1)}s</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Right column: Move Order arrows */}
+                                <div className="shrink-0 flex items-center justify-end gap-1 border-t border-white/5 pt-3 md:border-t-0 md:pt-0">
+                                  <button
+                                    disabled={idx === 0}
+                                    onClick={() => {
+                                      setTimeline(prev => {
+                                        const next = [...prev];
+                                        const temp = next[idx];
+                                        next[idx] = next[idx - 1];
+                                        next[idx - 1] = temp;
+                                        return next;
+                                      });
+                                    }}
+                                    className="h-8 w-8 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                                  >
+                                    <ChevronUp size={14} />
+                                  </button>
+                                  <button
+                                    disabled={idx === timeline.length - 1}
+                                    onClick={() => {
+                                      setTimeline(prev => {
+                                        const next = [...prev];
+                                        const temp = next[idx];
+                                        next[idx] = next[idx + 1];
+                                        next[idx + 1] = temp;
+                                        return next;
+                                      });
+                                    }}
+                                    className="h-8 w-8 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                                  >
+                                    <ChevronDown size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-6 text-xs text-neutral-500">Initializing timeline metadata...</div>
+                        )}
                       </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="rounded-2xl border border-violet-500/10 bg-gradient-to-r from-violet-950/15 to-fuchsia-950/15 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xl">
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-1.5 uppercase font-mono">
+                          <Clapperboard size={14} className="text-violet-400" /> Compile Cinematic Film
+                        </h4>
+                        <p className="text-xs text-neutral-500 mt-1 max-w-md">
+                          Triggers server-side FFmpeg processing on Google Cloud. It standardizes, trims, scales, stitches, and mixes your audio track into a single fully polished MP4.
+                        </p>
+                      </div>
+                      <button
+                        disabled={compileStatus === "compiling"}
+                        onClick={handleCompileProject}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:bg-violet-800 disabled:opacity-50 px-6 py-3.5 text-xs font-bold text-white transition-all shadow-lg shadow-violet-500/15"
+                      >
+                        {compileStatus === "compiling" ? (
+                          <>
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white border-t-transparent" />
+                            Rendering...
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={14} /> Compile & Render Movie
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}

@@ -1446,9 +1446,149 @@ You MUST follow all Storyboard doctrines:
       const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
       if (!text) throw new Error("Empty response from Vertex");
 
-      return res.status(200).json({ revisedPrompt: text.trim() });
+// Helper for projectCompile to download files using native fetch
+async function compileDownloadFile(url, destPath) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download ${url}: ${response.statusText}`);
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const fs = require("fs");
+  await fs.promises.writeFile(destPath, buffer);
+}
+
+// Helper for projectCompile to run a CLI command as a Promise
+function compileRunCommand(cmd) {
+  const { exec } = require("child_process");
+  return new Promise((resolve, reject) => {
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error.message}. stderr: ${stderr}`);
+        reject(new Error(`Command failed: ${cmd}. Error: ${error.message}`));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
+exports.projectCompile = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "1GiB" },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const user = await requireAuth(req);
+      const { projectId, timeline = [], musicUrl = null, musicVolume = 0.2 } = req.body;
+
+      if (!projectId) return res.status(400).json({ error: "Missing projectId" });
+      if (!timeline.length) return res.status(400).json({ error: "Timeline is empty" });
+
+      const projectRef = db.collection("projects").doc(projectId);
+
+      // Set compileStatus: "compiling" in Firestore
+      await projectRef.set({
+        compileStatus: "compiling",
+        compileError: null,
+        timeline,
+        musicUrl,
+        musicVolume,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // Send response immediately to make background processing bulletproof
+      res.status(202).json({ status: "compiling", message: "Compilation started in the background" });
+
+      // Run execution asynchronously
+      (async () => {
+        const os = require("os");
+        const fs = require("fs");
+        const path = require("path");
+
+        const workDir = path.join(os.tmpdir(), `compile_${projectId}_${Date.now()}`);
+        
+        try {
+          await fs.promises.mkdir(workDir, { recursive: true });
+
+          const filelistPath = path.join(workDir, "filelist.txt");
+          const filelistContent = [];
+
+          for (let i = 0; i < timeline.length; i++) {
+            const clip = timeline[i];
+            const srcPath = path.join(workDir, `src_${i}.mp4`);
+            const trimmedPath = path.join(workDir, `trimmed_${i}.mp4`);
+            
+            console.log(`[compile ${projectId}] Downloading segment ${i}: ${clip.videoUrl}`);
+            await compileDownloadFile(clip.videoUrl, srcPath);
+            
+            const trimStart = clip.trimStart || 0;
+            const trimEnd = clip.trimEnd || 10;
+            const duration = Math.max(trimEnd - trimStart, 0.5);
+            
+            console.log(`[compile ${projectId}] Trimming segment ${i} from ${trimStart}s to ${trimEnd}s (duration: ${duration}s)`);
+            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 "${trimmedPath}"`;
+            await compileRunCommand(trimCmd);
+            
+            filelistContent.push(`file '${trimmedPath}'`);
+          }
+
+          await fs.promises.writeFile(filelistPath, filelistContent.join("\n"));
+
+          console.log(`[compile ${projectId}] Merging ${timeline.length} segments`);
+          const mergedPath = path.join(workDir, "merged.mp4");
+          const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${filelistPath}" -c copy "${mergedPath}"`;
+          await compileRunCommand(concatCmd);
+
+          let finalPath = mergedPath;
+          if (musicUrl) {
+            console.log(`[compile ${projectId}] Downloading background music: ${musicUrl}`);
+            const bgmPath = path.join(workDir, "bgm.mp3");
+            await compileDownloadFile(musicUrl, bgmPath);
+            
+            finalPath = path.join(workDir, "final.mp4");
+            console.log(`[compile ${projectId}] Mixing background music (volume: ${musicVolume})`);
+            const mixCmd = `ffmpeg -y -i "${mergedPath}" -i "${bgmPath}" -filter_complex "[0:a]volume=1.0[a1];[1:a]volume=${musicVolume}[a2];[a1][a2]amix=inputs=2:duration=first[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac "${finalPath}"`;
+            await compileRunCommand(mixCmd);
+          }
+
+          const remotePath = `projects/${user.uid}/${projectId}/final_video.mp4`;
+          console.log(`[compile ${projectId}] Uploading output to Firebase Storage: ${remotePath}`);
+          
+          await admin.storage().bucket(STORAGE_BUCKET).upload(finalPath, {
+            destination: remotePath,
+            metadata: {
+              contentType: "video/mp4",
+              cacheControl: "public, max-age=31536000",
+            }
+          });
+
+          const finalUrl = `https://storage.googleapis.com/${STORAGE_BUCKET}/${remotePath}`;
+          
+          console.log(`[compile ${projectId}] Compilation succeeded. URL: ${finalUrl}`);
+          await projectRef.set({
+            compileStatus: "succeeded",
+            compileVideoUrl: finalUrl,
+            compileCompletedAt: new Date().toISOString(),
+            compileError: null,
+          }, { merge: true });
+
+        } catch (err) {
+          console.error(`[compile ${projectId}] Compilation failed:`, err);
+          await projectRef.set({
+            compileStatus: "failed",
+            compileError: err.message || "Compilation failed",
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } finally {
+          // Clean up /tmp
+          try {
+            await fs.promises.rm(workDir, { recursive: true, force: true });
+          } catch (cleanupErr) {
+            console.warn(`[compile ${projectId}] Failed to clean up ${workDir}:`, cleanupErr);
+          }
+        }
+      })();
+
     } catch (err) {
-      console.error("storyRevise error:", err);
+      console.error("projectCompile error:", err);
       return res.status(500).json({ error: err.message });
     }
   }

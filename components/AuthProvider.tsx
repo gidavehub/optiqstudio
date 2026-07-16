@@ -329,6 +329,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/storyGenerate";
       } else if (path === "/api/story/revise") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/storyRevise";
+      } else if (path === "/api/project/compile") {
+        functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/projectCompile";
       } else if (path.startsWith("/api/video/status")) {
         const url = new URL(path, window.location.origin);
         const id = url.searchParams.get("id");
