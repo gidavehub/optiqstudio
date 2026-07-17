@@ -43,6 +43,7 @@ next-env.d.ts
 
 # credentials
 firebase-key.json
+secrets/
 
 # scratch & secondary dependencies
 /scratch/

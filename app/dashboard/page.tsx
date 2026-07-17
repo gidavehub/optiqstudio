@@ -896,7 +896,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
   };
 
   return (
-    <div className={`flex h-full flex-col bg-background text-neutral-200 ${view === "wizard" && wizardStep === 2 ? "" : "pt-16"}`}>
+    <div className="flex h-full flex-col bg-background text-neutral-200">
       {/* ─── PORTAL GATEWAY: CENTERED MINIMAL CARD PORTAL ────────────────────── */}
       {view === "home" && (
         <div className="flex flex-1 items-center justify-center p-6 md:p-12 min-h-[calc(100vh-4rem)]">
@@ -1033,7 +1033,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             </div>
           )}
 
-          <div className={`relative z-10 flex flex-col flex-1 px-6 py-6 pb-32 mx-auto w-full ${wizardStep === 2 ? "pt-24 max-w-5xl" : "max-w-3xl"}`}>
+          <div className={`relative z-10 flex flex-col flex-1 px-6 pb-32 mx-auto w-full ${wizardStep === 2 ? "pt-24 max-w-5xl" : "pt-20 max-w-3xl"}`}>
           {/* Back button */}
           <button
             onClick={() => setView("home")}
@@ -1696,7 +1696,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             const compilePercent = Math.round((completedCount / totalScenes) * 100);
 
             return (
-              <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6 w-full max-w-4xl mx-auto space-y-6">
+              <div className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 pt-24 w-full max-w-4xl mx-auto space-y-6">
                 {/* Widescreen Theater Header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
                   <div>
@@ -2172,7 +2172,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
           })()
         ) : (
           /* ─── STANDARD MANUAL REVIEW DECK ──────────────────────── */
-          <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6 w-full max-w-6xl mx-auto">
+          <div className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 pt-24 w-full max-w-6xl mx-auto">
           {/* Header Controls */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
             <div>

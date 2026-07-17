@@ -61,34 +61,12 @@ export default function AvatarStudioPage() {
         </div>
       )}
 
-      {/* Main Studio Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/5 bg-background px-6">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-neutral-800 text-neutral-300 border border-neutral-700">
-            <UserSquare size={15} />
-          </div>
-          <h1 className="text-[14px] font-semibold tracking-tight text-neutral-200">Avatar Studio</h1>
-          <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[9px] font-medium tracking-wide text-neutral-300 uppercase animate-pulse">
-            Next-Gen Engine Upgrade
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowUpgradeModal(true)}
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 px-3 text-[11px] font-medium text-neutral-300 transition-colors"
-          >
-            <Cpu size={12} className="text-neutral-400" />
-            Engine Status
-          </button>
-        </div>
-      </header>
-
       {/* Main Grid Workspace */}
       <div className="flex flex-1 min-h-0">
-        
+
         {/* Left Settings Sidebar */}
         <aside className="w-[320px] shrink-0 border-r border-white/5 bg-background flex flex-col min-h-0 overflow-y-auto">
-          <form onSubmit={handleGenerateAttempt} className="p-5 flex flex-col gap-5">
+          <form onSubmit={handleGenerateAttempt} className="p-5 pt-20 flex flex-col gap-5">
             
             {/* Stage 1: Choose Style */}
             <div className="flex flex-col gap-2.5">

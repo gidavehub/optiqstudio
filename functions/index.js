@@ -258,7 +258,7 @@ exports.generateVideo = onRequest(
       }
 
       const model = "gemini-omni-flash-preview";
-      console.log(`Starting video generation with model: ${model} via generateContent`);
+      console.log(`Starting video generation with model: ${model} via Interactions API`);
 
       const video = await generateOmniVideo(prompt);
       console.log(`Successfully generated video with model: ${model}`);
@@ -568,49 +568,10 @@ async function loadReferenceMedia(gen) {
   };
 }
 
-// Generates a video with gemini-omni-flash-preview via generateContent. This
-// model only emits video through the TEXT+VIDEO response modality — a bare
-// ["VIDEO"] request is rejected with INVALID_ARGUMENT — and its video_config
-// exposes no duration/aspect fields, so the previous interactions.create call
-// (which just hung indefinitely) and any structured duration control are not
-// options here. Returns { base64, mimeType }.
-async function generateOmniVideo(prompt, media) {
-  const model = "gemini-omni-flash-preview";
-  const parts = [];
-
-  if (media && Array.isArray(media.images) && media.images.length > 0) {
-    for (const img of media.images) {
-      if (img.base64 && img.mimeType) {
-        parts.push({ inlineData: { data: img.base64, mimeType: img.mimeType } });
-      }
-    }
-  } else if (media && media.imageBase64 && media.imageMimeType) {
-    parts.push({ inlineData: { data: media.imageBase64, mimeType: media.imageMimeType } });
-  } else if (media && media.videoBase64 && media.videoMimeType) {
-    parts.push({ inlineData: { data: media.videoBase64, mimeType: media.videoMimeType } });
-  }
-
-  if (media && media.audioBase64 && media.audioMimeType) {
-    parts.push({ inlineData: { data: media.audioBase64, mimeType: media.audioMimeType } });
-  }
-  parts.push({ text: prompt });
-
-  const response = await vertexFetch(
-    `/publishers/google/models/${model}:generateContent`,
-    {
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseModalities: ["TEXT", "VIDEO"] },
-    }
-  );
-
-  const videoPart = response.candidates?.[0]?.content?.parts?.find(
-    (p) => p.inlineData && String(p.inlineData.mimeType || "").startsWith("video")
-  );
-  if (!videoPart?.inlineData?.data) {
-    throw new Error("No video data in Vertex AI response");
-  }
-  return { base64: videoPart.inlineData.data, mimeType: videoPart.inlineData.mimeType || "video/mp4" };
-}
+// Generates a video with gemini-omni-flash-preview. Vertex now only serves
+// this model through the Interactions API (generateContent returns 400), so
+// the implementation lives in omniVideo.js: background interaction + polling.
+const { generateOmniVideo } = require("./omniVideo");
 
 // gemini-omni-flash-preview has no structured video config, so duration/aspect/
 // negative hints are woven into the prompt on a best-effort basis.
@@ -1445,6 +1406,14 @@ You MUST follow all Storyboard doctrines:
       const candidates = response.candidates || [];
       const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
       if (!text) throw new Error("Empty response from Vertex");
+
+      return res.status(200).json({ revisedPrompt: text.trim() });
+    } catch (err) {
+      console.error("storyRevise error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // Helper for projectCompile to download files using native fetch
 async function compileDownloadFile(url, destPath) {

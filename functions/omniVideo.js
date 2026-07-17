@@ -1,0 +1,95 @@
+/**
+ * gemini-omni-flash-preview video generation via the Vertex Interactions API.
+ *
+ * The model can no longer be called through generateContent — Vertex rejects it
+ * with 400 "only supported in the Interactions API". A plain (blocking)
+ * interactions.create also used to hang past HTTP idle timeouts while the video
+ * rendered, so we create the interaction with background:true and poll
+ * interactions.get until it completes (verified working ~40s end-to-end by
+ * scripts/probe-omni-interactions.mjs).
+ */
+
+const { GoogleGenAI } = require("@google/genai");
+
+const PROJECT_ID = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
+const MODEL = "gemini-omni-flash-preview";
+
+const ai = new GoogleGenAI({ vertexai: true, project: PROJECT_ID, location: "global" });
+
+const POLL_INTERVAL_MS = 5000;
+// processVideoGeneration runs with timeoutSeconds: 540 — leave headroom to
+// upload the result and update Firestore before the platform kills us.
+const DEADLINE_MS = 8 * 60 * 1000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// media: { images: [{base64, mimeType}], imageBase64, imageMimeType,
+//          videoBase64, videoMimeType, audioBase64, audioMimeType }
+function buildInput(prompt, media) {
+  const content = [];
+
+  if (media && Array.isArray(media.images) && media.images.length > 0) {
+    for (const img of media.images) {
+      if (img.base64 && img.mimeType) {
+        content.push({ type: "image", data: img.base64, mime_type: img.mimeType });
+      }
+    }
+  } else if (media && media.imageBase64 && media.imageMimeType) {
+    content.push({ type: "image", data: media.imageBase64, mime_type: media.imageMimeType });
+  } else if (media && media.videoBase64 && media.videoMimeType) {
+    content.push({ type: "video", data: media.videoBase64, mime_type: media.videoMimeType });
+  }
+
+  if (media && media.audioBase64 && media.audioMimeType) {
+    content.push({ type: "audio", data: media.audioBase64, mime_type: media.audioMimeType });
+  }
+
+  if (content.length === 0) return prompt;
+  content.push({ type: "text", text: prompt });
+  return [{ role: "user", content }];
+}
+
+/** Generates a video and returns { base64, mimeType }. */
+async function generateOmniVideo(prompt, media) {
+  const interaction = await ai.interactions.create({
+    model: MODEL,
+    input: buildInput(prompt, media),
+    background: true,
+    store: true,
+  });
+  console.log(`[omni] interaction ${interaction.id} created (status: ${interaction.status})`);
+
+  const deadline = Date.now() + DEADLINE_MS;
+  let current = interaction;
+  while (current.status === "in_progress" || current.status === "queued") {
+    if (Date.now() > deadline) {
+      throw new Error(`Video generation timed out after ${DEADLINE_MS / 1000}s (interaction ${interaction.id})`);
+    }
+    await sleep(POLL_INTERVAL_MS);
+    current = await ai.interactions.get(interaction.id);
+  }
+
+  if (current.status !== "completed") {
+    throw new Error(
+      `Video generation ${current.status}` +
+        (current.output_text ? `: ${String(current.output_text).slice(0, 300)}` : "")
+    );
+  }
+
+  const video = current.output_video;
+  if (video && video.data) {
+    return { base64: video.data, mimeType: video.mime_type || "video/mp4" };
+  }
+  if (video && video.uri) {
+    const res = await fetch(video.uri);
+    if (!res.ok) throw new Error(`Failed to download generated video (${res.status})`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    return { base64: buf.toString("base64"), mimeType: video.mime_type || "video/mp4" };
+  }
+  throw new Error(
+    "Interaction completed but returned no video" +
+      (current.output_text ? ` (model said: ${String(current.output_text).slice(0, 300)})` : "")
+  );
+}
+
+module.exports = { generateOmniVideo };

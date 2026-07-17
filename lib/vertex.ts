@@ -1,5 +1,25 @@
 import { GoogleAuth } from "google-auth-library";
 import { GoogleGenAI } from "@google/genai";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+
+// Helper to write service account key to a temp file if provided as an environment variable (e.g., in Vercel)
+function setupCredentials() {
+  if (process.env.GCP_SERVICE_ACCOUNT_KEY && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    try {
+      const tempDir = os.tmpdir();
+      const tempFilePath = path.join(tempDir, "gcp-sa.json");
+      fs.writeFileSync(tempFilePath, process.env.GCP_SERVICE_ACCOUNT_KEY.trim());
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = tempFilePath;
+      console.log(`[Vertex AI] Successfully wrote credentials to temp file: ${tempFilePath}`);
+    } catch (err) {
+      console.error("[Vertex AI] Failed to write GCP_SERVICE_ACCOUNT_KEY to a temporary file:", err);
+    }
+  }
+}
+
+setupCredentials();
 
 /**
  * Vertex AI client for Optiq Studio.
