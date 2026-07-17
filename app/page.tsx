@@ -287,7 +287,6 @@ export default function LandingPage() {
         <div className="relative h-[88vh] w-full overflow-hidden rounded-xl bg-black">
           <MediaSlot
             src="/media/template-2.mp4"
-            poster="/media/hero.jpg"
             className="absolute inset-0 h-full w-full"
             alt="Childhood Kitchen Discovery - a warm nostalgic commercial generated with Omni"
           />
