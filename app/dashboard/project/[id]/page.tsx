@@ -1,4 +1,4 @@
-import DashboardHome from "../../page";
+﻿import DashboardHome from "../../page";
 
 interface PageProps {
   params: Promise<{ id: string }>;

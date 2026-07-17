@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
  
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -160,7 +160,7 @@ function BillingInner() {
         )}
 
         {/* Balance Status Container */}
-        <div className="mt-8 flex items-center justify-between rounded-xl border border-neutral-900 bg-[#08080a] px-6 py-5 shadow-inner">
+        <div className="mt-8 flex items-center justify-between rounded-xl border border-neutral-900 bg-surface px-6 py-5 shadow-inner">
           <div>
             <p className="text-[10px] font-bold font-mono text-neutral-500 uppercase tracking-widest">
               CURRENT WALLET BALANCE
@@ -184,14 +184,14 @@ function BillingInner() {
 
         {/* Platform Production Rates Section */}
         <div className="mt-10">
-          <p className="text-[10px] font-bold font-mono text-violet-400 uppercase tracking-widest mb-4">
+          <p className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest mb-4">
             Platform Production Rates & Pricing (GMD)
           </p>
           <div className="grid gap-6 md:grid-cols-2">
             {/* Cinematic Production Videos Card */}
-            <div className="rounded-2xl border border-white/5 bg-[#08080a]/60 p-6 flex flex-col justify-between">
+            <div className="rounded-2xl border border-white/5 bg-surface/60 p-6 flex flex-col justify-between">
               <div>
-                <span className="rounded bg-violet-500/10 px-2 py-0.5 text-[8px] font-bold font-mono text-violet-400 uppercase tracking-widest border border-violet-500/15">
+                <span className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[8px] font-bold font-mono text-neutral-300 uppercase tracking-widest">
                   Cinematic Ads
                 </span>
                 <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">Multi-Scene Director Specs</h3>
@@ -200,24 +200,24 @@ function BillingInner() {
                 <div className="mt-6 space-y-3 font-sans">
                   <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
                     <span className="text-xs text-neutral-300">30-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 3,500.00</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 450.00</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
                     <span className="text-xs text-neutral-300">60-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 7,000.00</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 900.00</span>
                   </div>
                   <div className="flex items-center justify-between pb-2">
                     <span className="text-xs text-neutral-300">90-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 10,500.00</span>
+                    <span className="text-xs font-mono font-bold text-white">GMD 1,350.00</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Individual Assets Card */}
-            <div className="rounded-2xl border border-white/5 bg-[#08080a]/60 p-6 flex flex-col justify-between">
+            <div className="rounded-2xl border border-white/5 bg-surface/60 p-6 flex flex-col justify-between">
               <div>
-                <span className="rounded bg-fuchsia-500/10 px-2 py-0.5 text-[8px] font-bold font-mono text-fuchsia-400 uppercase tracking-widest border border-fuchsia-500/15">
+                <span className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[8px] font-bold font-mono text-neutral-300 uppercase tracking-widest">
                   Individual Assets
                 </span>
                 <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">A-La-Carte Syntheses</h3>
@@ -255,7 +255,7 @@ function BillingInner() {
             {gmdPacks.map((pack) => (
               <div
                 key={pack.id}
-                className="flex flex-col justify-between rounded-xl border border-neutral-900 bg-[#08080a]/60 p-4 hover:border-neutral-800 transition-colors"
+                className="flex flex-col justify-between rounded-xl border border-neutral-900 bg-surface/60 p-4 hover:border-neutral-800 transition-colors"
               >
                 <div>
                   <p className="text-sm font-semibold text-white">GMD {pack.priceGmd.toLocaleString()}.00</p>
@@ -295,11 +295,11 @@ function BillingInner() {
               Retrieving transaction ledger...
             </div>
           ) : transactions.length > 0 ? (
-            <div className="rounded-xl border border-neutral-900 bg-[#08080a]/60 overflow-hidden shadow-sm">
+            <div className="rounded-xl border border-neutral-900 bg-surface/60 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-neutral-900 bg-[#050506] text-neutral-500 font-mono text-[9px] uppercase tracking-wider">
+                    <tr className="border-b border-neutral-900 bg-background text-neutral-500 font-mono text-[9px] uppercase tracking-wider">
                       <th className="py-3 px-4 font-semibold">Date</th>
                       <th className="py-3 px-4 font-semibold">Description</th>
                       <th className="py-3 px-4 font-semibold">Invoice ID</th>
@@ -334,7 +334,7 @@ function BillingInner() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-neutral-900 bg-[#050506] p-6 text-center text-neutral-500 text-xs font-mono uppercase tracking-wider">
+            <div className="rounded-xl border border-neutral-900 bg-background p-6 text-center text-neutral-500 text-xs font-mono uppercase tracking-wider">
               No transactions found on this account yet. Top up your wallet or subscribe above to see receipts.
             </div>
           )}

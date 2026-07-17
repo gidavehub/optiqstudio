@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -288,7 +288,7 @@ Response Example:
           <div className="lg:col-span-4 space-y-6">
             
             {/* Quickstart card */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0a] p-5">
+            <div className="rounded-xl border border-white/5 bg-surface p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                   <BookOpen size={15} className="text-neutral-400" />
@@ -314,7 +314,7 @@ Response Example:
               </p>
               
               <div className="mt-4 rounded-lg bg-black border border-white/5 px-3 py-2.5 font-mono text-[11px] text-neutral-300">
-                Authorization: Bearer <span className="text-violet-400">optiq_live_...</span>
+                 Authorization: Bearer <span className="text-neutral-400 font-bold">optiq_live_...</span>
               </div>
 
               <p className="mt-4 text-[12px] leading-relaxed text-neutral-500">
@@ -323,7 +323,7 @@ Response Example:
             </div>
 
             {/* Core Specs card */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0a] p-5">
+            <div className="rounded-xl border border-white/5 bg-surface p-5">
               <div className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                 <Globe size={15} className="text-neutral-400" />
                 <h2>Global Endpoints</h2>
@@ -338,7 +338,7 @@ Response Example:
                   <span>/apiGenerateVideo</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="rounded bg-violet-950/40 text-violet-400 border border-violet-800/30 px-1 py-0.5 text-[9px] uppercase font-bold">GET</span>
+                   <span className="rounded bg-neutral-800 text-neutral-300 border border-neutral-700 px-1 py-0.5 text-[9px] uppercase font-bold">GET</span>
                   <span>/apiGetVideoStatus</span>
                 </li>
                 <li className="flex items-center gap-2">
@@ -349,7 +349,7 @@ Response Example:
             </div>
 
             {/* Credits Usage info */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0a] p-5">
+            <div className="rounded-xl border border-white/5 bg-surface p-5">
               <div className="flex items-center gap-2 text-sm font-medium text-neutral-200">
                 <Info size={14} className="text-neutral-400" />
                 <h2>Billing & Ledger</h2>
@@ -379,7 +379,7 @@ Response Example:
           <div className="lg:col-span-8 space-y-6">
             
             {/* Nav tabs for interactive API quick look */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0a] overflow-hidden">
+            <div className="rounded-xl border border-white/5 bg-surface overflow-hidden">
               
               {/* Selector */}
               <div className="flex border-b border-white/5 bg-black">
@@ -411,7 +411,7 @@ Response Example:
                           /apiGenerateImage
                         </h3>
                       </div>
-                      <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2.5 py-0.5 text-[10px] text-violet-300">
+                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300">
                         5 Credits / Request
                       </span>
                     </div>
@@ -466,7 +466,7 @@ Response Example:
                             /apiGenerateVideo
                           </h3>
                         </div>
-                        <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2.5 py-0.5 text-[10px] text-violet-300">
+                        <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300 font-medium">
                           12 Credits / Second
                         </span>
                       </div>
@@ -511,7 +511,7 @@ Response Example:
                     <div className="border-t border-white/5 pt-6 space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="rounded bg-violet-950/40 text-violet-400 border border-violet-800/30 px-2 py-0.5 text-[10px] uppercase font-bold font-mono">GET</span>
+                           <span className="rounded bg-neutral-800 text-neutral-300 border border-neutral-700 px-2 py-0.5 text-[10px] uppercase font-bold font-mono">GET</span>
                           <h3 className="font-mono text-[13px] font-bold text-white">
                             /apiGetVideoStatus
                           </h3>
@@ -571,7 +571,7 @@ Response Example:
                           /apiGenerateTTS
                         </h3>
                       </div>
-                      <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2.5 py-0.5 text-[10px] text-violet-300">
+                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300 font-medium">
                         1 Credit / 100 Characters
                       </span>
                     </div>

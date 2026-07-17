@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -117,13 +117,13 @@ export default function PlansPage() {
             <div
               key={p.id}
               className={`relative rounded-2xl border p-6 flex flex-col justify-between transition-all bg-[#08080c]/60 ${
-                isStudio ? "border-violet-500/50 shadow-2xl shadow-violet-500/5" : "border-neutral-900"
+                isStudio ? "border-white/30 shadow-2xl shadow-white/5" : "border-neutral-900"
               } ${
                 isActive ? "border-white/30" : "hover:border-neutral-700"
               }`}
             >
               {isStudio && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-violet-600 px-3 py-1 text-[9px] font-bold tracking-wider text-white uppercase font-mono border border-violet-400/20">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-1 text-[9px] font-bold tracking-wider text-black uppercase font-mono border border-neutral-200">
                   RECOMMENDED
                 </span>
               )}
@@ -144,7 +144,7 @@ export default function PlansPage() {
                 <ul className="mt-6 space-y-2.5">
                   {features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-xs text-neutral-300 leading-relaxed">
-                      <Check size={13} className="mt-0.5 shrink-0 text-violet-400" />
+                      <Check size={13} className="mt-0.5 shrink-0 text-white" />
                       {f}
                     </li>
                   ))}
@@ -158,8 +158,8 @@ export default function PlansPage() {
                   isActive
                     ? "bg-neutral-900 text-neutral-500 border border-neutral-800 cursor-not-allowed"
                     : isStudio
-                    ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-500 hover:to-fuchsia-500"
-                    : "bg-white text-black hover:bg-neutral-200"
+                    ? "bg-white text-black hover:bg-neutral-200"
+                    : "bg-neutral-800 hover:bg-neutral-700 text-white"
                 }`}
               >
                 {busyId === p.id ? (
@@ -179,7 +179,7 @@ export default function PlansPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Zap className="text-violet-400" size={18} />
+              <Zap className="text-white" size={18} />
               Pay-As-You-Go Credit Top-ups
             </h3>
             <p className="text-xs text-neutral-500 mt-1">

@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   Wand2,
   Zap,
+  Sparkles,
   Check,
   CheckCircle,
   AlertCircle,
@@ -231,6 +232,14 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
   const [characterDesc, setCharacterDesc] = useState("");
   const [brandMaterials, setBrandMaterials] = useState<Array<{ name: string; data: string }>>([]);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Leonardo AI Style Prompt States
+  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [mediaMode, setMediaMode] = useState<"image" | "video">("image");
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [styleMode, setStyleMode] = useState("Cinematic");
+  const [speedMode, setSpeedMode] = useState("Auto");
+  const [aspectDropdownOpen, setAspectDropdownOpen] = useState(false);
   
   // UI Interaction states
   const [recording, setRecording] = useState(false);
@@ -474,19 +483,26 @@ export default function DashboardHome({ projectId }: DashboardHomeProps = {}) {
     }
     const rec = new SpeechRecognition();
     rec.continuous = true;
-    rec.interimResults = true;
+    rec.interimResults = false;
     rec.lang = "en-US";
+
+    const initialText = promptText;
 
     rec.onstart = () => {
       setRecording(true);
     };
 
     rec.onresult = (e: any) => {
-      let text = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        text += e.results[i][0].transcript;
+      let sessionText = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          sessionText += e.results[i][0].transcript + " ";
+        }
       }
-      setPromptText((prev) => (prev ? prev + " " + text : text));
+      const trimmed = sessionText.trim();
+      if (trimmed) {
+        setPromptText(initialText ? `${initialText} ${trimmed}` : trimmed);
+      }
     };
 
     rec.onerror = (e: any) => {
@@ -800,7 +816,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
 
   // ─── AUTO-RESUME OR INITIATE QUEUED GENERATIONS ON PROJECT LOAD ──────────
   useEffect(() => {
-    if (!storyboard || !activeProjectId || productionMode !== "auto-merge") return;
+    if (!storyboard || !activeProjectId) return;
 
     storyboard.scenes.forEach((scene, idx) => {
       const status = videoStatus[idx];
@@ -809,10 +825,10 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
       if (!status || status.status === "succeeded" || status.status === "failed") return;
 
       if (status.status === "rendering" && status.id && !isPolling) {
-        // Resume polling for existing background rendering task
+        // Resume polling for existing background rendering task (even in manual mode)
         void resumePollingForScene(idx, status.id);
-      } else if ((status.status === "idle" || (status.status === "rendering" && !status.id)) && !isPolling) {
-        // Trigger fresh generation for unstarted scenes
+      } else if (productionMode === "auto-merge" && (status.status === "idle" || (status.status === "rendering" && !status.id)) && !isPolling) {
+        // Trigger fresh generation for unstarted scenes ONLY in auto-merge mode
         void generateVideoForScene(idx, scene.fullPrompt);
       }
     });
@@ -880,7 +896,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
   };
 
   return (
-    <div className="flex h-full flex-col bg-[#050505] text-neutral-200 pt-16">
+    <div className={`flex h-full flex-col bg-background text-neutral-200 ${view === "wizard" && wizardStep === 2 ? "" : "pt-16"}`}>
       {/* ─── PORTAL GATEWAY: CENTERED MINIMAL CARD PORTAL ────────────────────── */}
       {view === "home" && (
         <div className="flex flex-1 items-center justify-center p-6 md:p-12 min-h-[calc(100vh-4rem)]">
@@ -891,7 +907,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 setView("wizard");
                 setWizardStep(1);
               }}
-              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black p-10 text-center hover:border-violet-500/30 transition-all duration-300 shadow-2xl hover:shadow-violet-900/10 min-h-[340px] md:min-h-[380px]"
+              className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black p-10 text-center hover:border-neutral-700 transition-all duration-300 shadow-2xl hover:shadow-neutral-900/10 min-h-[340px] md:min-h-[380px]"
             >
               {/* Loop video cover showing cinematic ambient scene */}
               <div className="absolute inset-0 z-0">
@@ -901,19 +917,19 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                   loop
                   muted
                   playsInline
-                  className="h-full w-full object-cover opacity-20 group-hover:opacity-35 group-hover:scale-105 transition-all duration-700"
+                  className="h-full w-full object-cover opacity-35 group-hover:opacity-55 group-hover:scale-105 transition-all duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/70 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/60 to-transparent" />
               </div>
 
               <div className="relative z-10 flex flex-col items-center">
-                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 group-hover:scale-110 transition-transform">
+                <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-800 border border-neutral-700 text-neutral-300 group-hover:scale-110 transition-transform">
                   <Clapperboard size={26} />
                 </span>
                 <h2 className="mt-8 text-2xl font-bold text-white tracking-tight">
                   Storyboard
                 </h2>
-                <span className="mt-2.5 inline-flex text-[11px] font-semibold tracking-wider text-violet-400 bg-violet-500/10 rounded-full px-3 py-0.5 uppercase">
+                <span className="mt-2.5 inline-flex text-[11px] font-semibold tracking-wider text-neutral-300 bg-neutral-800 border border-neutral-700 rounded-full px-3 py-0.5 uppercase">
                   Agentic Director
                 </span>
                 <p className="mt-4 text-xs text-neutral-400 leading-relaxed max-w-xs">
@@ -926,7 +942,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             </button>
 
             {/* OPTION 2: DIRECT STUDIO GATEWAY WITH THREE SUB-BOXES */}
-            <div className="flex flex-col justify-center rounded-2xl border border-white/5 bg-[#0a0a0d]/40 p-10 hover:border-neutral-800 transition-all duration-300 min-h-[340px] md:min-h-[380px]">
+            <div className="flex flex-col justify-center rounded-2xl border border-white/5 bg-surface/40 p-10 hover:border-neutral-800 transition-all duration-300 min-h-[340px] md:min-h-[380px]">
               <div className="flex flex-col items-center text-center">
                 <span className="flex h-14 w-16 items-center justify-center rounded-2xl bg-neutral-900 border border-neutral-800 text-neutral-400">
                   <Video size={24} />
@@ -945,7 +961,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 {/* SUB-BOX 1: VIDEO STUDIO (with custom loop video) */}
                 <Link
                   href="/dashboard/video"
-                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-[#0e0e12] aspect-video hover:border-violet-500/30 transition-all duration-300 shadow-lg"
+                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-surface-2 aspect-video hover:border-white/10 transition-all duration-300 shadow-lg"
                 >
                   <video
                     src="/media/dash-video-studio.mp4"
@@ -953,9 +969,9 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     loop
                     muted
                     playsInline
-                    className="absolute inset-0 h-full w-full object-cover opacity-40 group-hover/item:opacity-75 group-hover/item:scale-105 transition-all duration-500"
+                    className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
                   <div className="relative z-10 p-3 flex items-center justify-between">
                     <span className="text-[10px] font-bold text-white tracking-wide">Video Studio</span>
                     <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />
@@ -965,14 +981,14 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 {/* SUB-BOX 2: IMAGE STUDIO (with premium graphic image) */}
                 <Link
                   href="/dashboard/image"
-                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-[#0e0e12] aspect-video hover:border-violet-500/30 transition-all duration-300 shadow-lg"
+                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-surface-2 aspect-video hover:border-white/10 transition-all duration-300 shadow-lg"
                 >
                   <img
                     src="/media/app-video.jpg"
                     alt="Image Studio Reference"
-                    className="absolute inset-0 h-full w-full object-cover opacity-40 group-hover/item:opacity-75 group-hover/item:scale-105 transition-all duration-500"
+                    className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
                   <div className="relative z-10 p-3 flex items-center justify-between">
                     <span className="text-[10px] font-bold text-white tracking-wide">Image Studio</span>
                     <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />
@@ -982,7 +998,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 {/* SUB-BOX 3: AUDIO STUDIO (with custom loop video) */}
                 <Link
                   href="/dashboard/audio"
-                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-[#0e0e12] aspect-video hover:border-violet-500/30 transition-all duration-300 shadow-lg"
+                  className="group/item relative flex flex-col justify-end overflow-hidden rounded-xl border border-white/5 bg-surface-2 aspect-video hover:border-white/10 transition-all duration-300 shadow-lg"
                 >
                   <video
                     src="/media/dash-audio-studio.mp4"
@@ -990,9 +1006,9 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     loop
                     muted
                     playsInline
-                    className="absolute inset-0 h-full w-full object-cover opacity-40 group-hover/item:opacity-75 group-hover/item:scale-105 transition-all duration-500"
+                    className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
                   <div className="relative z-10 p-3 flex items-center justify-between">
                     <span className="text-[10px] font-bold text-white tracking-wide">Audio Studio</span>
                     <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />
@@ -1005,7 +1021,19 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
       )}
 
       {view === "wizard" && (
-        <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6 pb-32 max-w-3xl mx-auto w-full">
+        <div className="flex flex-1 flex-col overflow-y-auto relative w-full bg-transparent">
+          {/* Symmetrical Fixed Cinematic Background Layer */}
+          {wizardStep === 2 && (
+            <div className="fixed inset-0 z-0 pointer-events-none w-full h-full">
+              <div 
+                className="w-full h-full bg-cover bg-center bg-no-repeat"
+                style={{ backgroundImage: "url('/media/storyboard_cinematic_bg.png')" }}
+              />
+              <div className="absolute inset-0 bg-[#0a0f1d]/75 backdrop-blur-[2px]" />
+            </div>
+          )}
+
+          <div className={`relative z-10 flex flex-col flex-1 px-6 py-6 pb-32 mx-auto w-full ${wizardStep === 2 ? "pt-24 max-w-5xl" : "max-w-3xl"}`}>
           {/* Back button */}
           <button
             onClick={() => setView("home")}
@@ -1024,7 +1052,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 <span
                   key={s}
                   className={`h-1.5 w-8 rounded-full transition-all duration-300 ${
-                    wizardStep === s ? "bg-violet-500 w-12" : "bg-neutral-800"
+                    wizardStep === s ? "bg-white w-12" : "bg-neutral-800"
                   }`}
                 />
               ))}
@@ -1034,7 +1062,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
           {/* Loading Screen Overlay */}
           {generating && (
             <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
-              <RefreshCw size={36} className="text-violet-400 animate-spin" />
+              <RefreshCw size={36} className="text-white animate-spin" />
               <h3 className="mt-5 text-lg font-semibold text-white">Generating Storyboard Spec</h3>
               <p className="mt-2 text-xs text-neutral-500 max-w-md leading-relaxed">
                 Our Gemini AI director is compiling your visual style contract, mapping out consecutive moments, and formatting copy-ready prompt blocks...
@@ -1063,17 +1091,17 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       <button
                         key={item.id}
                         onClick={() => setLength(item.id as any)}
-                        className={`group flex flex-col rounded-xl border p-5 text-left transition-all duration-300 ${
+                        className={`group flex flex-col rounded-2xl border p-6 text-left transition-all duration-300 ${
                           length === item.id
-                            ? "border-violet-500/50 bg-violet-500/10 text-white"
-                            : "border-white/5 bg-[#0e0e11] hover:bg-neutral-900"
+                            ? "border-blue-500 bg-[#0c152d] text-white"
+                            : "border-white/5 bg-surface-2 hover:border-white/10 hover:bg-[#131d35]"
                         }`}
                       >
-                        <span className="text-[10px] font-bold text-neutral-500">{item.subtitle}</span>
-                        <span className="mt-1.5 text-base font-bold group-hover:text-violet-400 transition-colors">
+                        <span className="text-[10px] font-bold text-neutral-400 tracking-wider uppercase">{item.subtitle}</span>
+                        <span className="mt-1.5 text-base font-extrabold tracking-tight group-hover:text-blue-400 transition-colors">
                           {item.title}
                         </span>
-                        <p className="mt-1 text-[11px] text-neutral-500 leading-tight">{item.desc}</p>
+                        <p className="mt-2 text-xs text-neutral-400 leading-normal">{item.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -1083,7 +1111,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-widest font-mono flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-neutral-500 animate-pulse" />
                           Past Storyboard Projects
                         </h4>
                         <p className="text-[10px] text-neutral-500 mt-0.5">
@@ -1110,7 +1138,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <div
                             key={proj.id}
                             onClick={() => loadProject(proj)}
-                            className="group relative flex flex-col justify-between rounded-xl border border-white/5 bg-[#0e0e11]/80 hover:bg-[#121216] p-4 text-left transition-all duration-300 cursor-pointer hover:border-violet-500/25"
+                            className="group relative flex flex-col justify-between rounded-xl border border-white/5 bg-surface-2/80 hover:bg-surface-2 p-4 text-left transition-all duration-300 cursor-pointer hover:border-white/10"
                           >
                             <button
                               onClick={(e) => deleteProject(e, proj.id)}
@@ -1122,7 +1150,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
 
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[8px] font-bold font-mono tracking-wider text-violet-400 uppercase border border-violet-500/15">
+                                <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[8px] font-bold font-mono tracking-wider text-white uppercase border border-white/10">
                                   {proj.length}
                                 </span>
                                 <span className="text-[9px] font-mono text-neutral-500 uppercase">
@@ -1130,7 +1158,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                 </span>
                               </div>
 
-                              <h5 className="mt-2 text-xs font-bold text-white group-hover:text-violet-400 transition-colors line-clamp-1">
+                              <h5 className="mt-2 text-xs font-bold text-white group-hover:text-white transition-colors line-clamp-1">
                                 {proj.title}
                               </h5>
                               <p className="mt-1 text-[10px] text-neutral-500 leading-normal line-clamp-2">
@@ -1155,54 +1183,130 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
 
               {/* STEP 2: CAMPAIGN PROMPT & VOICE */}
               {wizardStep === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Describe Your Film Concept</h3>
-                    <p className="text-xs text-neutral-500">
-                      Describe key actions, products, style details, or characters. Type or speak naturally.
-                    </p>
+                <div className="space-y-8 select-none">
+                  {/* Centralized Cinematic Leonardo AI Style Header */}
+                  <div className="flex flex-col items-center text-center py-6 select-none">
+                    <h1 className="text-4xl md:text-5xl font-black tracking-widest text-white uppercase select-none drop-shadow-2xl">
+                      DIRECT YOUR VISION
+                    </h1>
                   </div>
 
-                  <div className="relative rounded-xl border border-white/5 bg-[#0a0a0c] p-4 focus-within:border-violet-500/25 transition-colors">
-                    <textarea
-                      value={promptText}
-                      onChange={(e) => setPromptText(e.target.value)}
-                      placeholder="e.g. A commercial for DEX Groundnut Paste. A hardworking woman named Nyima cooking in Gunjur, harvesting dry groundnuts, selling the jars in a packed busy market..."
-                      rows={5}
-                      className="w-full bg-transparent resize-none outline-none text-xs placeholder:text-neutral-600 leading-relaxed text-white"
-                    />
-
-                    <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
-                      <div className="flex items-center gap-2">
-                        {recording ? (
-                          <button
-                            onClick={stopSpeechRecognition}
-                            className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-[11px] font-semibold text-white transition-all shadow-md animate-pulse"
-                          >
-                            <MicOff size={11} /> Stop Recording
-                          </button>
-                        ) : (
-                          <button
-                            onClick={startSpeechRecognition}
-                            className="flex items-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-400 transition-colors"
-                          >
-                            <Mic size={11} /> Speak Pitch (Voice)
-                          </button>
-                        )}
-                        {recording && (
-                          <span className="text-[10px] text-red-400 font-medium">Listening to audio...</span>
-                        )}
+                  {/* Centralized Capsule/Pill Prompt Container */}
+                  <div className="max-w-2xl mx-auto w-full space-y-4 relative z-20">
+                    <div className="relative rounded-3xl border border-white/10 bg-[#0e1630]/75 backdrop-blur-xl p-4 transition-all duration-300 shadow-2xl focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/10">
+                      <div className="flex items-start gap-3">
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden w-full ${promptExpanded ? "h-28" : "h-10"}`}>
+                          <textarea
+                            value={promptText}
+                            onFocus={() => setPromptExpanded(true)}
+                            onChange={(e) => setPromptText(e.target.value)}
+                            placeholder="Type a prompt..."
+                            className="w-full h-full bg-transparent resize-none outline-none text-sm placeholder:text-neutral-500 leading-relaxed text-white pt-1"
+                          />
+                        </div>
                       </div>
-                      <span className="text-[10px] text-neutral-600">{promptText.length} characters</span>
+
+                      {/* Display the options panel if expanded or active */}
+                      {promptExpanded && (
+                        <>
+                          <div className="my-3 border-t border-white/5" />
+                          <div className="flex items-center justify-between gap-3 pt-1">
+                            {/* Left Side options */}
+                            <div className="flex items-center gap-2">
+                              {recording ? (
+                                <button
+                                  type="button"
+                                  onClick={stopSpeechRecognition}
+                                  className="flex items-center gap-1 bg-red-600/20 border border-red-500/20 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-red-400 animate-pulse transition-all"
+                                >
+                                  <MicOff size={10} /> Stop
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={startSpeechRecognition}
+                                  className="flex items-center gap-1 bg-white/5 border border-white/5 hover:border-white/10 rounded-xl px-2.5 py-1.5 text-[10px] font-bold text-neutral-400 hover:text-white transition-all"
+                                >
+                                  <Mic size={10} className="text-blue-400" /> Voice
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Right Side options */}
+                            <div className="flex items-center gap-2">
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setAspectDropdownOpen(!aspectDropdownOpen)}
+                                  className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border backdrop-blur-xl transition-all text-xs font-semibold shadow-xl active:scale-95 duration-200 ${
+                                    aspectDropdownOpen 
+                                      ? "bg-surface border-blue-500 text-white" 
+                                      : "bg-surface/90 border-white/10 hover:border-blue-500/50 text-neutral-200"
+                                  }`}
+                                >
+                                  <span className="text-[9px] font-extrabold tracking-wider font-mono text-neutral-400 uppercase">Aspect</span>
+                                  <span className="text-[12px] font-semibold text-white">
+                                    {aspectRatio === "16:9" ? "Landscape (16:9)" : "Portrait (9:16)"}
+                                  </span>
+                                  <ChevronDown size={12} className={`text-blue-400 transition-transform duration-300 ${aspectDropdownOpen ? "rotate-180 text-blue-400" : "text-neutral-400"}`} />
+                                </button>
+
+                                {aspectDropdownOpen && (
+                                  <>
+                                    {/* Backdrop click overlay */}
+                                    <div 
+                                      className="fixed inset-0 z-40" 
+                                      onClick={() => setAspectDropdownOpen(false)} 
+                                    />
+                                    {/* Dropdown Options Box */}
+                                    <div className="absolute right-0 bottom-full mb-2 z-50 min-w-[160px] rounded-2xl border border-white/10 bg-surface/90 backdrop-blur-xl p-1.5 shadow-2xl animate-scaleUp origin-bottom-right">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAspectRatio("16:9");
+                                          setAspectDropdownOpen(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
+                                          aspectRatio === "16:9" 
+                                            ? "bg-white/10 text-white" 
+                                            : "text-neutral-400 hover:text-white hover:bg-white/5"
+                                        }`}
+                                      >
+                                        Landscape (16:9)
+                                        {aspectRatio === "16:9" && <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAspectRatio("9:16");
+                                          setAspectDropdownOpen(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${
+                                          aspectRatio === "9:16" 
+                                            ? "bg-white/10 text-white" 
+                                            : "text-neutral-400 hover:text-white hover:bg-white/5"
+                                        }`}
+                                      >
+                                        Portrait (9:16)
+                                        {aspectRatio === "9:16" && <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />}
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   {/* PRE-BUILT CAMPAIGN TEMPLATE EXAMPLES GRID */}
                   <div className="space-y-4 pt-4 border-t border-white/5">
-                    <span className="text-xs font-bold text-violet-400 uppercase tracking-widest block">
+                    <span className="text-xs font-bold text-white uppercase tracking-widest block">
                       Select a Pre-Built Cinematic Vibe Template
                     </span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {STORYBOARD_TEMPLATES.map((item, idx) => (
                         <button
                           key={idx}
@@ -1228,15 +1332,15 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           }}
                           className={`group relative flex flex-col overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 ${
                             selectedTemplateIdx === idx
-                              ? "border-violet-500 bg-violet-950/25 shadow-xl shadow-violet-500/10 ring-2 ring-violet-500"
+                              ? "border-white bg-neutral-900/50 shadow-xl shadow-none ring-2 ring-white/20"
                               : selectedTemplateIdx !== null
-                              ? "border-white/5 bg-[#08080a] opacity-40 hover:opacity-80 hover:border-white/10"
-                              : "border-white/5 bg-[#08080a] hover:border-violet-500/30 hover:shadow-2xl hover:shadow-violet-950/10"
+                              ? "border-white/5 bg-surface opacity-40 hover:opacity-80 hover:border-white/10"
+                              : "border-white/5 bg-surface hover:border-white/10 hover:shadow-2xl shadow-none"
                           }`}
                         >
                           {/* Selected checkmark indicator */}
                           {selectedTemplateIdx === idx && (
-                            <span className="absolute top-3 right-3 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white border border-violet-400 shadow-md">
+                            <span className="absolute top-3 right-3 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-800 text-white border border-white/20 shadow-md">
                               <Check size={11} />
                             </span>
                           )}
@@ -1260,12 +1364,12 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                               />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-[#08080a]/95 via-transparent to-transparent" />
-                            <span className="absolute bottom-3 left-3 text-[9px] font-bold tracking-widest text-violet-300 uppercase bg-violet-500/20 border border-violet-500/30 rounded px-2.5 py-1">
+                            <span className="absolute bottom-3 left-3 text-[9px] font-bold tracking-widest text-white uppercase bg-white/20 border border-white/10 rounded px-2.5 py-1">
                               {item.subtitle}
                             </span>
                           </div>
                           
-                          <h4 className="mt-4 text-base font-extrabold text-white tracking-tight group-hover:text-violet-400 transition-colors leading-tight">
+                          <h4 className="mt-4 text-base font-extrabold text-white tracking-tight group-hover:text-white transition-colors leading-tight">
                             {item.name}
                           </h4>
                           <p className="mt-2 text-xs text-neutral-400 leading-relaxed line-clamp-3">
@@ -1276,7 +1380,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                               Product: {item.product}
                             </span>
                             {item.hasCharacter && (
-                              <span className="text-[10px] font-medium text-violet-400/80 bg-violet-500/5 border border-violet-500/10 rounded px-2 py-0.5">
+                              <span className="text-[10px] font-medium text-white/80 bg-white/5 border border-white/10 rounded px-2 py-0.5">
                                 Character: {item.characterName}
                               </span>
                             )}
@@ -1306,7 +1410,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           value={brandName}
                           onChange={(e) => setBrandName(e.target.value)}
                           placeholder="e.g. DEX"
-                          className="mt-1.5 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none"
+                          className="mt-1.5 w-full rounded-xl border border-white/5 bg-surface-2 px-4 py-2.5 text-xs text-white focus:border-white/10 outline-none"
                         />
                       </div>
                       <div>
@@ -1315,7 +1419,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           value={product}
                           onChange={(e) => setProduct(e.target.value)}
                           placeholder="e.g. Groundnut Paste"
-                          className="mt-1.5 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none"
+                          className="mt-1.5 w-full rounded-xl border border-white/5 bg-surface-2 px-4 py-2.5 text-xs text-white focus:border-white/10 outline-none"
                         />
                       </div>
                     </div>
@@ -1330,10 +1434,10 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <button
                             type="button"
                             onClick={() => setHasCharacter(true)}
-                            className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                            className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all duration-300 ${
                               hasCharacter
-                                ? "bg-violet-500/10 border-violet-500/40 text-white"
-                                : "bg-[#0e0e11] border-white/5 text-neutral-500"
+                                ? "border-blue-500 bg-[#0c152d] text-white"
+                                : "border-white/5 bg-surface-2 hover:border-white/10 hover:bg-[#131d35] text-neutral-400"
                             }`}
                           >
                             Main Character Lock
@@ -1341,10 +1445,10 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <button
                             type="button"
                             onClick={() => setHasCharacter(false)}
-                            className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                            className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all duration-300 ${
                               !hasCharacter
-                                ? "bg-violet-500/10 border-violet-500/40 text-white"
-                                : "bg-[#0e0e11] border-white/5 text-neutral-500"
+                                ? "border-blue-500 bg-[#0c152d] text-white"
+                                : "border-white/5 bg-surface-2 hover:border-white/10 hover:bg-[#131d35] text-neutral-400"
                             }`}
                           >
                             Multiple People / Product Focus
@@ -1365,7 +1469,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                               value={characterName}
                               onChange={(e) => setCharacterName(e.target.value)}
                               placeholder="e.g. Nyima"
-                              className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4 py-2 text-xs text-white focus:border-violet-500/25 outline-none"
+                              className="mt-1 w-full rounded-xl border border-white/5 bg-surface-2 px-4 py-2 text-xs text-white focus:border-white/10 outline-none"
                             />
                           </div>
                           <div>
@@ -1374,7 +1478,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                               value={characterDesc}
                               onChange={(e) => setCharacterDesc(e.target.value)}
                               placeholder="e.g. Oval-faced Gambian woman, neat thin cornrow braids, 20s"
-                              className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4 py-2 text-xs text-white focus:border-violet-500/25 outline-none"
+                              className="mt-1 w-full rounded-xl border border-white/5 bg-surface-2 px-4 py-2 text-xs text-white focus:border-white/10 outline-none"
                             />
                           </div>
                         </div>
@@ -1400,8 +1504,8 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       }}
                       className={`rounded-xl border border-dashed p-6 text-center transition-all duration-300 relative ${
                         isDragging
-                          ? "border-violet-500/50 bg-violet-950/10 shadow-lg shadow-violet-500/5 scale-[1.01]"
-                          : "border-white/10 bg-[#0a0a0c] hover:border-violet-500/20"
+                          ? "border-white/20 bg-neutral-900/50 shadow-lg scale-[1.01]"
+                          : "border-white/10 bg-surface hover:border-white/10"
                       }`}
                     >
                       <input
@@ -1460,12 +1564,13 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             </div>
           )}
         </div>
+      </div>
       )}
 
       {/* FLOATING NAVIGATION BAR FOR WIZARD */}
       {view === "wizard" && (
         <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-4 animate-slideUp">
-          <div className="flex items-center gap-6 rounded-2xl border border-white/5 bg-[#08080a]/85 backdrop-blur-xl px-6 py-3.5 shadow-2xl shadow-black/95 w-full max-w-xl justify-between">
+          <div className="flex items-center gap-6 rounded-2xl border border-white/5 bg-surface/85 backdrop-blur-xl px-6 py-3.5 shadow-2xl shadow-black/95 w-full max-w-xl justify-between">
             {/* BACK BUTTON */}
             <button
               onClick={() => {
@@ -1489,7 +1594,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 <span
                   key={s}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    wizardStep === s ? "bg-violet-500 w-6" : "bg-neutral-800 w-1.5"
+                    wizardStep === s ? "bg-white w-6" : "bg-neutral-800 w-1.5"
                   }`}
                 />
               ))}
@@ -1499,7 +1604,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             {wizardStep === 1 && (
               <button
                 onClick={() => setWizardStep(2)}
-                className="flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-xs font-bold text-white transition-colors shadow-lg shadow-violet-500/10"
+                className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-neutral-200 px-5 py-2.5 text-xs font-bold text-black transition-all"
               >
                 Continue <ChevronRight size={13} />
               </button>
@@ -1509,13 +1614,13 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
               <button
                 disabled={!promptText.trim() && selectedTemplateIdx === null}
                 onClick={() => setWizardStep(3)}
-                className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold text-white transition-all shadow-lg ${
+                className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold transition-all shadow-lg ${
                   (!promptText.trim() && selectedTemplateIdx === null)
                     ? "bg-neutral-900 border border-white/5 text-neutral-600 cursor-not-allowed opacity-50 shadow-none"
-                    : "bg-violet-600 hover:bg-violet-700 shadow-violet-500/10 cursor-pointer"
+                    : "bg-white hover:bg-neutral-200 text-black cursor-pointer"
                 }`}
               >
-                Brand Profile <ChevronRight size={13} />
+                Continue <ChevronRight size={13} />
               </button>
             )}
 
@@ -1523,7 +1628,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
               <button
                 disabled={generating}
                 onClick={() => setStoryboardPayOpen(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 px-5.5 py-2.5 text-xs font-bold text-white transition-colors shadow-lg shadow-violet-500/10"
+                className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-neutral-200 px-5.5 py-2.5 text-xs font-bold text-black transition-all"
               >
                 {generating ? (
                   <>
@@ -1546,7 +1651,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
           <div className="flex flex-1 flex-col items-center justify-center p-12 text-center h-full max-w-lg mx-auto">
             {generating ? (
               <div className="space-y-4">
-                <RefreshCw size={42} className="text-violet-400 animate-spin mx-auto" />
+                <RefreshCw size={42} className="text-white animate-spin mx-auto" />
                 <h3 className="text-lg font-bold text-white tracking-tight uppercase font-mono text-center">Compiling Storyboard Spec...</h3>
                 <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed text-center">
                   Our Gemini AI director is composing your visual style matrix, structuring consecutive script moments, and generating custom-ready direct prompts. This takes about 10-15 seconds.
@@ -1565,7 +1670,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       setError(null);
                       void generateStoryboard();
                     }}
-                    className="flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 px-5.5 py-2.5 text-xs font-bold text-white transition-colors"
+                    className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-neutral-200 px-5.5 py-2.5 text-xs font-bold text-black transition-all"
                   >
                     <RefreshCw size={12} /> Retry Storyboard Generation
                   </button>
@@ -1596,7 +1701,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 rounded px-2.5 py-0.5 uppercase border border-violet-500/15">
+                      <span className="text-[9px] font-bold text-white bg-neutral-800 rounded px-2.5 py-0.5 uppercase border border-white/10">
                         Cinematic Theater Player
                       </span>
                       {isCompiling ? (
@@ -1604,7 +1709,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           Compiling Reels ({completedCount}/{totalScenes})
                         </span>
                       ) : compileStatus === "compiling" ? (
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-violet-400 bg-violet-500/10 rounded px-2 py-0.5 uppercase border border-violet-500/15 animate-pulse">
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-white bg-neutral-800 rounded px-2 py-0.5 uppercase border border-white/10 animate-pulse">
                           Stitching & Rendering Final Film...
                         </span>
                       ) : compileStatus === "succeeded" ? (
@@ -1612,7 +1717,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           Commercial Film Rendered
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-indigo-400 bg-indigo-500/10 rounded px-2 py-0.5 uppercase border border-indigo-500/15">
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-neutral-300 bg-neutral-800 rounded px-2 py-0.5 uppercase border border-neutral-700">
                           Timeline Editing
                         </span>
                       )}
@@ -1649,9 +1754,9 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     /* CASE A: COMPILING PIPELINE VIEW */
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-6 bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.08)_0%,rgba(0,0,0,1)_100%)] bg-black">
                       <div className="relative flex items-center justify-center h-20 w-20">
-                        <span className="absolute h-full w-full rounded-full border-2 border-violet-500/15 animate-ping duration-1000" />
-                        <span className="absolute h-16 w-16 rounded-full border border-violet-500/25 animate-spin border-t-violet-500" />
-                        <Clapperboard className="text-violet-400 animate-pulse relative" size={26} />
+                        <span className="absolute h-full w-full rounded-full border-2 border-white/10 animate-ping duration-1000" />
+                        <span className="absolute h-16 w-16 rounded-full border border-white/10 animate-spin border-t-white" />
+                        <Clapperboard className="text-white animate-pulse relative" size={26} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -1667,14 +1772,14 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       <div className="bg-neutral-950/60 backdrop-blur-md border border-white/5 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
                         <div className="flex justify-between text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">
                           <span className="flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 bg-violet-400 rounded-full animate-ping" />
+                            <span className="h-1.5 w-1.5 bg-neutral-500 rounded-full animate-ping" />
                             Synthesizing Reel
                           </span>
                           <span>{compilePercent}% ({completedCount}/{totalScenes} Clips)</span>
                         </div>
                         <div className="h-2 w-full bg-neutral-900 rounded-full overflow-hidden border border-white/[0.02] p-[1px]">
                           <div
-                            className="h-full bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_rgba(168,85,247,0.5)]"
+                            className="h-full bg-gradient-to-r from-neutral-700 to-neutral-800 rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_rgba(168,85,247,0.5)]"
                             style={{ width: `${compilePercent}%` }}
                           />
                         </div>
@@ -1688,9 +1793,9 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     /* CASE B: FINAL FILM STITCHING / COMPILING PIPELINE SCREEN */
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-6 bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.08)_0%,rgba(0,0,0,1)_100%)] bg-black">
                       <div className="relative flex items-center justify-center h-20 w-20">
-                        <span className="absolute h-full w-full rounded-full border-2 border-violet-500/20 animate-ping duration-1000" />
-                        <span className="absolute h-16 w-16 rounded-full border border-violet-500/35 animate-spin border-t-violet-500" />
-                        <Zap className="text-violet-400 animate-pulse relative" size={26} />
+                        <span className="absolute h-full w-full rounded-full border-2 border-white/10 animate-ping duration-1000" />
+                        <span className="absolute h-16 w-16 rounded-full border border-white/10 animate-spin border-t-white" />
+                        <Zap className="text-white animate-pulse relative" size={26} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -1704,11 +1809,11 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
 
                       <div className="bg-neutral-950/80 border border-white/5 rounded-2xl p-4 w-full max-w-sm space-y-2 text-left">
                         <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-400">
-                          <span className="h-1.5 w-1.5 bg-violet-400 rounded-full animate-ping" />
+                          <span className="h-1.5 w-1.5 bg-neutral-500 rounded-full animate-ping" />
                           <span>Standardizing frame rates & layout...</span>
                         </div>
                         <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-400">
-                          <span className="h-1.5 w-1.5 bg-fuchsia-400 rounded-full animate-ping" />
+                          <span className="h-1.5 w-1.5 bg-neutral-400 rounded-full animate-ping" />
                           <span>Blending background soundtrack...</span>
                         </div>
                       </div>
@@ -1748,7 +1853,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       />
 
                       {/* Quick HUD overlay */}
-                      <div className="absolute top-4 left-4 rounded-lg bg-black/60 backdrop-blur-md border border-white/5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-violet-300">
+                      <div className="absolute top-4 left-4 rounded-lg bg-black/60 backdrop-blur-md border border-white/5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-white">
                         Active segment: {currentScenePlayIdx + 1} of {totalScenes} (Trim: {((timeline[currentScenePlayIdx]?.trimEnd || 10) - (timeline[currentScenePlayIdx]?.trimStart || 0)).toFixed(1)}s)
                       </div>
 
@@ -1776,17 +1881,17 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           key={idx}
                           className={`rounded-xl border p-4.5 text-left transition-all duration-300 flex flex-col justify-between relative overflow-hidden ${
                             isSceneRendering
-                              ? "border-violet-500/25 bg-violet-950/[0.04] shadow-[0_4px_24px_rgba(139,92,246,0.05)] animate-pulse"
+                              ? "border-white/10 bg-neutral-900/50 shadow-[0_4px_24px_rgba(255,255,255,0.02)] animate-pulse"
                               : isSceneReady
                               ? "border-emerald-500/15 bg-emerald-950/[0.02] shadow-[0_4px_24px_rgba(16,185,129,0.03)]"
-                              : "border-white/5 bg-[#08080a]/50"
+                              : "border-white/5 bg-surface/50"
                           }`}
                         >
                           <div>
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-mono text-neutral-500 font-bold">SEGMENT #{idx + 1}</span>
                               {isSceneRendering ? (
-                                <span className="text-[9px] font-bold text-violet-400 flex items-center gap-1 uppercase font-mono tracking-wider animate-pulse">
+                                <span className="text-[9px] font-bold text-white flex items-center gap-1 uppercase font-mono tracking-wider animate-pulse">
                                   <RefreshCw size={8} className="animate-spin" /> Synthesizing...
                                 </span>
                               ) : isSceneReady ? (
@@ -1823,7 +1928,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     <div className="rounded-2xl border border-white/5 bg-[#09090c] p-5 space-y-4">
                       <div className="flex items-center justify-between border-b border-white/5 pb-3">
                         <div>
-                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-violet-400">
+                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-white">
                             <Music size={13} /> Cloud Audio Overlay
                           </span>
                           <p className="text-[10px] text-neutral-500 mt-0.5">Select a royalty-free soundtrack preset and adjust background volume blend.</p>
@@ -1835,7 +1940,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <select
                             value={musicUrl}
                             onChange={(e) => setMusicUrl(e.target.value)}
-                            className="w-full rounded-xl bg-neutral-950 border border-white/10 px-3 py-2.5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors"
+                            className="w-full rounded-xl bg-neutral-950 border border-white/10 px-3 py-2.5 text-xs text-white focus:outline-none focus:border-white transition-colors"
                           >
                             <option value="">No Background Music (Mute Soundtrack)</option>
                             <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">Neon Synthwave Theme</option>
@@ -1852,7 +1957,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                             step="0.05"
                             value={musicVolume}
                             onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
-                            className="w-full accent-violet-600 h-1 bg-neutral-900 rounded-lg appearance-none cursor-pointer mt-4"
+                            className="w-full accent-white h-1 bg-neutral-900 rounded-lg appearance-none cursor-pointer mt-4"
                           />
                         </div>
                       </div>
@@ -1862,7 +1967,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     <div className="rounded-2xl border border-white/5 bg-[#09090c] p-5 space-y-5">
                       <div className="flex items-center justify-between border-b border-white/5 pb-3">
                         <div>
-                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-violet-400">
+                          <span className="font-bold text-white uppercase tracking-wider font-mono text-[11px] flex items-center gap-1.5 text-white">
                             <Video size={13} /> Interactive Clip Timeline
                           </span>
                           <p className="text-[10px] text-neutral-500 mt-0.5">Trim clip regions, click any segment to jump preview, and reorder clips in sequence.</p>
@@ -1872,7 +1977,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <a
                             href={compileVideoUrl}
                             download={`${storyboard.title.replace(/\s+/g, "_")}_full.mp4`}
-                            className="flex items-center gap-1.5 rounded-xl bg-violet-500/10 border border-violet-500/15 text-violet-400 px-4 py-2 text-xs font-semibold hover:bg-violet-500/20 transition-all shadow-md"
+                            className="flex items-center gap-1.5 rounded-xl bg-neutral-800 border border-white/10 text-white px-4 py-2 text-xs font-semibold hover:bg-white/20 transition-all shadow-md"
                           >
                             <Video size={12} /> Download Final Movie MP4
                           </a>
@@ -1891,8 +1996,8 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                             return (
                               <div
                                 key={idx}
-                                className={`bg-neutral-950/80 border rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 hover:border-violet-500/20 transition-colors ${
-                                  currentScenePlayIdx === item.sceneIndex ? "border-violet-500/15 bg-violet-950/[0.01]" : "border-white/5"
+                                className={`bg-neutral-950/80 border rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 hover:border-white/10 transition-colors ${
+                                  currentScenePlayIdx === item.sceneIndex ? "border-white/10 bg-neutral-900/10" : "border-white/5"
                                 }`}
                               >
                                 {/* Left column: Scene Indicator & Jump Preview button */}
@@ -1904,7 +2009,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                     }}
                                     className={`h-11 w-11 rounded-lg flex flex-col items-center justify-center border font-mono transition-colors shrink-0 ${
                                       currentScenePlayIdx === item.sceneIndex
-                                        ? "border-violet-500 bg-violet-500/10 text-violet-400 shadow-[0_0_10px_rgba(124,58,237,0.15)]"
+                                        ? "border-white bg-neutral-800 text-white shadow-[0_0_10px_rgba(124,58,237,0.15)]"
                                         : "border-white/5 bg-neutral-900 text-neutral-400 hover:text-white hover:border-white/10"
                                     }`}
                                   >
@@ -1923,7 +2028,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                 <div className="flex-1 flex flex-col gap-2">
                                   <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500">
                                     <span>TRIM START</span>
-                                    <span className="text-violet-400 font-bold bg-violet-500/10 rounded px-1.5 py-0.5">{duration.toFixed(1)}s ACTIVE</span>
+                                    <span className="text-white font-bold bg-neutral-800 rounded px-1.5 py-0.5">{duration.toFixed(1)}s ACTIVE</span>
                                     <span>TRIM END</span>
                                   </div>
                                   
@@ -1932,7 +2037,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                     {/* Grayscale background before start */}
                                     <div className="h-full bg-black/50 absolute left-0 animate-in fade-in duration-300" style={{ width: `${start * 10}%` }} />
                                     {/* Active Highlight Range */}
-                                    <div className="h-full bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border-l border-r border-violet-500/30 absolute" style={{ left: `${start * 10}%`, right: `${(10 - end) * 10}%` }}>
+                                    <div className="h-full bg-neutral-800 border-l border-r border-white/10 absolute" style={{ left: `${start * 10}%`, right: `${(10 - end) * 10}%` }}>
                                       <span className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.15),transparent)]" />
                                     </div>
                                     {/* Grayscale background after end */}
@@ -1964,7 +2069,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                             return next;
                                           });
                                         }}
-                                        className="flex-1 accent-violet-500 h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
+                                        className="flex-1 accent-white h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
                                       />
                                       <span className="text-[9px] font-mono text-neutral-300 w-8 text-right">{start.toFixed(1)}s</span>
                                     </div>
@@ -1984,7 +2089,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                             return next;
                                           });
                                         }}
-                                        className="flex-1 accent-violet-500 h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
+                                        className="flex-1 accent-white h-1 bg-neutral-900 rounded cursor-pointer appearance-none"
                                       />
                                       <span className="text-[9px] font-mono text-neutral-300 w-8 text-right">{end.toFixed(1)}s</span>
                                     </div>
@@ -2034,10 +2139,10 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     </div>
 
                     {/* Action Bar */}
-                    <div className="rounded-2xl border border-violet-500/10 bg-gradient-to-r from-violet-950/15 to-fuchsia-950/15 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xl">
+                    <div className="rounded-2xl border border-white/10 bg-neutral-900/60 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xl">
                       <div>
                         <h4 className="text-sm font-bold text-white flex items-center gap-1.5 uppercase font-mono">
-                          <Clapperboard size={14} className="text-violet-400" /> Compile Cinematic Film
+                          <Clapperboard size={14} className="text-white" /> Compile Cinematic Film
                         </h4>
                         <p className="text-xs text-neutral-500 mt-1 max-w-md">
                           Triggers server-side FFmpeg processing on Google Cloud. It standardizes, trims, scales, stitches, and mixes your audio track into a single fully polished MP4.
@@ -2046,7 +2151,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       <button
                         disabled={compileStatus === "compiling"}
                         onClick={handleCompileProject}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:bg-violet-800 disabled:opacity-50 px-6 py-3.5 text-xs font-bold text-white transition-all shadow-lg shadow-violet-500/15"
+                        className="flex items-center justify-center gap-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-950 disabled:opacity-50 px-6 py-3.5 text-xs font-bold text-white transition-all shadow-md"
                       >
                         {compileStatus === "compiling" ? (
                           <>
@@ -2071,7 +2176,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
           {/* Header Controls */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
             <div>
-              <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 rounded px-2.5 py-0.5 uppercase border border-violet-500/15">
+              <span className="text-[10px] font-bold text-white bg-neutral-800 rounded px-2.5 py-0.5 uppercase border border-white/10">
                 Director Storyboard Spec
               </span>
               <h2 className="mt-2 text-xl font-bold tracking-tight text-white md:text-2xl">
@@ -2094,8 +2199,8 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
           {/* Director settings / Locks Block */}
           <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
             {/* LCB (Locked Character Block) Card */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0c]/80 p-5 flex flex-col">
-              <span className="text-[11px] font-bold text-violet-400 tracking-wider uppercase">
+            <div className="rounded-xl border border-white/5 bg-surface/80 p-5 flex flex-col">
+              <span className="text-[11px] font-bold text-white tracking-wider uppercase">
                 Locked Character Block (LCB)
               </span>
               <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed mb-3">
@@ -2110,7 +2215,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                   })
                 }
                 rows={4}
-                className="w-full bg-[#050505] rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-violet-500/20 outline-none text-white font-mono"
+                className="w-full bg-background rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-white/10 outline-none text-white font-mono"
               />
               <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -2123,7 +2228,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         characterLock: { ...storyboard.characterLock, name: e.target.value },
                       })
                     }
-                    className="mt-1 w-full bg-[#050505] text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold"
+                    className="mt-1 w-full bg-background text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold"
                   />
                 </div>
                 <div>
@@ -2136,15 +2241,15 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         characterLock: { ...storyboard.characterLock, wardrobe: e.target.value },
                       })
                     }
-                    className="mt-1 w-full bg-[#050505] text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold"
+                    className="mt-1 w-full bg-background text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold"
                   />
                 </div>
               </div>
             </div>
 
             {/* STYLE HEADER block */}
-            <div className="rounded-xl border border-white/5 bg-[#0a0a0c]/80 p-5 flex flex-col">
-              <span className="text-[11px] font-bold text-violet-400 tracking-wider uppercase">
+            <div className="rounded-xl border border-white/5 bg-surface/80 p-5 flex flex-col">
+              <span className="text-[11px] font-bold text-white tracking-wider uppercase">
                 Visual Style Contract
               </span>
               <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed mb-3">
@@ -2154,14 +2259,14 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 value={storyboard.styleHeader}
                 onChange={(e) => setStoryboard({ ...storyboard, styleHeader: e.target.value })}
                 rows={6}
-                className="w-full flex-1 bg-[#050505] rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-violet-500/20 outline-none text-white font-mono"
+                className="w-full flex-1 bg-background rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-white/10 outline-none text-white font-mono"
               />
             </div>
           </div>
 
           {/* Director Scene Cards Grid Header */}
           <div className="mt-10 flex items-center gap-3 border-b border-white/5 pb-3">
-            <span className="flex h-6 w-6 items-center justify-center rounded bg-violet-500/10 text-violet-400">
+            <span className="flex h-6 w-6 items-center justify-center rounded bg-neutral-800 text-white">
               <Tv size={12} />
             </span>
             <h3 className="text-base font-bold text-white tracking-tight">Scene Generation Panel</h3>
@@ -2174,12 +2279,12 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
               return (
                 <div
                   key={scene.sceneNumber}
-                  className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0e0e11] to-[#070709] p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start hover:border-violet-500/10 transition-colors"
+                  className="rounded-2xl border border-white/5 bg-gradient-to-b from-[#0e0e11] to-[#070709] p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start hover:border-white/10 transition-colors"
                 >
                   {/* Scene description columns */}
                   <div className="lg:col-span-7 space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/15">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-neutral-800 px-2 py-0.5 rounded-full border border-white/10">
                         Scene {scene.sceneNumber} — 10s Clip
                       </span>
                     </div>
@@ -2214,8 +2319,8 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     </div>
 
                     {scene.dialogue && (
-                      <div className="rounded-xl bg-violet-500/5 border border-violet-500/10 p-3.5">
-                        <span className="text-[9px] font-bold text-violet-400 uppercase tracking-wide">
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-3.5">
+                        <span className="text-[9px] font-bold text-white uppercase tracking-wide">
                           Dialogue/Speech Track
                         </span>
                         <p className="mt-1 text-xs italic text-neutral-200 leading-relaxed">
@@ -2249,10 +2354,10 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                             }))
                           }
                           rows={5}
-                          className="w-full bg-[#050505] rounded-xl border border-white/10 p-3 text-xs leading-relaxed outline-none text-white font-mono"
+                          className="w-full bg-background rounded-xl border border-white/10 p-3 text-xs leading-relaxed outline-none text-white font-mono"
                         />
                       ) : (
-                        <div className="relative rounded-xl border border-white/5 bg-[#050505] p-3.5 font-mono text-[11px] text-neutral-400 max-h-32 overflow-y-auto leading-relaxed whitespace-pre-line">
+                        <div className="relative rounded-xl border border-white/5 bg-background p-3.5 font-mono text-[11px] text-neutral-400 max-h-32 overflow-y-auto leading-relaxed whitespace-pre-line">
                           {status.customPrompt || scene.fullPrompt}
                         </div>
                       )}
@@ -2276,7 +2381,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     </div>
 
                     {/* REVISION ENGINE INPUT */}
-                    <div className="flex items-center gap-2 rounded-xl bg-[#050505] border border-white/5 px-3 py-1.5">
+                    <div className="flex items-center gap-2 rounded-xl bg-background border border-white/5 px-3 py-1.5">
                       <input
                         value={status.revisionInput || ""}
                         onChange={(e) =>
@@ -2292,7 +2397,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                       <button
                         onClick={() => reviseScenePrompt(idx)}
                         disabled={status.revising || !status.revisionInput?.trim()}
-                        className="shrink-0 flex items-center gap-1 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:bg-neutral-800 disabled:text-neutral-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                        className="shrink-0 flex items-center gap-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 disabled:bg-neutral-800 disabled:text-neutral-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                       >
                         {status.revising ? (
                           <>
@@ -2328,8 +2433,8 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                     )}
 
                     {status.status === "rendering" && (
-                      <div className="flex flex-col items-center justify-center rounded-2xl border border-violet-500/10 bg-violet-500/[0.01] px-6 py-14 text-center">
-                        <RefreshCw size={28} className="text-violet-400 animate-spin" />
+                      <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[0.01] px-6 py-14 text-center">
+                        <RefreshCw size={28} className="text-white animate-spin" />
                         <h4 className="mt-3 text-xs font-bold text-white">Generating Clip...</h4>
                         <p className="mt-2 text-[10px] text-neutral-500 leading-relaxed max-w-xs">
                           Gemini Omni Flash is compiling files. This usually takes 1-3 minutes.
@@ -2389,9 +2494,9 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
       {storyboardPayOpen && (
         (() => {
           // Calculate pricing dynamically
-          let cost = 7000; // Default 60s GMD 7,000
-          if (length === "30s") cost = 3500; // GMD 3,500
-          if (length === "90s") cost = 10500; // GMD 10,500
+          let cost = 900; // Default 60s GMD 900
+          if (length === "30s") cost = 450; // GMD 450
+          if (length === "90s") cost = 1350; // GMD 1350
 
           const balance = profile?.credits ?? 0;
           const hasEnough = balance >= cost;
@@ -2512,14 +2617,14 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
               />
 
               {/* Card Container */}
-              <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/90 p-6 shadow-2xl backdrop-blur-2xl transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+              <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-blue-500 bg-[#070e24]/95 p-6 shadow-2xl backdrop-blur-2xl transition-all animate-in fade-in-50 zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <h3 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
+                  <h3 className="text-base font-bold tracking-tight text-white flex items-center gap-2 font-semibold">
                     <div className="flex items-center gap-1 shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                      <div className="w-1.5 h-1.5 rounded-full bg-black border border-white/40" />
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-transparent border border-blue-400/40" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                     </div>
                     Confirm Storyboard Spec
                   </h3>
@@ -2534,7 +2639,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                 {/* Loading state */}
                 {ccPaying && (
                   <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                    <RefreshCw className="text-violet-400 animate-spin" size={32} />
+                    <RefreshCw className="text-white animate-spin" size={32} />
                     <p className="text-xs font-semibold text-white">{ccPayMessage}</p>
                     <p className="text-[10px] text-neutral-500">Please do not close this modal or reload.</p>
                   </div>
@@ -2568,17 +2673,17 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           setPaywallStep("pay"); // Reset for next time
                           await generateStoryboard();
                         }}
-                        className="group flex flex-col rounded-xl border border-white/5 bg-neutral-900/40 p-4 text-left hover:bg-neutral-900 hover:border-violet-500/25 transition-all duration-300 animate-none"
+                        className="group flex flex-col rounded-2xl border border-white/10 bg-[#0d1631]/40 p-4 text-left hover:bg-[#0d1631]/80 hover:border-blue-500/50 transition-all duration-300 active:scale-[0.98]"
                       >
                         <div className="flex items-center gap-2">
                           <span className="rounded bg-neutral-800 px-2 py-0.5 text-[9px] font-bold text-neutral-400 font-mono uppercase">
                             Director's Draft
                           </span>
                         </div>
-                        <h5 className="mt-2 text-xs font-bold text-white group-hover:text-violet-400 transition-colors">
+                        <h5 className="mt-2 text-xs font-bold text-white group-hover:text-white transition-colors">
                           Review & Customize Prompts
                         </h5>
-                        <p className="mt-1 text-[10px] text-neutral-500 leading-normal">
+                        <p className="mt-1 text-[10px] text-neutral-400 leading-normal">
                           Inspect the generated storyboard spec scene-by-scene first. Adjust prompts, edit dialogue, and render segments manually with full creative control.
                         </p>
                       </button>
@@ -2591,15 +2696,15 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           setPaywallStep("pay"); // Reset for next time
                           await generateStoryboard();
                         }}
-                        className="group flex flex-col rounded-xl border border-violet-500/25 bg-violet-500/5 p-4 text-left hover:bg-violet-500/10 hover:border-violet-500/40 transition-all duration-300 shadow-[0_4px_20px_rgba(124,58,237,0.1)]"
+                        className="group flex flex-col rounded-2xl border border-blue-500 bg-[#0c152d] p-4 text-left hover:border-blue-400 hover:bg-[#0c152d]/90 transition-all duration-300 shadow-lg shadow-blue-500/10 active:scale-[0.98]"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="rounded bg-violet-500/20 px-2 py-0.5 text-[9px] font-bold text-violet-300 font-mono uppercase">
+                          <span className="rounded bg-white/20 px-2 py-0.5 text-[9px] font-bold text-white font-mono uppercase">
                             Express Auto-Merge
                           </span>
                         </div>
-                        <h5 className="mt-2 text-xs font-bold text-white group-hover:text-violet-400 transition-colors flex items-center gap-1">
-                          Auto-Generate Full Video <Zap size={11} className="text-violet-400 animate-pulse" />
+                        <h5 className="mt-2 text-xs font-bold text-white group-hover:text-white transition-colors flex items-center gap-1">
+                          Auto-Generate Full Video <Zap size={11} className="text-white animate-pulse" />
                         </h5>
                         <p className="mt-1 text-[10px] text-neutral-300 leading-normal">
                           Kicks off direct segment generation of all scenes in parallel behind a gorgeous widescreen loading HUD, and automatically merges them into a single playback film.
@@ -2619,23 +2724,23 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         </p>
 
                         {/* Cost calculation */}
-                        <div className="mt-5 rounded-xl border border-neutral-900 bg-[#070709] p-4 space-y-3">
+                        <div className="mt-5 rounded-2xl border border-white/10 bg-[#050b1d]/80 p-4 space-y-3">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-neutral-500 font-medium">Selected Duration</span>
+                            <span className="text-neutral-400 font-medium">Selected Duration</span>
                             <span className="text-white font-bold">{length === "30s" ? "30 seconds (3 Scenes)" : length === "60s" ? "60 seconds (6 Scenes)" : "90 seconds (9 Scenes)"}</span>
                           </div>
                           <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                            <span className="text-neutral-500 font-medium">Your wallet balance</span>
+                            <span className="text-neutral-400 font-medium">Your wallet balance</span>
                             <span className="font-mono text-white font-semibold">GMD {balance.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                            <span className="text-neutral-500 font-medium">Storyboard generation cost</span>
-                            <span className="font-mono text-violet-400 font-bold">-GMD {cost.toFixed(2)}</span>
+                            <span className="text-neutral-400 font-medium">Storyboard generation cost</span>
+                            <span className="font-mono text-white font-bold">-GMD {cost.toFixed(2)}</span>
                           </div>
 
                           {hasEnough ? (
                             <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                              <span className="text-neutral-500 font-medium">Remaining wallet balance</span>
+                              <span className="text-neutral-400 font-medium">Remaining wallet balance</span>
                               <span className="font-mono text-emerald-400 font-bold">GMD {remaining.toFixed(2)}</span>
                             </div>
                           ) : (
@@ -2657,7 +2762,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                         <div className="mt-6 flex gap-3">
                           <button
                             onClick={() => setStoryboardPayOpen(false)}
-                            className="flex-1 rounded-xl border border-white/5 bg-white/5 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition-all"
+                            className="flex-1 rounded-2xl border border-white/10 bg-[#0d1631]/40 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-[#0d1631]/80 hover:text-white transition-all active:scale-95"
                           >
                             Cancel
                           </button>
@@ -2665,7 +2770,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           {hasEnough ? (
                             <button
                               onClick={handleWalletPay}
-                              className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-violet-500/10"
+                              className="flex-1 rounded-2xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/20 active:scale-95"
                             >
                               <Zap size={12} />
                               Pay from Wallet
@@ -2673,7 +2778,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           ) : (
                             <button
                               onClick={() => setCcSpotCheckout(true)}
-                              className="flex-1 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-black hover:bg-neutral-200 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-white/5"
+                              className="flex-1 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-black hover:bg-neutral-100 transition-all flex items-center justify-center gap-1.5 shadow-lg active:scale-95"
                             >
                               <CreditCard size={12} />
                               Pay on the Spot
@@ -2689,15 +2794,15 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           <button
                             type="button"
                             onClick={() => setCcSpotCheckout(false)}
-                            className="text-[10px] text-violet-400 hover:underline font-bold"
+                            className="text-[10px] text-white hover:underline font-bold"
                           >
                             Back to Wallet
                           </button>
                         </div>
 
-                        <div className="rounded-xl border border-violet-500/15 bg-violet-500/5 px-3.5 py-2.5 flex items-start gap-2.5">
-                          <CheckCircle size={14} className="text-violet-400 shrink-0 mt-0.5" />
-                          <p className="text-[10px] text-violet-300 leading-normal">
+                        <div className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 flex items-start gap-2.5">
+                          <CheckCircle size={14} className="text-white shrink-0 mt-0.5" />
+                          <p className="text-[10px] text-white leading-normal">
                             Secure payment provided by <strong>ModemPay</strong>. Your card details are fully encrypted and will be charged exactly <strong>GMD {cost.toFixed(2)}</strong>.
                           </p>
                         </div>
@@ -2718,7 +2823,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                               value={ccName}
                               onChange={(e) => setCcName(e.target.value)}
                               placeholder="e.g. Nyima Salaam"
-                              className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-medium"
+                              className="mt-1 w-full rounded-xl border border-white/5 bg-surface-2 px-4.5 py-2.5 text-xs text-white focus:border-white/10 outline-none font-medium"
                             />
                           </div>
 
@@ -2735,7 +2840,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                   setCcNumber(formatted);
                                 }}
                                 placeholder="4242 4242 4242 4242"
-                                className="w-full rounded-xl border border-white/5 bg-[#0e0e11] pl-4.5 pr-10 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono"
+                                className="w-full rounded-xl border border-white/5 bg-surface-2 pl-4.5 pr-10 py-2.5 text-xs text-white focus:border-white/10 outline-none font-mono"
                               />
                               <CreditCard size={14} className="absolute right-3.5 top-3 text-neutral-500" />
                             </div>
@@ -2754,7 +2859,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                   setCcExpiry(formatted);
                                 }}
                                 placeholder="MM/YY"
-                                className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono text-center"
+                                className="mt-1 w-full rounded-xl border border-white/5 bg-surface-2 px-4.5 py-2.5 text-xs text-white focus:border-white/10 outline-none font-mono text-center"
                               />
                             </div>
                             <div>
@@ -2765,7 +2870,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                                 value={ccCvv}
                                 onChange={(e) => setCcCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
                                 placeholder="•••"
-                                className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono text-center"
+                                className="mt-1 w-full rounded-xl border border-white/5 bg-surface-2 px-4.5 py-2.5 text-xs text-white focus:border-white/10 outline-none font-mono text-center"
                               />
                             </div>
                           </div>
@@ -2781,7 +2886,7 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
                           </button>
                           <button
                             type="submit"
-                            className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-violet-500/10"
+                            className="flex-1 rounded-xl bg-neutral-800 hover:bg-neutral-700 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-none"
                           >
                             <CheckCircle size={13} />
                             Authorize GMD {cost.toFixed(2)}

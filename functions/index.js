@@ -37,7 +37,7 @@ async function getPricing() {
       { id: "pack-12000", credits: 12000, priceUsd: 100 },
     ],
     costs: {
-      videoPerSecond: { omni: 30, "omni-fast": 15 },
+      videoPerSecond: { omni: 15, "omni-fast": 15 },
       image: 50,
       ttsPer100Chars: 10,
       ttsMinimum: 15,
@@ -904,7 +904,7 @@ exports.videoGenerate = onRequest(
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
       const pricing = await getPricing();
-      const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? (model === "omni-fast" ? 15 : 30);
+      const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? 15;
       const cost = perSecCost * duration;
 
       await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);

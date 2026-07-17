@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../components/AuthProvider";
@@ -366,7 +366,7 @@ Response Example:
         
         {/* Title */}
         <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-[#0a0a0a]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-surface">
             <Code className="text-neutral-400" size={18} />
           </div>
           <div>
@@ -383,7 +383,7 @@ Response Example:
           <div className="lg:col-span-5 space-y-6">
             
             {/* Generate Key Card */}
-            <div className="rounded-lg border border-white/5 bg-[#0a0a0a] p-5">
+            <div className="rounded-lg border border-white/5 bg-surface p-5">
               <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
                 <Key size={15} />
                 <h2>Generate API Credentials</h2>
@@ -414,7 +414,7 @@ Response Example:
             </div>
 
             {/* List Keys Card */}
-            <div className="rounded-lg border border-white/5 bg-[#0a0a0a] p-5">
+            <div className="rounded-lg border border-white/5 bg-surface p-5">
               <h3 className="text-sm font-medium text-neutral-300">Active API Keys</h3>
               <p className="mt-1 text-[11px] text-neutral-500 leading-normal">
                 Credentials carry full spending access to your standard billing balance. Never expose live keys on client-side JS.
@@ -482,7 +482,7 @@ Response Example:
           <div className="lg:col-span-7 space-y-6">
             
             {/* Getting Started Guide */}
-            <div className="rounded-lg border border-white/5 bg-[#0a0a0a] p-6">
+            <div className="rounded-lg border border-white/5 bg-surface p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
                   <BookOpen size={15} />
@@ -507,7 +507,7 @@ Response Example:
                 All developer APIs use secure endpoints deployed in region <code className="font-mono text-neutral-300">us-east4</code>. Request parameters are passed via standard JSON, and authentication is fulfilled via bearer tokens:
               </p>
               <div className="mt-4 rounded-md bg-black border border-white/5 px-4 py-3 font-mono text-[12px] text-neutral-300">
-                Authorization: Bearer <span className="text-violet-400">optiq_live_YOUR_API_KEY</span>
+                Authorization: Bearer <span className="text-neutral-400 font-bold">optiq_live_YOUR_API_KEY</span>
               </div>
               
               <div className="mt-5 flex gap-2 rounded-md bg-neutral-900/30 border border-white/5 p-3 text-[11px] text-neutral-500 leading-relaxed">
@@ -519,7 +519,7 @@ Response Example:
             </div>
 
             {/* Docs Tabs Card */}
-            <div className="rounded-lg border border-white/5 bg-[#0a0a0a] overflow-hidden">
+            <div className="rounded-lg border border-white/5 bg-surface overflow-hidden">
               
               {/* Tab Selector Header */}
               <div className="flex border-b border-white/5 bg-black">
@@ -547,7 +547,7 @@ Response Example:
                       <h4 className="font-mono text-[12px] font-bold text-neutral-300">
                         POST /apiGenerateImage
                       </h4>
-                      <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2 py-0.5 text-[10px] text-violet-300">
+                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
                         5 - 15 Credits
                       </span>
                     </div>
@@ -595,7 +595,7 @@ Response Example:
                       <h4 className="font-mono text-[12px] font-bold text-neutral-300">
                         POST /apiGenerateVideo
                       </h4>
-                      <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2 py-0.5 text-[10px] text-violet-300">
+                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
                         5 - 12 Credits / Sec
                       </span>
                     </div>
@@ -689,7 +689,7 @@ Response Example:
                       <h4 className="font-mono text-[12px] font-bold text-neutral-300">
                         POST /apiGenerateTTS
                       </h4>
-                      <span className="rounded-full bg-violet-950/40 border border-violet-800/30 px-2 py-0.5 text-[10px] text-violet-300">
+                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
                         1 Credit / 100 Chars
                       </span>
                     </div>

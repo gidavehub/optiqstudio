@@ -193,18 +193,29 @@ export default function LandingPage() {
             >
               Enterprise Sales
             </a>
-            <Link
-              href="/login"
-              className="rounded-md bg-neutral-100 px-3.5 py-2 text-[13px] font-medium hover:bg-neutral-200 transition-colors"
-            >
-              Login
-            </Link>
-            <Link
-              href={appHref}
-              className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white hover:bg-neutral-800 transition-colors"
-            >
-              Try Optiq Studio
-            </Link>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white hover:bg-neutral-800 transition-colors"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-md bg-neutral-100 px-3.5 py-2 text-[13px] font-medium hover:bg-neutral-200 transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  href={appHref}
+                  className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white hover:bg-neutral-800 transition-colors"
+                >
+                  Try Optiq Studio
+                </Link>
+              </>
+            )}
           </div>
 
           <button className="ml-auto lg:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Menu">
@@ -253,12 +264,20 @@ export default function LandingPage() {
                 {l}
               </Link>
             ))}
-            <Link href="/login" className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
-              Login
-            </Link>
-            <Link href={appHref} className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
-              Try Optiq Studio
-            </Link>
+            {user ? (
+              <Link href="/dashboard" className="block text-sm font-semibold" onClick={() => setMobileOpen(false)}>
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
+                  Login
+                </Link>
+                <Link href={appHref} className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
+                  Try Optiq Studio
+                </Link>
+              </>
+            )}
           </div>
         )}
       </header>
@@ -267,10 +286,10 @@ export default function LandingPage() {
       <section className="px-3 pb-3">
         <div className="relative h-[88vh] w-full overflow-hidden rounded-xl bg-black">
           <MediaSlot
-            src="/media/hero.mp4"
+            src="/media/template-2.mp4"
             poster="/media/hero.jpg"
             className="absolute inset-0 h-full w-full"
-            alt="Underwater shipwreck exploration, generated with Omni"
+            alt="Childhood Kitchen Discovery - a warm nostalgic commercial generated with Omni"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -307,16 +326,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Partner band ───────────────────────────────────────────── */}
-      <section className="bg-black py-7">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-center gap-x-14 gap-y-4 px-6">
-          {PARTNERS.map((p) => (
-            <span key={p} className="font-mono text-[12px] tracking-[0.14em] text-neutral-600">
-              {p}
-            </span>
-          ))}
-        </div>
-      </section>
+
 
       {/* ── Statement + world cards (white) ────────────────────────── */}
       <section id="worlds" className="mx-auto max-w-[1440px] px-16 pt-28 pb-24">
@@ -427,9 +437,15 @@ export default function LandingPage() {
       {/* ── Footer (black) ─────────────────────────────────────────── */}
       <footer className="bg-black text-white">
         <div className="mx-auto grid max-w-[1440px] gap-12 px-16 py-20 md:grid-cols-5">
-          <div>
-            <p className="text-[22px] font-bold lowercase tracking-tight">optiq studio</p>
-            <p className="mt-4 max-w-[220px] text-[13px] leading-relaxed text-neutral-500">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                <circle cx="16" cy="16" r="16" fill="white" />
+                <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+              </svg>
+              <p className="text-[22px] font-bold lowercase tracking-tight">optiq studio</p>
+            </div>
+            <p className="max-w-[220px] text-[13px] leading-relaxed text-neutral-500">
               Democratizing production quality videos and photorealistic creations through cutting-edge generative AI.
             </p>
           </div>

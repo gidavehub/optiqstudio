@@ -14,7 +14,9 @@ import {
   UploadCloud,
   Plus,
   X,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import AssetPickerModal from "../../../components/AssetPickerModal";
@@ -217,12 +219,21 @@ export default function ImageStudioPage() {
 
   return (
     <div className="h-full bg-black text-white overflow-y-auto">
-      <div className="px-8 py-10 flex flex-col min-h-full w-full">
+      <div className="px-8 py-6 flex flex-col min-h-full w-full pt-20">
         
+        {/* Back Button */}
+        <Link 
+          href="/dashboard" 
+          className="flex items-center gap-1.5 text-[11px] font-bold font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-wider mb-6 group w-fit"
+        >
+          <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+          Back to Dashboard
+        </Link>
+
         {/* Header Title */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600/10 border border-violet-500/20 text-violet-400">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-800 border border-neutral-700 text-neutral-300">
               <ImageIcon size={20} />
             </div>
             <div>
@@ -247,7 +258,7 @@ export default function ImageStudioPage() {
         <div className="grid gap-8 lg:grid-cols-[400px_1fr] items-start">
           
           {/* Left Panel: Settings Form */}
-          <form onSubmit={triggerGenerateWorkflow} className="space-y-6 bg-[#08080a] border border-neutral-900 rounded-2xl p-6">
+          <form onSubmit={triggerGenerateWorkflow} className="space-y-6 bg-surface border border-neutral-900 rounded-2xl p-6">
             
             {/* Prompt input */}
             <div className="space-y-2">
@@ -260,7 +271,7 @@ export default function ImageStudioPage() {
                     type="button"
                     onClick={() => setAssetPickerOpen(true)}
                     disabled={generating}
-                    className="flex items-center gap-1.5 text-[10px] font-bold font-mono text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                    className="flex items-center gap-1.5 text-[10px] font-bold font-mono text-neutral-400 hover:text-white disabled:opacity-40 transition-colors"
                   >
                     <Plus size={11} />
                     Compose
@@ -269,7 +280,7 @@ export default function ImageStudioPage() {
                     type="button"
                     onClick={handleEnhance}
                     disabled={enhancing || !prompt.trim() || generating}
-                    className="flex items-center gap-1 text-[10px] font-bold font-mono text-violet-400 hover:text-violet-300 disabled:opacity-40 transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-bold font-mono text-neutral-400 hover:text-white disabled:opacity-40 transition-colors"
                   >
                     {enhancing ? (
                       <Loader2 size={10} className="animate-spin" />
@@ -376,10 +387,10 @@ export default function ImageStudioPage() {
                       type="button"
                       onClick={() => setAspectRatio(aspect.id)}
                       disabled={generating}
-                      className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
+                      className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all duration-300 ${
                         active
-                          ? "border-violet-500/50 bg-violet-600/[0.05]"
-                          : "border-neutral-900/80 bg-neutral-950/60 hover:border-neutral-800"
+                          ? "border-blue-500 bg-[#0c152d] text-white"
+                          : "border-white/5 bg-neutral-950/60 hover:border-white/10 hover:bg-[#131d35]"
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -393,7 +404,7 @@ export default function ImageStudioPage() {
                         </div>
                       </div>
                       {active && (
-                        <div className="flex h-5 h-5 w-5 items-center justify-center rounded-full bg-violet-600">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white shadow-md shadow-blue-500/30 ring-2 ring-blue-500/20 animate-scaleUp">
                           <Check size={10} className="text-white" />
                         </div>
                       )}
@@ -407,7 +418,7 @@ export default function ImageStudioPage() {
             <button
               type="submit"
               disabled={generating || !prompt.trim()}
-              className="w-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-bold py-3 px-5 transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10 disabled:opacity-40 disabled:pointer-events-none"
+              className="w-full rounded-full bg-white hover:bg-neutral-200 text-black text-xs font-bold py-3 px-5 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:pointer-events-none"
             >
               {generating ? (
                 <>
@@ -427,12 +438,12 @@ export default function ImageStudioPage() {
           {/* Right Panel: Selected Image Workspace */}
           <div className="flex flex-col gap-6">
             
-            <div className="relative rounded-2xl border border-neutral-900 bg-[#08080a] p-4 min-h-[400px] flex items-center justify-center">
+            <div className="relative rounded-2xl border border-neutral-900 bg-surface p-4 min-h-[400px] flex items-center justify-center">
               {generating ? (
                 <div className="flex flex-col items-center gap-3 text-neutral-400 py-16 animate-pulse">
                   <div className="relative flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full border border-violet-500/20 w-12 h-12 animate-ping" />
-                    <Loader2 size={24} className="animate-spin text-violet-500" />
+                    <div className="absolute inset-0 rounded-full border border-white/20 w-12 h-12 animate-ping" />
+                    <Loader2 size={24} className="animate-spin text-white" />
                   </div>
                   <p className="text-xs font-mono tracking-wider uppercase mt-2">DREAMING ON VERTEX AI...</p>
                   <p className="text-[10px] text-neutral-600">This usually takes around 5-15 seconds</p>
@@ -510,8 +521,8 @@ export default function ImageStudioPage() {
                   <button
                     key={item.id}
                     onClick={() => setActiveItem(item)}
-                    className={`relative aspect-square overflow-hidden rounded-xl border bg-neutral-950 transition-all text-left group ${
-                      isActive ? "border-violet-500 ring-2 ring-violet-500/20 scale-[0.98]" : "border-neutral-900 hover:border-neutral-700"
+                    className={`relative aspect-square overflow-hidden rounded-xl border bg-neutral-950 transition-all duration-300 text-left group ${
+                      isActive ? "border-blue-500" : "border-neutral-900 hover:border-neutral-700"
                     }`}
                   >
                     <img

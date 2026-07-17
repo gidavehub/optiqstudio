@@ -45,7 +45,7 @@ export const CREDIT_PACKS = [
 
 /** Per-action pricing. Video is priced per generated second. */
 export const COSTS = {
-  videoPerSecond: { omni: 30, "omni-fast": 15 } as Record<string, number>,
+  videoPerSecond: { omni: 15, "omni-fast": 15 } as Record<string, number>,
   image: 50,
   /** TTS per 100 characters (min charge 15). */
   ttsPer100Chars: 10,

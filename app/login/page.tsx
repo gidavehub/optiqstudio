@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -137,7 +137,7 @@ export default function LoginPage() {
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full h-11 rounded-xl bg-black/75 border border-white/20 px-4 text-xs text-white placeholder:text-neutral-500 focus:border-violet-400 focus:ring-1 focus:ring-violet-400 outline-none font-medium transition-all shadow-lg"
+              className="w-full h-11 rounded-xl bg-black/75 border border-white/20 px-4 text-xs text-white placeholder:text-neutral-500 focus:border-white focus:ring-1 focus:ring-white outline-none font-medium transition-all shadow-lg"
             />
           </div>
           <div>
@@ -148,14 +148,14 @@ export default function LoginPage() {
               placeholder="Secure password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-11 rounded-xl bg-black/75 border border-white/20 px-4 text-xs text-white placeholder:text-neutral-500 focus:border-violet-400 focus:ring-1 focus:ring-violet-400 outline-none font-medium transition-all shadow-lg"
+              className="w-full h-11 rounded-xl bg-black/75 border border-white/20 px-4 text-xs text-white placeholder:text-neutral-500 focus:border-white focus:ring-1 focus:ring-white outline-none font-medium transition-all shadow-lg"
             />
           </div>
 
           <button
             type="submit"
             disabled={busy}
-            className="w-full h-11 rounded-xl bg-violet-600 hover:bg-violet-700 text-xs font-bold text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(124,58,237,0.3)] hover:scale-[1.01]"
+            className="w-full h-11 rounded-xl bg-white hover:bg-neutral-200 text-xs font-bold text-black transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:scale-[1.01]"
           >
             {busy && <Loader2 size={13} className="animate-spin" />}
             {mode === "signin" ? "Log In with Email" : "Sign Up with Email"}
@@ -172,7 +172,7 @@ export default function LoginPage() {
           <span>{mode === "signin" ? "Don't have an account yet?" : "Already configured an account?"}</span>{" "}
           <button
             onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="text-violet-300 font-bold hover:underline ml-1"
+            className="text-white font-bold hover:underline ml-1"
           >
             {mode === "signin" ? "Sign Up" : "Log In"}
           </button>

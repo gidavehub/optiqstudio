@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -487,7 +487,7 @@ export default function CharacterStudio() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-neutral-900">
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600/15 text-violet-400">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-neutral-800 text-neutral-300 border border-neutral-700">
                     <Users size={15} />
                   </div>
                   <span className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest block">
@@ -510,18 +510,18 @@ export default function CharacterStudio() {
 
             {loadingCast ? (
               <div className="flex flex-col items-center justify-center py-20 text-neutral-500 gap-3">
-                <Loader2 size={24} className="animate-spin text-violet-500" />
+                <Loader2 size={24} className="animate-spin text-white" />
                 <p className="text-xs font-mono">Synchronizing cast list with cloud ledger...</p>
               </div>
             ) : characters.length === 0 ? (
               /* Premium Empty State card */
               <div className="relative rounded-2xl border border-neutral-900 bg-neutral-950/40 p-12 text-center overflow-hidden flex flex-col items-center justify-center min-h-[350px]">
-                <div className="absolute inset-0 bg-gradient-to-b from-violet-600/[0.03] to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-b from-neutral-600/[0.03] to-transparent pointer-events-none" />
                 
                 {/* Glowing neon halo behind vector */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-violet-600/10 blur-[80px] pointer-events-none rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-neutral-600/5 blur-[80px] pointer-events-none rounded-full" />
 
-                <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 border border-white/5 text-violet-400 mb-4 shadow-xl">
+                <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 border border-white/5 text-neutral-300 mb-4 shadow-xl">
                   <Users size={24} />
                 </div>
                 
@@ -533,7 +533,7 @@ export default function CharacterStudio() {
                 </p>
                 <button
                   onClick={() => openEditor()}
-                  className="relative z-10 mt-6 flex items-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 px-6 py-2.5 text-xs font-bold text-white transition-all shadow-lg shadow-violet-600/15"
+                  className="relative z-10 mt-6 flex items-center gap-2 rounded-full bg-white hover:bg-neutral-200 px-6 py-2.5 text-xs font-bold text-black transition-all shadow-lg"
                 >
                   <Plus size={14} /> Create Your First Character
                 </button>
@@ -545,7 +545,7 @@ export default function CharacterStudio() {
                   <div
                     key={c.id}
                     onClick={() => openEditor(c)}
-                    className="group relative rounded-2xl border border-neutral-900 bg-neutral-950/40 hover:border-neutral-800 transition-all cursor-pointer flex flex-col overflow-hidden select-none hover:shadow-2xl hover:shadow-violet-600/[0.02]"
+                    className="group relative rounded-2xl border border-neutral-900 bg-neutral-950/40 hover:border-neutral-800 transition-all cursor-pointer flex flex-col overflow-hidden select-none hover:shadow-2xl hover:shadow-neutral-600/[0.02]"
                   >
                     {/* Media viewport container */}
                     <div className="aspect-[3/4] w-full bg-neutral-950 relative overflow-hidden shrink-0 border-b border-neutral-900/60">
@@ -556,7 +556,7 @@ export default function CharacterStudio() {
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-xs font-bold bg-violet-600/5 text-violet-400/80">
+                        <div className="w-full h-full flex flex-col items-center justify-center text-xs font-bold bg-neutral-800 text-neutral-400">
                           <Users size={32} className="opacity-30 mb-2" />
                           No Portrait
                         </div>
@@ -570,7 +570,7 @@ export default function CharacterStudio() {
                           </span>
                         )}
                         {c.voiceUrl && (
-                          <span className="text-[8px] font-bold font-mono tracking-wider bg-black/60 backdrop-blur text-violet-300 px-1.5 py-0.5 rounded uppercase">
+                          <span className="text-[8px] font-bold font-mono tracking-wider bg-black/60 backdrop-blur text-neutral-300 border border-neutral-800 px-1.5 py-0.5 rounded uppercase">
                             Voice
                           </span>
                         )}
@@ -583,7 +583,7 @@ export default function CharacterStudio() {
                             e.stopPropagation();
                             togglePlayVoice(c.id, c.voiceUrl!);
                           }}
-                          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-black hover:bg-violet-400 hover:text-white transition-all shadow-md hover:scale-110 active:scale-90 z-20"
+                          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 hover:text-black transition-all shadow-md hover:scale-110 active:scale-90 z-20"
                           title="Monitor synthesized voiceover"
                         >
                           {playingId === c.id ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
@@ -603,7 +603,7 @@ export default function CharacterStudio() {
                     {/* Metadata summary */}
                     <div className="p-3.5 flex-1 flex flex-col justify-between">
                       <div>
-                        <p className="text-xs font-bold text-white group-hover:text-violet-400 transition-colors truncate">
+                        <p className="text-xs font-bold text-white group-hover:text-neutral-300 transition-colors truncate">
                           {c.name}
                         </p>
                         {c.imageDescription && (
@@ -666,7 +666,7 @@ export default function CharacterStudio() {
             <div className="grid gap-8 md:grid-cols-2 items-start">
               
               {/* Appearance Panel */}
-              <div className="space-y-4 bg-[#08080a] border border-neutral-900 rounded-2xl p-5 relative">
+              <div className="space-y-4 bg-surface border border-neutral-900 rounded-2xl p-5 relative">
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-900/60">
                   <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest block">
                     APPEARANCE (PORTRAIT)
@@ -721,7 +721,7 @@ export default function CharacterStudio() {
                         isDraggingImageRef
                           ? "border-white bg-white/5"
                           : imageReference
-                          ? "border-neutral-800 bg-[#0c0c0d]"
+                          ? "border-neutral-800 bg-surface-2"
                           : "border-neutral-900 hover:border-neutral-800 bg-neutral-950"
                       }`}
                     >
@@ -765,7 +765,7 @@ export default function CharacterStudio() {
                       disabled={busy || !imageDescription.trim()}
                       className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs font-bold py-2 px-4 transition-all"
                     >
-                      <Wand2 size={12} className="text-violet-400 animate-pulse" />
+                      <Wand2 size={12} className="text-neutral-300 animate-pulse" />
                       Generate Portrait Sheet ({imageCost} cr)
                     </button>
                   </div>
@@ -806,7 +806,7 @@ export default function CharacterStudio() {
               </div>
 
               {/* Voice Panel */}
-              <div className="space-y-4 bg-[#08080a] border border-neutral-900 rounded-2xl p-5">
+              <div className="space-y-4 bg-surface border border-neutral-900 rounded-2xl p-5">
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-900/60">
                   <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest block">
                     VOICE PROFILE
@@ -857,7 +857,7 @@ export default function CharacterStudio() {
                           className="w-full text-xs rounded-xl bg-neutral-950 border border-neutral-900/80 p-2.5 text-white focus:outline-none focus:border-white/25"
                         >
                           {VOICES.map((v) => (
-                            <option key={v.id} value={v.id} className="bg-[#0c0c0d]">
+                            <option key={v.id} value={v.id} className="bg-surface-2">
                               {v.label} ({v.vibe})
                             </option>
                           ))}
@@ -895,13 +895,13 @@ export default function CharacterStudio() {
                             isDraggingVoiceSample
                               ? "border-white bg-white/5"
                               : cloningAudioSample
-                              ? "border-neutral-800 bg-[#0c0c0d]"
+                              ? "border-neutral-800 bg-surface-2"
                               : "border-neutral-900 hover:border-neutral-800 bg-neutral-950"
                           }`}
                         >
                           {cloningAudioSample ? (
                             <div className="flex items-center gap-3 text-left">
-                              <div className="flex h-8 w-8 items-center justify-center rounded bg-emerald-500/10 text-emerald-400 shrink-0">
+                              <div className="flex h-8 w-8 items-center justify-center rounded bg-neutral-800 border border-neutral-700 text-neutral-400 shrink-0">
                                 <FileAudio size={16} />
                               </div>
                               <div className="flex-1 min-w-0">
@@ -980,7 +980,7 @@ export default function CharacterStudio() {
                         disabled={busy || (voiceMode === "clone" && !cloningAudioSample)}
                         className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-xs font-bold py-2 px-4 transition-all mt-1"
                       >
-                        <Volume2 size={12} className="text-violet-400" />
+                        <Volume2 size={12} className="text-neutral-300" />
                         Generate Voiceover ({voiceMode === "clone" ? `${cloneCost} cr` : `${ttsCost} cr`})
                       </button>
                     </div>
@@ -994,7 +994,7 @@ export default function CharacterStudio() {
                       </span>
                       <div className="rounded-xl border border-neutral-900 bg-neutral-950 p-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-600/10 text-violet-400">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300">
                             <Volume2 size={14} />
                           </div>
                           <div>
@@ -1029,7 +1029,7 @@ export default function CharacterStudio() {
               <button
                 onClick={handleSaveCharacter}
                 disabled={busy || !name.trim()}
-                className="rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-bold px-8 py-2.5 transition-all flex items-center gap-2 shadow-lg shadow-violet-600/15 disabled:opacity-40"
+                className="rounded-full bg-white hover:bg-neutral-200 text-black text-xs font-bold px-8 py-2.5 transition-all flex items-center gap-2 shadow-lg disabled:opacity-40"
               >
                 {busy ? (
                   <>

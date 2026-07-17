@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Download, FolderOpen, Mic, Trash2 } from "lucide-react";

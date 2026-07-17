@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
-/* Optiq Studio — stark monochrome system: pure black canvas, white type,
-   neutral grays. No glows, no neon. */
+/* Optiq Studio — premium deep blue theme: warm midnight blue canvas, slate-grey card surfaces,
+   and clean white/grey high contrast type details. */
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --surface: #101010;
-  --surface-2: #1a1a1a;
-  --line: rgba(255, 255, 255, 0.1);
-  --muted: #8a8a8a;
+  --background: #0a0f1d; /* Premium deep midnight blue canvas */
+  --foreground: #f8fafc; /* Crisp slate-50 off-white primary type */
+  --surface: #111827;    /* Slate-900 elegant elevated card surface */
+  --surface-2: #1e293b;  /* Slate-800 second level card/input surface */
+  --line: rgba(255, 255, 255, 0.08); /* Premium subtle borders */
+  --muted: #94a3b8;      /* Slate-400 muted text */
 }
 
 @theme inline {
@@ -98,11 +98,11 @@ select:focus {
 .media-fallback {
   background: linear-gradient(
     130deg,
-    #050505 0%,
-    #12161c 30%,
-    #1d2733 50%,
-    #0c1014 70%,
-    #050505 100%
+    #080c18 0%,
+    #111625 30%,
+    #1e293b 50%,
+    #131a2e 70%,
+    #080c18 100%
   );
   background-size: 300% 300%;
   animation: drift 14s ease-in-out infinite;

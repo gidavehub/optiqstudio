@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import {
@@ -62,13 +62,13 @@ export default function AvatarStudioPage() {
       )}
 
       {/* Main Studio Header */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/5 bg-[#070707] px-6">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/5 bg-background px-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600/10 text-violet-400 border border-violet-500/10">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-neutral-800 text-neutral-300 border border-neutral-700">
             <UserSquare size={15} />
           </div>
           <h1 className="text-[14px] font-semibold tracking-tight text-neutral-200">Avatar Studio</h1>
-          <span className="rounded-full bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[9px] font-medium tracking-wide text-violet-300 uppercase animate-pulse">
+          <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[9px] font-medium tracking-wide text-neutral-300 uppercase animate-pulse">
             Next-Gen Engine Upgrade
           </span>
         </div>
@@ -77,7 +77,7 @@ export default function AvatarStudioPage() {
             onClick={() => setShowUpgradeModal(true)}
             className="flex h-8 items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 px-3 text-[11px] font-medium text-neutral-300 transition-colors"
           >
-            <Cpu size={12} className="text-violet-400" />
+            <Cpu size={12} className="text-neutral-400" />
             Engine Status
           </button>
         </div>
@@ -87,7 +87,7 @@ export default function AvatarStudioPage() {
       <div className="flex flex-1 min-h-0">
         
         {/* Left Settings Sidebar */}
-        <aside className="w-[320px] shrink-0 border-r border-white/5 bg-[#080808] flex flex-col min-h-0 overflow-y-auto">
+        <aside className="w-[320px] shrink-0 border-r border-white/5 bg-background flex flex-col min-h-0 overflow-y-auto">
           <form onSubmit={handleGenerateAttempt} className="p-5 flex flex-col gap-5">
             
             {/* Stage 1: Choose Style */}
@@ -104,11 +104,11 @@ export default function AvatarStudioPage() {
                       onClick={() => setSelectedStyle(style.id)}
                       className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-all ${
                         active
-                          ? "bg-violet-600/10 border-violet-500/30 text-white"
+                          ? "bg-white/10 border-white/20 text-white"
                           : "bg-white/[0.02] border-white/5 text-neutral-400 hover:border-white/10 hover:text-white"
                       }`}
                     >
-                      <div className={`mt-0.5 rounded-lg p-1.5 ${active ? "bg-violet-500/20 text-violet-300" : "bg-white/5 text-neutral-500"}`}>
+                      <div className={`mt-0.5 rounded-lg p-1.5 ${active ? "bg-white/10 text-neutral-200" : "bg-white/5 text-neutral-500"}`}>
                         <Icon size={14} />
                       </div>
                       <div className="flex flex-col gap-0.5">
@@ -129,7 +129,7 @@ export default function AvatarStudioPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe your presenter's features, clothing, expressions, and posture... e.g., 'A professional corporate presenter with friendly features, wearing a sleek navy blazer, seated in a high-tech studio office, warm bokeh lighting...'"
                 rows={4}
-                className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-3 text-[11px] text-white placeholder-neutral-600 focus:border-violet-500/30 focus:outline-none focus:ring-1 focus:ring-violet-500/20 transition-all leading-normal resize-none"
+                className="w-full rounded-xl border border-white/5 bg-white/[0.02] p-3 text-[11px] text-white placeholder-neutral-600 focus:border-neutral-700 focus:outline-none focus:ring-1 focus:ring-neutral-800 transition-all leading-normal resize-none"
               />
             </div>
 
@@ -147,7 +147,7 @@ export default function AvatarStudioPage() {
                       onClick={() => setSelectedVoice(voice.id)}
                       className={`flex flex-col gap-0.5 rounded-xl border p-3 text-left transition-all ${
                         active
-                          ? "bg-violet-600/10 border-violet-500/30 text-white"
+                          ? "bg-white/10 border-white/20 text-white"
                           : "bg-white/[0.02] border-white/5 text-neutral-400 hover:border-white/10 hover:text-white"
                       }`}
                     >
@@ -171,7 +171,7 @@ export default function AvatarStudioPage() {
             {/* Action Trigger Button */}
             <button
               type="submit"
-              className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-95 text-[12px] font-semibold text-white shadow-lg shadow-violet-500/10 transition-all active:scale-[0.98]"
+              className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-white hover:bg-neutral-200 text-[12px] font-bold text-black shadow-md transition-all active:scale-[0.98]"
             >
               <Wand2 size={14} />
               Generate Avatar Video
@@ -183,11 +183,11 @@ export default function AvatarStudioPage() {
         <main className="flex-1 bg-black flex flex-col p-6 items-center justify-center relative">
           
           {/* Main Visual Dashboard Status Banner */}
-          <div className="max-w-[620px] w-full bg-[#0a0a0a] border border-white/5 rounded-2xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden backdrop-blur-md">
+          <div className="max-w-[620px] w-full bg-surface border border-white/5 rounded-2xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden backdrop-blur-md">
             
             {/* Visual glow accents */}
-            <div className="absolute top-0 left-1/4 w-40 h-40 bg-violet-600/10 rounded-full blur-[60px]" />
-            <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-fuchsia-600/10 rounded-full blur-[60px]" />
+            <div className="absolute top-0 left-1/4 w-40 h-40 bg-neutral-600/5 rounded-full blur-[60px]" />
+            <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-neutral-500/5 rounded-full blur-[60px]" />
 
             {/* Top Row: Engine Architecture Status */}
             <div className="flex items-start justify-between relative z-10">
@@ -214,14 +214,14 @@ export default function AvatarStudioPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-1.5">
                 <div className="bg-white/[0.01] border border-white/5 rounded-xl p-3 flex gap-2.5 items-start">
-                  <Cpu size={14} className="text-violet-400 mt-0.5 shrink-0" />
+                  <Cpu size={14} className="text-neutral-400 mt-0.5 shrink-0" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] font-bold text-neutral-200">Next-Gen Audio-to-Lip Models</span>
                     <span className="text-[10px] text-neutral-500">Integrating state-of-the-art MuseTalk and LatentSync pipelines for flawless phoneme alignment.</span>
                   </div>
                 </div>
                 <div className="bg-white/[0.01] border border-white/5 rounded-xl p-3 flex gap-2.5 items-start">
-                  <Zap size={14} className="text-fuchsia-400 mt-0.5 shrink-0" />
+                  <Zap size={14} className="text-neutral-300 mt-0.5 shrink-0" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] font-bold text-neutral-200">Zero-Latency Neural Rendering</span>
                     <span className="text-[10px] text-neutral-500">Calibrating our distributed cloud GPU nodes to achieve high-fidelity rendering outputs in sub-seconds.</span>
@@ -242,7 +242,7 @@ export default function AvatarStudioPage() {
               </div>
               <button
                 onClick={() => setShowUpgradeModal(true)}
-                className="text-[11px] font-semibold text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                className="text-[11px] font-bold text-neutral-200 hover:text-white underline decoration-neutral-500 underline-offset-2 transition-colors flex items-center gap-1"
               >
                 Read Upgrade Whitepaper →
               </button>
@@ -256,7 +256,7 @@ export default function AvatarStudioPage() {
       {/* Full Premium Upgrade Overlay Modal */}
       {showUpgradeModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-          <div className="max-w-[500px] w-full bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl relative animate-scale-up">
+          <div className="max-w-[500px] w-full bg-surface border border-white/10 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl relative animate-scale-up">
             
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -287,12 +287,12 @@ export default function AvatarStudioPage() {
               <div className="bg-white/[0.01] border border-white/5 rounded-xl p-3.5 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-semibold text-neutral-400">DEPLOYMENT METRICS</span>
-                  <span className="rounded-full bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[8px] font-bold text-violet-300 uppercase">
+                  <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[8px] font-bold text-neutral-300 uppercase">
                     Stage 3/4 (Validating)
                   </span>
                 </div>
                 <div className="w-full bg-neutral-950 h-1.5 rounded-full overflow-hidden mt-1 border border-white/5">
-                  <div className="bg-gradient-to-r from-violet-600 to-fuchsia-600 h-full w-[78%] rounded-full" />
+                  <div className="bg-neutral-500 h-full w-[78%] rounded-full" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-1.5 text-[9px] text-neutral-500 text-center">
                   <div className="flex flex-col bg-white/[0.01] p-1.5 rounded-lg border border-white/5">

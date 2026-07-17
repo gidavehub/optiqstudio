@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -57,7 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Symmetrical Glassmorphic Top-Left Logo / Brand */}
       <Link
         href="/dashboard"
-        className="absolute top-4 left-6 z-50 flex items-center gap-3 rounded-full bg-[#0d0d0d]/80 border border-white/10 backdrop-blur-md px-5 py-3 shadow-2xl transition-all hover:border-white/20 select-none cursor-pointer"
+        className="absolute top-4 left-6 z-50 flex items-center gap-3 rounded-full bg-surface/80 border border-white/10 backdrop-blur-md px-5 py-3 shadow-2xl transition-all hover:border-white/20 select-none cursor-pointer"
       >
         <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
           <circle cx="16" cy="16" r="16" fill="white" />
@@ -69,14 +69,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </Link>
 
       {/* Floating Glassmorphic Top Bar / Settings Menu */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-4.5 rounded-full bg-[#0d0d0d]/80 border border-white/10 backdrop-blur-md px-5 py-2.5 text-xs shadow-2xl transition-all hover:border-white/20">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-4.5 rounded-full bg-surface/80 border border-white/10 backdrop-blur-md px-5 py-2.5 text-xs shadow-2xl transition-all hover:border-white/20">
         {/* Profile Initial and Email */}
         <Link
           href="/dashboard/billing"
           className="flex items-center gap-2 border-r border-white/15 pr-3.5"
           title={user.displayName || user.email || ""}
         >
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-[11px] font-bold text-white uppercase">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-neutral-700 to-neutral-500 text-[11px] font-bold text-white uppercase">
             {initial}
           </div>
           <span className="hidden sm:inline font-medium text-neutral-300 max-w-[100px] truncate">

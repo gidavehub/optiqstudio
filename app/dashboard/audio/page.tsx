@@ -18,7 +18,9 @@ import {
   ChevronLeft,
   CheckCircle,
   Plus,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import AssetPickerModal from "../../../components/AssetPickerModal";
@@ -96,7 +98,7 @@ function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
   }, [src]);
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-2xl border border-neutral-800 bg-[#0d0d0e]/95 p-4 shadow-xl flex items-center gap-4 backdrop-blur-md">
+    <div className="group relative w-full overflow-hidden rounded-2xl border border-neutral-800 bg-surface/95 p-4 shadow-xl flex items-center gap-4 backdrop-blur-md">
       <audio
         ref={audioRef}
         src={src}
@@ -412,8 +414,16 @@ export default function VoiceStudio() {
     <div className="flex h-full bg-black text-white">
       
       {/* Settings Panel & WorkSpace configuration */}
-      <aside className="w-72 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-[#070707] flex flex-col justify-between">
-        <div className="space-y-6">
+      <aside className="w-72 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-background flex flex-col justify-between">
+        <div className="space-y-6 pt-16">
+          <Link 
+            href="/dashboard" 
+            className="flex items-center gap-1.5 text-[11px] font-bold font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-wider mb-2 group w-fit"
+          >
+            <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+            Back to Dashboard
+          </Link>
+
           <div className="flex items-center gap-2 pb-2 border-b border-neutral-900">
             <Settings size={15} className="text-neutral-400 animate-pulse" />
             <span className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
@@ -429,10 +439,10 @@ export default function VoiceStudio() {
                   setEngine("prebuilt");
                   setError(null);
                 }}
-                className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`py-1.5 text-xs font-semibold rounded-lg transition-all border ${
                   engine === "prebuilt"
-                    ? "bg-neutral-800 text-white shadow"
-                    : "text-neutral-500 hover:text-white"
+                    ? "bg-[#0c152d] border-blue-500 text-white"
+                    : "border-transparent text-neutral-500 hover:text-neutral-200"
                 }`}
               >
                 Prebuilt Profiles
@@ -442,10 +452,10 @@ export default function VoiceStudio() {
                   setEngine("clone");
                   setError(null);
                 }}
-                className={`py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`py-1.5 text-xs font-semibold rounded-lg transition-all border ${
                   engine === "clone"
-                    ? "bg-neutral-800 text-white shadow"
-                    : "text-neutral-500 hover:text-white"
+                    ? "bg-[#0c152d] border-blue-500 text-white"
+                    : "border-transparent text-neutral-500 hover:text-neutral-200"
                 }`}
               >
                 AI Voice Cloning
@@ -461,10 +471,10 @@ export default function VoiceStudio() {
                   <button
                     key={v.id}
                     onClick={() => setVoice(v.id)}
-                    className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                    className={`w-full rounded-xl border px-3 py-2 text-left transition-all duration-300 ${
                       voice === v.id
-                        ? "border-white/40 bg-[#161617]"
-                        : "border-transparent bg-transparent hover:bg-neutral-900"
+                        ? "border-blue-500 bg-[#0c152d] text-white"
+                        : "border-transparent bg-transparent hover:border-white/5 hover:bg-[#131d35] text-neutral-400"
                     }`}
                   >
                     <p className="text-xs font-bold text-white">{v.label}</p>
@@ -486,7 +496,7 @@ export default function VoiceStudio() {
                   isDragging
                     ? "border-white bg-white/5"
                     : voiceFile
-                    ? "border-neutral-800 bg-[#0d0d0e]"
+                    ? "border-neutral-800 bg-surface"
                     : "border-neutral-800 hover:border-neutral-700 bg-neutral-950"
                 }`}
               >
@@ -536,7 +546,7 @@ export default function VoiceStudio() {
               value={style}
               onChange={(e) => setStyle(e.target.value)}
               placeholder="Directions (e.g. “slow, movie-trailer gravitas”)"
-              className="w-full rounded-xl border border-neutral-900 bg-[#0d0d0e] px-3.5 py-2.5 text-xs placeholder:text-neutral-600 focus:border-neutral-700"
+              className="w-full rounded-xl border border-neutral-900 bg-surface px-3.5 py-2.5 text-xs placeholder:text-neutral-600 focus:border-neutral-700"
             />
           </div>
         </div>
@@ -550,7 +560,7 @@ export default function VoiceStudio() {
             </span>
           </div>
           
-          <div className="bg-[#050506] rounded-xl p-3 border border-neutral-900 text-[10px] space-y-2">
+          <div className="bg-background rounded-xl p-3 border border-neutral-900 text-[10px] space-y-2">
             <p className="text-neutral-500 font-sans leading-relaxed">
               Your wallet balance is consumed on a flat-rate per-action basis:
             </p>
@@ -566,7 +576,7 @@ export default function VoiceStudio() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-neutral-900 bg-[#0d0d0e]/40 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between items-center">
+          <div className="rounded-xl border border-neutral-900 bg-surface/40 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between items-center">
             <span>Synth Cost: <strong className="text-white font-semibold">GMD 100.00</strong></span>
             <span>Balance: <strong className="text-neutral-200">{profile ? `GMD ${profile.credits.toLocaleString()}` : "—"}</strong></span>
           </div>
@@ -575,7 +585,7 @@ export default function VoiceStudio() {
 
       {/* Creative workspace viewport */}
       <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 pt-24">
           
           {/* Header section */}
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
@@ -590,7 +600,7 @@ export default function VoiceStudio() {
 
             <button
               onClick={() => setAssetPickerOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-neutral-800 bg-[#0d0d0e]/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-neutral-800 bg-surface/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
             >
               <Plus size={13} />
               Asset Composer
@@ -607,7 +617,7 @@ export default function VoiceStudio() {
                 onChange={(e) => setText(e.target.value)}
                 maxLength={4000}
                 placeholder="Paste or write your premium narration script here…"
-                className="w-full resize-none rounded-2xl border border-neutral-800 bg-[#0d0d0e]/60 p-4 text-sm placeholder:text-neutral-600 focus:border-neutral-700 leading-relaxed transition-all"
+                className="w-full resize-none rounded-2xl border border-neutral-800 bg-surface/60 p-4 text-sm placeholder:text-neutral-600 focus:border-neutral-700 leading-relaxed transition-all"
               />
               <div className="mt-1 flex justify-between text-[10px] font-mono text-neutral-500">
                 <span>{text.length.toLocaleString()} / 4,000 characters</span>
@@ -669,10 +679,10 @@ export default function VoiceStudio() {
                         onClick={() => !isRendering && selectTake(h)}
                         className={`group relative rounded-xl border px-3.5 py-3 text-left transition-all backdrop-blur ${
                           isRendering
-                            ? "border-dashed border-neutral-800 bg-[#080809]/40 cursor-wait"
+                            ? "border-dashed border-neutral-800 bg-surface/40 cursor-wait"
                             : isActive
-                            ? "border-white/30 bg-[#161617]"
-                            : "border-neutral-900 hover:border-neutral-800 bg-[#0c0c0d]/60 cursor-pointer"
+                            ? "border-white/30 bg-surface-2"
+                            : "border-neutral-900 hover:border-neutral-800 bg-surface-2/60 cursor-pointer"
                         }`}
                       >
                         {isRendering ? (

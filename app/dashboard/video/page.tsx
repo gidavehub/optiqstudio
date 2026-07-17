@@ -23,7 +23,9 @@ import {
   UploadCloud,
   Mic,
   Plus,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import AssetPickerModal from "../../../components/AssetPickerModal";
@@ -203,7 +205,7 @@ function AudioPlayerPreview({ audio }: { audio: { preview: string; name: string 
       <button 
         type="button"
         onClick={togglePlay} 
-        className="p-1 rounded-full bg-neutral-800 hover:bg-neutral-700 transition-colors text-violet-400 hover:text-violet-300 flex items-center justify-center shrink-0"
+        className="p-1 rounded-full bg-neutral-800 hover:bg-neutral-700 transition-colors text-neutral-300 hover:text-white flex items-center justify-center shrink-0"
       >
         {isPlaying ? <Pause size={10} /> : <Play size={10} />}
       </button>
@@ -460,7 +462,8 @@ function VideoWorkspace() {
   // Resume background polling on page load for any item in rendering state
   useEffect(() => {
     history.forEach((item) => {
-      if (item.status === "rendering" && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
+      const isGenerating = item.status === "rendering" || item.status === "generating" || item.status === "processing";
+      if (isGenerating && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
         startSingleGenerationPolling(item.id);
       }
     });
@@ -695,8 +698,16 @@ function VideoWorkspace() {
     <div className="flex h-full bg-black text-white">
       
       {/* Settings & Financial Comparison Rail */}
-      <aside className="w-68 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-[#070707] flex flex-col justify-between">
-        <div className="space-y-6">
+      <aside className="w-68 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-background flex flex-col justify-between">
+        <div className="space-y-6 pt-16">
+          <Link 
+            href="/dashboard" 
+            className="flex items-center gap-1.5 text-[11px] font-bold font-mono text-neutral-500 hover:text-white transition-colors uppercase tracking-wider mb-2 group w-fit"
+          >
+            <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+            Back to Dashboard
+          </Link>
+
           <div className="flex items-center gap-2 pb-2 border-b border-neutral-900">
             <Settings size={15} className="text-neutral-400 animate-pulse" />
             <span className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
@@ -706,7 +717,7 @@ function VideoWorkspace() {
 
           <div>
             <p className="eyebrow mb-2">Engine Model</p>
-            <div className="rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2.5">
+            <div className="rounded-lg border border-neutral-800 bg-surface px-3 py-2.5">
               <p className="text-sm font-medium text-white flex items-center gap-2">
                 <Flame size={14} className="text-neutral-300" />
                 Gemini Omni Flash
@@ -729,7 +740,7 @@ function VideoWorkspace() {
             <p className="eyebrow mb-2">Native Audio Track</p>
             <button
               onClick={() => setAudioOn(!audioOn)}
-              className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2.5 text-sm hover:border-neutral-700 transition-colors"
+              className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-surface px-3 py-2.5 text-sm hover:border-neutral-700 transition-colors"
             >
               <span>{audioOn ? "Synthesize on-the-fly" : "Silent render"}</span>
               {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} className="text-neutral-500" />}
@@ -743,7 +754,7 @@ function VideoWorkspace() {
               value={negativePrompt}
               onChange={(e) => setNegativePrompt(e.target.value)}
               placeholder="Blurry, low-fps, artifacts…"
-              className="w-full resize-none rounded-lg border border-neutral-800 bg-[#0d0d0e] px-3 py-2 text-xs placeholder:text-neutral-600 focus:border-neutral-700 font-mono"
+              className="w-full resize-none rounded-lg border border-neutral-800 bg-surface px-3 py-2 text-xs placeholder:text-neutral-600 focus:border-neutral-700 font-mono"
             />
           </div>
         </div>
@@ -788,7 +799,7 @@ function VideoWorkspace() {
             </div>
           </div>
           
-          <div className="rounded-lg border border-neutral-900 bg-[#0d0d0e]/50 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between">
+          <div className="rounded-lg border border-neutral-900 bg-surface/50 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between">
             <span>Clip Cost: <strong className="text-white font-semibold">GMD 100.00</strong></span>
             <span>Balance: <strong className="text-neutral-200">{profile ? `GMD ${profile.credits.toLocaleString()}` : "—"}</strong></span>
           </div>
@@ -799,7 +810,7 @@ function VideoWorkspace() {
       <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
         
         {/* Dynamic Canvas Area (Dynamic blurred nodes appear directly here) */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 pt-24">
           
           {/* Header navigation bar */}
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
@@ -815,7 +826,7 @@ function VideoWorkspace() {
             {activeItem && (
               <button
                 onClick={() => setActiveItem(null)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-800 bg-[#0d0d0e]/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-800 bg-surface/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
               >
                 <ChevronLeft size={14} />
                 Back to Projects
@@ -829,11 +840,11 @@ function VideoWorkspace() {
               
               {/* Left Side: Monitor Player / Loading Blur */}
               <div className="w-full">
-                {activeItem.status === "rendering" || !activeItem.videoUrl ? (
+                {(activeItem.status === "rendering" || activeItem.status === "generating" || activeItem.status === "processing" || !activeItem.videoUrl) ? (
                   <div className="relative aspect-video rounded-2xl border border-neutral-800 flex flex-col items-center justify-center p-8 text-center overflow-hidden bg-[#070708]">
                     {/* Glowing dynamic backdrop blur overlay */}
                     <div className="absolute -inset-[20px] opacity-40">
-                      <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-indigo-500/20 blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
+                      <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-neutral-600/15 blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
                       <div className="absolute bottom-1/4 right-1/4 w-44 h-44 rounded-full bg-neutral-600/20 blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
                       <div className="absolute top-1/2 right-1/3 w-36 h-36 rounded-full bg-neutral-500/10 blur-3xl animate-pulse" style={{ animationDuration: '3s' }} />
                     </div>
@@ -1047,7 +1058,7 @@ function VideoWorkspace() {
             <div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {history.map((item) => {
-                  const isRendering = item.status === "rendering" || !item.videoUrl;
+                  const isRendering = item.status === "rendering" || item.status === "generating" || item.status === "processing" || !item.videoUrl;
                   return (
                     <div
                       key={item.id}
@@ -1062,7 +1073,7 @@ function VideoWorkspace() {
                           <div className="absolute inset-0 bg-[#070708] overflow-hidden flex items-center justify-center p-4">
                             {/* Glowing shifting orbs */}
                             <div className="absolute -inset-[20px] opacity-40">
-                              <div className="absolute top-1/4 left-1/4 w-32 h-32 rounded-full bg-indigo-500/20 blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
+                              <div className="absolute top-1/4 left-1/4 w-32 h-32 rounded-full bg-neutral-600/15 blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
                               <div className="absolute bottom-1/4 right-1/4 w-36 h-36 rounded-full bg-neutral-600/20 blur-2xl animate-pulse" style={{ animationDuration: '6s' }} />
                               <div className="absolute top-1/2 right-1/3 w-28 h-28 rounded-full bg-neutral-500/10 blur-2xl animate-pulse" style={{ animationDuration: '3s' }} />
                             </div>
@@ -1164,7 +1175,7 @@ function VideoWorkspace() {
 
         {/* ── FLEXIBLE BOTTOM PROMPT CONSOLE (ONLY SHOWN WHEN NO ACTIVE ITEM IS OPENED) ── */}
         {!activeItem && (
-          <div className="border-t border-neutral-900 p-5 bg-[#070707]/90 backdrop-blur-md relative z-40">
+          <div className="border-t border-neutral-900 p-5 bg-background/90 backdrop-blur-md relative z-40">
             
             {images.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -1207,7 +1218,7 @@ function VideoWorkspace() {
             )}
 
             <div 
-              className="relative flex items-center gap-3 rounded-2xl border border-neutral-800 bg-[#0a0a0c] p-3 w-full shadow-inner transition-all duration-300"
+              className="relative flex items-center gap-3 rounded-2xl border border-neutral-800 bg-surface p-3 w-full shadow-inner transition-all duration-300"
               onDragEnter={handleDragEnterBottom}
               onDragOver={handleDragOverBottom}
               onDragLeave={handleDragLeaveBottom}
@@ -1414,8 +1425,10 @@ function Segmented<T extends string | number>({
           <button
             key={String(opt)}
             onClick={() => onChange(opt)}
-            className={`rounded-md px-2 py-1.5 text-xs transition-colors ${
-              value === opt ? "bg-[#18181b] text-white" : "text-neutral-500 hover:text-white"
+            className={`rounded-md px-2 py-1.5 text-xs transition-all border ${
+              value === opt 
+                ? "bg-[#0c152d] border-blue-500 text-white" 
+                : "border-transparent text-neutral-500 hover:text-neutral-200"
             }`}
           >
             {render ? render(opt) : String(opt)}
