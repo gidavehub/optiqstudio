@@ -331,6 +331,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/storyRevise";
       } else if (path === "/api/project/compile") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/projectCompile";
+      } else if (path === "/api/project/render") {
+        // Editor engine v2 renderer (lib/editor RenderJob → ffmpeg). Wired to
+        // the UI at Stage 8; see EDITOR_ROADMAP.md.
+        functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/renderJobV2";
+      } else if (path === "/api/media/probe") {
+        // Editor engine media intelligence (ffprobe meta + filmstrip + waveform).
+        functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/mediaProbe";
       } else if (path.startsWith("/api/video/status")) {
         const url = new URL(path, window.location.origin);
         const id = url.searchParams.get("id");

@@ -22,7 +22,6 @@ const crypto = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
-const rtdb = admin.database();
 
 async function getPricing() {
   const fallback = {
@@ -45,6 +44,7 @@ async function getPricing() {
     }
   };
   try {
+    const rtdb = admin.database();
     const snapshot = await rtdb.ref("pricing").once("value");
     const val = snapshot.val();
     if (val && val.plans && val.packs && val.costs) {
@@ -1348,7 +1348,40 @@ Brand Info:
           systemInstruction: { parts: [{ text: systemPrompt }] },
           generationConfig: {
             temperature: 0.8,
-            responseMimeType: "application/json"
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                concept: { type: "STRING" },
+                characterLock: {
+                  type: "OBJECT",
+                  properties: {
+                    name: { type: "STRING" },
+                    description: { type: "STRING" },
+                    wardrobe: { type: "STRING" }
+                  },
+                  required: ["name", "description", "wardrobe"]
+                },
+                styleHeader: { type: "STRING" },
+                scenes: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      sceneNumber: { type: "INTEGER" },
+                      setting: { type: "STRING" },
+                      action: { type: "STRING" },
+                      dialogue: { type: "STRING" },
+                      sound: { type: "STRING" },
+                      fullPrompt: { type: "STRING" }
+                    },
+                    required: ["sceneNumber", "setting", "action", "dialogue", "sound", "fullPrompt"]
+                  }
+                }
+              },
+              required: ["title", "concept", "characterLock", "styleHeader", "scenes"]
+            }
           }
         }
       );
@@ -1559,6 +1592,255 @@ exports.projectCompile = onRequest(
     } catch (err) {
       console.error("projectCompile error:", err);
       return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ─── EDITOR ENGINE v2 RENDERER ──────────────────────────────────────────────
+// Executes a RenderJob produced by lib/editor's compileRenderJob(). The client
+// sends DATA only; the filtergraph is validated and built server-side in
+// editorEngine.js. Status streams to the project doc as renderV2Status /
+// renderV2Url / renderV2Error. Leaves projectCompile untouched (legacy path).
+
+const { validateRenderJob, buildFfmpegPlan } = require("./editorEngine");
+
+function renderRunFfmpeg(args, logTag) {
+  const { spawn } = require("child_process");
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderrTail = "";
+    proc.stderr.on("data", (chunk) => {
+      stderrTail = (stderrTail + chunk.toString()).slice(-4000);
+    });
+    proc.on("error", (err) => reject(new Error(`ffmpeg spawn failed: ${err.message}`)));
+    proc.on("close", (code) => {
+      if (code === 0) return resolve();
+      console.error(`[${logTag}] ffmpeg exited ${code}. stderr tail:\n${stderrTail}`);
+      reject(new Error(`ffmpeg exited with code ${code}: ${stderrTail.slice(-600)}`));
+    });
+  });
+}
+
+function renderLocalName(url, index) {
+  try {
+    const ext = require("path").extname(new URL(url).pathname).toLowerCase();
+    if (/^\.(mp4|mov|webm|mkv|mp3|wav|aac|m4a|ogg|png|jpg|jpeg|webp)$/.test(ext)) {
+      return `in_${index}${ext}`;
+    }
+  } catch { /* fall through */ }
+  return `in_${index}.mp4`;
+}
+
+exports.renderJobV2 = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 5, timeoutSeconds: 540, memory: "2GiB", cpu: 2 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const user = await requireAuth(req);
+      const { projectId, job } = req.body;
+      if (!projectId) return res.status(400).json({ error: "Missing projectId" });
+
+      try {
+        validateRenderJob(job);
+      } catch (validationErr) {
+        return res.status(400).json({ error: `Invalid render job: ${validationErr.message}` });
+      }
+
+      const projectRef = db.collection("projects").doc(projectId);
+      const snap = await projectRef.get();
+      if (snap.exists && snap.data().uid && snap.data().uid !== user.uid) {
+        return res.status(403).json({ error: "Not your project" });
+      }
+
+      await projectRef.set({
+        renderV2Status: "rendering",
+        renderV2Error: null,
+        renderV2Job: job,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // Respond immediately; the render continues in the background.
+      res.status(202).json({ status: "rendering", message: "Render started in the background" });
+
+      (async () => {
+        const os = require("os");
+        const fs = require("fs");
+        const path = require("path");
+        const workDir = path.join(os.tmpdir(), `render_${projectId}_${Date.now()}`);
+        const tag = `renderV2 ${projectId}`;
+
+        try {
+          await fs.promises.mkdir(workDir, { recursive: true });
+
+          const plan = buildFfmpegPlan(job);
+
+          const localInputs = [];
+          for (let i = 0; i < plan.inputs.length; i++) {
+            const localPath = path.join(workDir, renderLocalName(plan.inputs[i], i));
+            console.log(`[${tag}] Downloading input ${i + 1}/${plan.inputs.length}: ${plan.inputs[i]}`);
+            await compileDownloadFile(plan.inputs[i], localPath);
+            localInputs.push(localPath);
+          }
+
+          const outPath = path.join(workDir, "out.mp4");
+          const args = ["-y"];
+          for (const input of localInputs) args.push("-i", input);
+          args.push(
+            "-filter_complex", plan.filterComplex,
+            "-map", `[${plan.videoLabel}]`,
+            "-map", `[${plan.audioLabel}]`,
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "21",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ar", "44100",
+            "-ac", "2",
+            "-t", String(job.duration),
+            "-movflags", "+faststart",
+            outPath
+          );
+
+          console.log(`[${tag}] Rendering ${job.duration}s @ ${job.width}x${job.height}/${job.fps}fps ` +
+            `(${job.base.length} base segs, ${job.overlays.length} overlays, ${job.audio.length} audio)`);
+          await renderRunFfmpeg(args, tag);
+
+          const remotePath = `projects/${user.uid}/${projectId}/editor_render_${Date.now()}.mp4`;
+          console.log(`[${tag}] Uploading to ${remotePath}`);
+          await admin.storage().bucket(STORAGE_BUCKET).upload(outPath, {
+            destination: remotePath,
+            metadata: {
+              contentType: "video/mp4",
+              cacheControl: "public, max-age=31536000",
+            },
+          });
+
+          const finalUrl = `https://storage.googleapis.com/${STORAGE_BUCKET}/${remotePath}`;
+          console.log(`[${tag}] Render succeeded: ${finalUrl}`);
+          await projectRef.set({
+            renderV2Status: "succeeded",
+            renderV2Url: finalUrl,
+            renderV2CompletedAt: new Date().toISOString(),
+            renderV2Error: null,
+          }, { merge: true });
+        } catch (err) {
+          console.error(`[${tag}] Render failed:`, err);
+          await projectRef.set({
+            renderV2Status: "failed",
+            renderV2Error: err.message || "Render failed",
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } finally {
+          try {
+            await fs.promises.rm(workDir, { recursive: true, force: true });
+          } catch (cleanupErr) {
+            console.warn(`[${tag}] Failed to clean up ${workDir}:`, cleanupErr);
+          }
+        }
+      })();
+    } catch (err) {
+      console.error("renderJobV2 error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ─── EDITOR ENGINE — MEDIA INTELLIGENCE ─────────────────────────────────────
+// Probes a media URL (ffprobe) and builds the timeline artifacts: a filmstrip
+// sprite JPEG (video) and a normalized waveform peak array (audio). Uploads the
+// sprite to Storage and returns metadata + waveform inline. Synchronous within
+// the 120s window — assets are single clips, not full films.
+
+const { probeMedia, DEFAULT_WAVEFORM_BUCKETS } = require("./mediaProbe");
+
+exports.mediaProbe = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120, memory: "1GiB" },
+  async (req, res) => {
+    const os = require("os");
+    const fs = require("fs");
+    const path = require("path");
+    let workDir = null;
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const user = await requireAuth(req);
+      const { url, assetId = null, kind = null } = req.body || {};
+
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return res.status(400).json({ error: "Missing or invalid url" });
+      }
+      if (parsed.protocol !== "https:") {
+        return res.status(400).json({ error: "Only https URLs are allowed" });
+      }
+      if (kind && !["video", "audio", "image"].includes(kind)) {
+        return res.status(400).json({ error: "Invalid kind" });
+      }
+
+      workDir = path.join(os.tmpdir(), `probe_${user.uid}_${Date.now()}`);
+      await fs.promises.mkdir(workDir, { recursive: true });
+
+      const ext = (() => {
+        const e = path.extname(parsed.pathname).toLowerCase();
+        return /^\.[a-z0-9]{2,5}$/.test(e) ? e : ".bin";
+      })();
+      const localPath = path.join(workDir, `src${ext}`);
+      await compileDownloadFile(url, localPath);
+
+      const result = await probeMedia(localPath, {
+        hint: kind || undefined,
+        waveform: { buckets: DEFAULT_WAVEFORM_BUCKETS },
+      });
+
+      const response = { meta: result.meta };
+
+      if (result.filmstrip) {
+        const remotePath = `media/${user.uid}/${assetId || Date.now()}/filmstrip.jpg`;
+        await admin.storage().bucket(STORAGE_BUCKET).upload(
+          path.join(workDir, "filmstrip.jpg"),
+          {
+            destination: remotePath,
+            metadata: { contentType: "image/jpeg", cacheControl: "public, max-age=31536000" },
+          }
+        );
+        response.filmstrip = {
+          url: `https://storage.googleapis.com/${STORAGE_BUCKET}/${remotePath}`,
+          ...result.filmstrip.plan,
+        };
+      }
+
+      if (result.waveform) {
+        response.waveform = result.waveform;
+      }
+
+      // Persist a reusable index entry keyed by asset id (best-effort).
+      if (assetId) {
+        try {
+          await db.collection("mediaIndex").doc(assetId).set({
+            uid: user.uid,
+            url,
+            ...response,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (indexErr) {
+          console.warn(`[mediaProbe] index write failed for ${assetId}:`, indexErr.message);
+        }
+      }
+
+      return res.status(200).json(response);
+    } catch (err) {
+      console.error("mediaProbe error:", err);
+      return res.status(500).json({ error: err.message });
+    } finally {
+      if (workDir) {
+        try {
+          await fs.promises.rm(workDir, { recursive: true, force: true });
+        } catch (cleanupErr) {
+          console.warn(`[mediaProbe] cleanup failed:`, cleanupErr.message);
+        }
+      }
     }
   }
 );
