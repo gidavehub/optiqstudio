@@ -19,8 +19,9 @@
   --color-surface-2: var(--surface-2);
   --color-line: var(--line);
   --color-muted: var(--muted);
-  --font-sans: var(--font-geist-sans), "Helvetica Neue", system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-sans: var(--font-google-sans), var(--font-roboto), Roboto, system-ui, sans-serif;
+  --font-mono: var(--font-roboto-mono), monospace;
+  --font-display: var(--font-google-sans), var(--font-roboto), Roboto, sans-serif;
 }
 
 body {
@@ -50,6 +51,37 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
+}
+
+/* Rotating multi-color aurora used inside generating clip thumbnails */
+@keyframes aurora-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 220%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    #2563eb,
+    #7c3aed,
+    #db2777,
+    #f59e0b,
+    #10b981,
+    #06b6d4,
+    #2563eb
+  );
+  filter: blur(38px) saturate(1.4);
+  animation: aurora-spin 5s linear infinite;
 }
 
 /* Tiny uppercase label used across the marketing site */
@@ -83,27 +115,7 @@ select:focus {
   animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Animated placeholder for slots whose generated media hasn't landed yet */
-@keyframes drift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
+/* Solid placeholder for slots whose generated media hasn't landed yet */
 .media-fallback {
-  background: linear-gradient(
-    130deg,
-    #080c18 0%,
-    #111625 30%,
-    #1e293b 50%,
-    #131a2e 70%,
-    #080c18 100%
-  );
-  background-size: 300% 300%;
-  animation: drift 14s ease-in-out infinite;
+  background: #111625;
 }

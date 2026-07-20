@@ -238,46 +238,40 @@ export default function StoryboardPaywallModal() {
           <div className="mt-4">
             {!ccSpotCheckout ? (
               <>
-                <p className="text-xs leading-relaxed text-neutral-400">
-                  Your ad pitch is fully configured. Authorize the balance deduction below to begin generating scenes, camera actions, and script dialogue.
-                </p>
-
-                {/* Cost calculation */}
-                <div className="mt-5 rounded-2xl border border-white/10 bg-[#050b1d]/80 p-4 space-y-3">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-400 font-medium">Selected Duration</span>
-                    <span className="text-white font-bold">
-                      {length === "30s" ? "30 seconds (3 Scenes)" : length === "60s" ? "60 seconds (6 Scenes)" : "90 seconds (9 Scenes)"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                    <span className="text-neutral-400 font-medium">Your wallet balance</span>
-                    <span className="font-mono text-white font-semibold">GMD {balance.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                    <span className="text-neutral-400 font-medium">Storyboard generation cost</span>
-                    <span className="font-mono text-white font-bold">-GMD {cost.toFixed(2)}</span>
-                  </div>
-
-                  {hasEnough ? (
-                    <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2.5">
-                      <span className="text-neutral-400 font-medium">Remaining wallet balance</span>
-                      <span className="font-mono text-emerald-400 font-bold">GMD {remaining.toFixed(2)}</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2 rounded-lg bg-red-950/20 border border-red-900/30 px-3 py-2.5 mt-3">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle size={14} className="text-red-400 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-[11px] font-bold text-red-300">Insufficient Wallet Balance</p>
-                          <p className="text-[10px] text-red-400 mt-0.5 leading-normal">
-                            You need GMD {(cost - balance).toFixed(2)} more in your wallet to generate this storyboard spec.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                {/* Balance chip — top right */}
+                <div className="flex justify-end">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-mono text-neutral-400">
+                    Balance
+                    <span className="font-bold text-neutral-200">GMD {balance.toFixed(2)}</span>
+                  </span>
                 </div>
+
+                {/* Generation cost — the hero */}
+                <div className="relative mt-3 overflow-hidden rounded-2xl border border-blue-500/30 bg-[#081127] px-4 pt-6 pb-5 text-center">
+                  <p className="relative text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-blue-300/80">
+                    Generation Cost
+                  </p>
+                  <p className="relative mt-2 font-display text-6xl leading-none text-white">
+                    <span className="align-top text-2xl text-blue-300 mr-1">GMD</span>
+                    {cost.toFixed(2)}
+                  </p>
+                  <p className="relative mt-3 text-[11px] text-neutral-400">
+                    {length === "30s" ? "30 seconds · 3 scenes" : length === "60s" ? "60 seconds · 6 scenes" : "90 seconds · 9 scenes"}
+                  </p>
+                </div>
+
+                {hasEnough ? (
+                  <p className="mt-3 text-center text-[10px] font-mono text-neutral-500">
+                    GMD {remaining.toFixed(2)} left after this
+                  </p>
+                ) : (
+                  <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-red-950/20 border border-red-900/30 px-3 py-2.5">
+                    <AlertCircle size={13} className="text-red-400 shrink-0" />
+                    <p className="text-[10px] text-red-300">
+                      GMD {(cost - balance).toFixed(2)} short — top up to continue
+                    </p>
+                  </div>
+                )}
 
                 {/* Footer buttons */}
                 <div className="mt-6 flex gap-3">

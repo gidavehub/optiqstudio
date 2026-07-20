@@ -174,7 +174,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
               if (Array.isArray(docData.images)) {
                 for (const img of docData.images) {
-                  if (img.path) {
+                  // Shared references (e.g. project brand materials) are owned by
+                  // the project, not this generation — never delete those files.
+                  if (img.path && !img.shared) {
                     await deleteFileIfExists(img.path);
                   }
                 }

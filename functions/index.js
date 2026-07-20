@@ -498,7 +498,17 @@ async function persistReferenceMedia(uid, docId, body) {
     images: null,
   };
 
-  if (Array.isArray(body.images) && body.images.length > 0) {
+  if (Array.isArray(body.imagePaths) && body.imagePaths.length > 0) {
+    // References to media already sitting in Storage (e.g. project brand
+    // materials attached to a storyboard scene) — no re-upload needed.
+    out.images = body.imagePaths
+      .filter((img) => img && img.path)
+      .map((img) => ({ path: img.path, mimeType: img.mimeType || "image/png", shared: true }));
+    if (out.images.length > 0) {
+      out.imagePath = out.images[0].path;
+      out.imageMimeType = out.images[0].mimeType;
+    }
+  } else if (Array.isArray(body.images) && body.images.length > 0) {
     out.images = [];
     for (let i = 0; i < body.images.length; i++) {
       const img = body.images[i];
@@ -1271,126 +1281,41 @@ exports.apiGenerateTTS = onRequest(
 
 // Avatar pipelines completely retired. Voice Studio retains local Gemini synthesis and high-performance custom voice cloning on Modal.
 
+// ─── OPTIQ SKILLS — AGENTIC STORYBOARD SWARM ────────────────────────────────
+// The storyboard brain. The swarm lives in ./optiqSkills/pipeline.js and its
+// knowledge base in ./optiqSkills/knowledge — a chain of specialist agents
+// (brief-analyst → storyline → casting-registry → parallel scene-builders →
+// JS quality gates + scene-verifier repairs) that turns a wizard brief into a
+// full film of copy-ready 1,500–2,000-word scene prompts. The STORYLINE skill
+// is the heart of it: the whole ad is one story and the product is the hero.
+
+const { runOptiqSkillsPipeline, reviseScene } = require("./optiqSkills/pipeline");
+
 exports.storyGenerate = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
       await requireAuth(req);
-      const { prompt, length, brandName, product, characterName, characterDesc, logo } = req.body;
+      const {
+        prompt, length, brandName, product,
+        characterName, characterDesc, logo, materials, aspectRatio,
+      } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const numScenes = length === "90s" ? 9 : length === "30s" ? 3 : 6;
-
-      const systemPrompt = `You are a legendary cinema director and advertising mastermind operating THE STORYBOARD FILM SYSTEM.
-Your task is to generate a premium, multi-scene video storyboard that matches the Storyboard Doctrine.
-
-THE STORYBOARD DOCTRINE:
-- We do not capture scenes. We capture MOMENTS: specific physical events with a beginning, middle, and end, caught by a witness camera that happened to be there.
-- Focus on VERBS about HANDS and physical changes of state.
-- BANNED VOCABULARY: "establishing...", "grounding the viewer...", "conveying the weight...", "embodying her struggle", "determined but exhausted", "face that tells the story", "golden hour", "golden light", "glorious warm sun" (use "flat, hazy, honest daylight"), "dust motes catching light", "embers drifting", "jolly", "beaming with pride", "laughing joyfully", "dramatically", "cinematically sweeping", "epic".
-- Eyelines: Nobody looks at the lens. Eyelines must go to other people, objects, the floor, etc.
-- Specificity Ladder: Do not say "a Gambian market". Describe wooden-and-zinc stalls, faded fabric awnings, packed uneven dirt roads, specific local items like gele-gele, attaya corner, tapalapa bread, bitik kiosk.
-- Every person in background must be described (age, garments, specific active work).
-
-PROMPT ARCHITECTURE (Canonical Block Order):
-Combine blocks to output a single, copy-ready prompt block for each scene. The order must be:
-1. Locked Character Block (LCB) - verbatim across scenes.
-2. Build / Wardrobe / Skin line.
-3. Wardrobe (this scene).
-4. Style header (visual contract).
-5. Absolute rules (e.g. no looking at camera, no slow-mo for people).
-6. Setting / The World (rung 4 details).
-7. People (background).
-8. Sequence / Action (timestamped beats like [0.0-3.0s]).
-9. Dialogue (with translation if in Wolof).
-10. Camera.
-11. Lighting (motivated and named source).
-12. Color (warm, earthy, lightly desaturated - not teal-and-orange).
-13. Sound (diegetic only, voiceover separate).
-14. Closing restatement (repeats identity, wardrobe, event, light, motion, no-text rule).
-
-Respond with a JSON object of this exact schema:
-{
-  "title": "A captivating, short film title",
-  "concept": "The advertising concept/narrative strategy",
-  "characterLock": {
-    "name": "Character Name",
-    "description": "An exquisite Locked Character Block (LCB) 50-100 words (Anchors: skin, face shape/features, hair, facial hair/eyes/brows, age/build, state marker of honest sweat/dust). No fluff, physical only.",
-    "wardrobe": "Locked stand-out outfit description (solid colors, named closure, wristwatch/bracelet constant)"
-  },
-  "styleHeader": "STYLE HEADER block matching the visual contract",
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "setting": "Detailed local environment using the specificity ladder",
-      "action": "Timestamped action beats [0.0-3.0s], [3.0-7.0s], [7.0-10.0s] focusing on physical verbs",
-      "dialogue": "Character spoken lines with parenthetical delivery notes and English translations",
-      "sound": "Diegetic sound (ambience, actions, reactions)",
-      "fullPrompt": "The ultimate, compiled, 100% COPY-READY scene prompt containing Blocks 1 to 14, in the canonical order. All identity, wardrobe, setting, sequence, dialogue, camera, lighting, color, sound, and closing restatements are embedded into this single, copy-pasteable block."
-    }
-  ]
-}
-
-Make sure there are exactly ${numScenes} scenes, each exactly 10s.
-Brand Info:
-- Brand Name: ${brandName || "Client"}
-- Main Product/Service: ${product || "Client offering"}
-- Logo uploaded: ${logo ? "Yes (follow One-Logo Rule: specify label/logo graphics clearly, no multiple logos)" : "No"}
-- Target Character name: ${characterName || "Nyima"}
-- Target Character description: ${characterDesc || "A hardworking Gambian youth"}`;
-
-      const textModel = "gemini-3.5-flash";
-      const response = await vertexFetch(
-        `/publishers/google/models/${textModel}:generateContent`,
-        {
-          contents: [{ role: "user", parts: [{ text: `User request: ${prompt}\n\nGenerate the complete film storyboard with exactly ${numScenes} scenes.` }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: {
-            temperature: 0.8,
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "OBJECT",
-              properties: {
-                title: { type: "STRING" },
-                concept: { type: "STRING" },
-                characterLock: {
-                  type: "OBJECT",
-                  properties: {
-                    name: { type: "STRING" },
-                    description: { type: "STRING" },
-                    wardrobe: { type: "STRING" }
-                  },
-                  required: ["name", "description", "wardrobe"]
-                },
-                styleHeader: { type: "STRING" },
-                scenes: {
-                  type: "ARRAY",
-                  items: {
-                    type: "OBJECT",
-                    properties: {
-                      sceneNumber: { type: "INTEGER" },
-                      setting: { type: "STRING" },
-                      action: { type: "STRING" },
-                      dialogue: { type: "STRING" },
-                      sound: { type: "STRING" },
-                      fullPrompt: { type: "STRING" }
-                    },
-                    required: ["sceneNumber", "setting", "action", "dialogue", "sound", "fullPrompt"]
-                  }
-                }
-              },
-              required: ["title", "concept", "characterLock", "styleHeader", "scenes"]
-            }
-          }
-        }
-      );
-
-      const candidates = response.candidates || [];
-      const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-      if (!text) throw new Error("Empty response from Vertex");
-
-      return res.status(200).json(JSON.parse(text));
+      const storyboard = await runOptiqSkillsPipeline({
+        vertexFetch,
+        prompt,
+        length,
+        brandName,
+        product,
+        characterName,
+        characterDesc,
+        logo,
+        materials,
+        aspectRatio,
+      });
+      return res.status(200).json(storyboard);
     } catch (err) {
       console.error("storyGenerate error:", err);
       return res.status(500).json({ error: err.message });
@@ -1398,49 +1323,160 @@ Brand Info:
   }
 );
 
+// Firestore rejects `undefined`; deep-strip it before writing a storyboard.
+function stripUndefined(obj) {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  const out = {};
+  for (const k of Object.keys(obj)) {
+    if (obj[k] !== undefined) out[k] = stripUndefined(obj[k]);
+  }
+  return out;
+}
+
+// ─── CLOUD STORYBOARD JOB ────────────────────────────────────────────────────
+// The wizard no longer waits on an HTTP response to build a storyboard. Instead
+// the client drops a job doc in `storyboardJobs/{projectId}` and this trigger
+// runs the whole Optiq Skills swarm SERVER-SIDE, streaming its stage to the
+// project doc and writing the finished scenes there. So generation survives a
+// closed tab / dead laptop, and reopening the project resumes at the exact
+// stage. Must run in us-central1 (nam5 Firestore Eventarc), like
+// processVideoGeneration. Idempotent: claims the job (queued -> running) in a
+// transaction so an at-least-once duplicate event can't double-run.
+exports.storyboardGenerate = onDocumentCreated(
+  { document: "storyboardJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "512MiB", maxInstances: 10 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const job = snap.data();
+    if (!job || !job.projectId) return;
+
+    const jobRef = snap.ref;
+    const projectRef = db.collection("projects").doc(job.projectId);
+
+    const claimed = await db.runTransaction(async (tx) => {
+      const d = await tx.get(jobRef);
+      if (d.exists && (d.data().status || "queued") === "queued") {
+        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
+        return true;
+      }
+      return false;
+    });
+    if (!claimed) {
+      console.log(`[storyboard ${job.projectId}] job not in 'queued' state, skipping`);
+      return;
+    }
+
+    const setStage = async (stage, extra = {}) => {
+      await projectRef.update({
+        pipelineStage: stage,
+        pipelineError: null,
+        updatedAt: new Date().toISOString(),
+        ...extra,
+      });
+    };
+
+    try {
+      await setStage("analyzing");
+
+      // Rebuild brand-material data URLs from Storage so the swarm can see them.
+      const materials = [];
+      for (const mat of (job.materialPaths || [])) {
+        if (!mat?.path) continue;
+        try {
+          const base64 = await downloadInputMedia(mat.path);
+          materials.push({ name: mat.name || "material", data: `data:${mat.mimeType || "image/png"};base64,${base64}` });
+        } catch (e) {
+          console.error(`[storyboard ${job.projectId}] material download failed for ${mat.path}:`, e.message);
+        }
+      }
+      const logo = materials[0]?.data || null;
+
+      const storyboard = await runOptiqSkillsPipeline({
+        vertexFetch,
+        prompt: job.prompt,
+        length: job.length,
+        brandName: job.brandName,
+        product: job.product,
+        aspectRatio: job.aspectRatio,
+        logo,
+        materials,
+        onStage: (stage, meta) => setStage(stage, meta ? { pipelineProgress: meta } : {}),
+      });
+
+      // Seed per-scene render status (idle) and per-scene reference images
+      // (every uploaded brand image rides along on every scene by default).
+      const videoStatus = {};
+      storyboard.scenes.forEach((_, idx) => {
+        videoStatus[idx] = { status: "idle", revisionInput: "", customPrompt: "" };
+      });
+      const imageMaterials = (job.materialPaths || []).filter((m) => (m.mimeType || "").startsWith("image/"));
+      const sceneImages = {};
+      if (imageMaterials.length > 0) {
+        storyboard.scenes.forEach((_, idx) => {
+          sceneImages[idx] = imageMaterials.map((m) => ({
+            name: m.name, path: m.path, url: m.url, mimeType: m.mimeType,
+          }));
+        });
+      }
+
+      await projectRef.update(stripUndefined({
+        title: storyboard.title,
+        concept: storyboard.concept,
+        scenes: storyboard.scenes,
+        styleHeader: storyboard.styleHeader || "",
+        characterLock: storyboard.characterLock || { name: "", description: "", wardrobe: "" },
+        isStory: storyboard.isStory ?? null,
+        storyArc: storyboard.storyArc ?? null,
+        musicSpec: storyboard.musicSpec ?? null,
+        ambienceSpec: storyboard.ambienceSpec ?? null,
+        videoStatus,
+        sceneImages,
+        pipelineStage: "ready",
+        pipelineError: null,
+        pipelineProgress: null,
+        updatedAt: new Date().toISOString(),
+      }));
+
+      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+      console.log(`[storyboard ${job.projectId}] ready (${storyboard.scenes.length} scenes)`);
+    } catch (err) {
+      console.error(`[storyboard ${job.projectId}] generation failed:`, err);
+      await projectRef
+        .update({
+          pipelineStage: "failed",
+          pipelineError: err.message || "Generation failed",
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(() => {});
+      await jobRef.update({ status: "failed", error: err.message || "failed" }).catch(() => {});
+    }
+  }
+);
+
 exports.storyRevise = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
       await requireAuth(req);
-      const { scenePrompt, revisionRequest, characterLock, styleHeader } = req.body;
+      const {
+        scenePrompt, revisionRequest, characterLock, styleHeader,
+        previousScenePrompt, nextScenePrompt, musicSpec,
+      } = req.body;
       if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
 
-      const systemPrompt = `You are a cinematography director revising a Storyboard scene prompt.
-Your task is to take the original full scene prompt and apply the user's revision request.
-
-You MUST follow all Storyboard doctrines:
-- Moments, not mood. Physical verbs.
-- Banned vocabulary remains strictly banned.
-- Maintain the original Locked Character Block, wardrobe details, and style header.
-- Re-compile the prompt into the exact 14-block Canonical Block Order.
-- Output ONLY the newly revised compiled prompt, with no JSON formatting, no preamble, and no quotes. Just the plain compiled text.`;
-
-      const textModel = "gemini-3.5-flash";
-      const response = await vertexFetch(
-        `/publishers/google/models/${textModel}:generateContent`,
-        {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `Original Scene Prompt:\n${scenePrompt}\n\nRevision Request:\n${revisionRequest}\n\nCharacter Lock:\n${JSON.stringify(characterLock)}\n\nStyle Header:\n${styleHeader}`
-                }
-              ]
-            }
-          ],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: { temperature: 0.8 }
-        }
-      );
-
-      const candidates = response.candidates || [];
-      const text = candidates[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-      if (!text) throw new Error("Empty response from Vertex");
-
-      return res.status(200).json({ revisedPrompt: text.trim() });
+      const revisedPrompt = await reviseScene({
+        vertexFetch,
+        scenePrompt,
+        revisionRequest,
+        characterLock,
+        styleHeader,
+        previousScenePrompt,
+        nextScenePrompt,
+        musicSpec,
+      });
+      return res.status(200).json({ revisedPrompt });
     } catch (err) {
       console.error("storyRevise error:", err);
       return res.status(500).json({ error: err.message });
@@ -1490,17 +1526,18 @@ exports.projectCompile = onRequest(
       await projectRef.set({
         compileStatus: "compiling",
         compileError: null,
+        // Lets a stranded compile be detected and cleared (see renderV2StartedAt).
+        compileStartedAt: new Date().toISOString(),
         timeline,
         musicUrl,
         musicVolume,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      // Send response immediately to make background processing bulletproof
-      res.status(202).json({ status: "compiling", message: "Compilation started in the background" });
-
-      // Run execution asynchronously
-      (async () => {
+      // Must be awaited — see the note in renderJobV2. Responding first lets
+      // Cloud Run throttle CPU and reclaim the container, freezing ffmpeg
+      // mid-compile and stranding compileStatus on "compiling" forever.
+      const result = await (async () => {
         const os = require("os");
         const fs = require("fs");
         const path = require("path");
@@ -1571,7 +1608,7 @@ exports.projectCompile = onRequest(
             compileCompletedAt: new Date().toISOString(),
             compileError: null,
           }, { merge: true });
-
+          return { ok: true, url: finalUrl };
         } catch (err) {
           console.error(`[compile ${projectId}] Compilation failed:`, err);
           await projectRef.set({
@@ -1579,6 +1616,7 @@ exports.projectCompile = onRequest(
             compileError: err.message || "Compilation failed",
             updatedAt: new Date().toISOString(),
           }, { merge: true });
+          return { ok: false, error: err.message || "Compilation failed" };
         } finally {
           // Clean up /tmp
           try {
@@ -1589,8 +1627,19 @@ exports.projectCompile = onRequest(
         }
       })();
 
+      return result.ok
+        ? res.status(200).json({ status: "succeeded", videoUrl: result.url })
+        : res.status(500).json({ status: "failed", error: result.error });
     } catch (err) {
       console.error("projectCompile error:", err);
+      // Never leave the project stuck on "compiling" — the UI keys off this.
+      try {
+        await db.collection("projects").doc(req.body?.projectId || "_").set({
+          compileStatus: "failed",
+          compileError: err.message || "Compilation failed",
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      } catch { /* best effort */ }
       return res.status(500).json({ error: err.message });
     }
   }
@@ -1656,13 +1705,20 @@ exports.renderJobV2 = onRequest(
         renderV2Status: "rendering",
         renderV2Error: null,
         renderV2Job: job,
+        // Lets the UI detect an abandoned render (instance reclaimed, timeout)
+        // and re-enable Export instead of disabling it forever.
+        renderV2StartedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      // Respond immediately; the render continues in the background.
-      res.status(202).json({ status: "rendering", message: "Render started in the background" });
-
-      (async () => {
+      // The render MUST be awaited. Cloud Run only guarantees CPU while a
+      // request is in flight — work kicked off after res.send() gets throttled
+      // to ~0 and the container can be reclaimed, which left the ffmpeg child
+      // frozen mid-render. The project doc then sat on "rendering" forever and
+      // the Export button spun indefinitely. Holding the request open keeps CPU
+      // allocated; if the client disconnects the handler still runs to
+      // completion server-side and Firestore is updated either way.
+      const result = await (async () => {
         const os = require("os");
         const fs = require("fs");
         const path = require("path");
@@ -1724,6 +1780,7 @@ exports.renderJobV2 = onRequest(
             renderV2CompletedAt: new Date().toISOString(),
             renderV2Error: null,
           }, { merge: true });
+          return { ok: true, url: finalUrl };
         } catch (err) {
           console.error(`[${tag}] Render failed:`, err);
           await projectRef.set({
@@ -1731,6 +1788,7 @@ exports.renderJobV2 = onRequest(
             renderV2Error: err.message || "Render failed",
             updatedAt: new Date().toISOString(),
           }, { merge: true });
+          return { ok: false, error: err.message || "Render failed" };
         } finally {
           try {
             await fs.promises.rm(workDir, { recursive: true, force: true });
@@ -1739,8 +1797,20 @@ exports.renderJobV2 = onRequest(
           }
         }
       })();
+
+      return result.ok
+        ? res.status(200).json({ status: "succeeded", videoUrl: result.url })
+        : res.status(500).json({ status: "failed", error: result.error });
     } catch (err) {
       console.error("renderJobV2 error:", err);
+      // Never leave the project stuck on "rendering" — the UI keys off this.
+      try {
+        await db.collection("projects").doc(req.body?.projectId || "_").set({
+          renderV2Status: "failed",
+          renderV2Error: err.message || "Render failed",
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+      } catch { /* best effort */ }
       return res.status(500).json({ error: err.message });
     }
   }

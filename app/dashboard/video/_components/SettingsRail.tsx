@@ -2,21 +2,17 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, DollarSign, Flame, Settings, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Settings, Wallet } from "lucide-react";
 import Segmented from "./Segmented";
-import { ASPECTS, DURATIONS, RESOLUTIONS, Aspect, Duration, Resolution } from "./types";
+import { ASPECTS, DURATIONS, Aspect, Duration } from "./types";
 
 interface SettingsRailProps {
   aspect: Aspect;
   setAspect: (v: Aspect) => void;
   duration: Duration;
   setDuration: (v: Duration) => void;
-  resolution: Resolution;
-  setResolution: (v: Resolution) => void;
-  audioOn: boolean;
-  setAudioOn: (v: boolean) => void;
-  negativePrompt: string;
-  setNegativePrompt: (v: string) => void;
+  /** Wallet cost per generated second (from live pricing). */
+  perSecondCost: number;
   credits: number | null;
 }
 
@@ -25,12 +21,7 @@ export default function SettingsRail({
   setAspect,
   duration,
   setDuration,
-  resolution,
-  setResolution,
-  audioOn,
-  setAudioOn,
-  negativePrompt,
-  setNegativePrompt,
+  perSecondCost,
   credits,
 }: SettingsRailProps) {
   return (
@@ -51,90 +42,61 @@ export default function SettingsRail({
           </span>
         </div>
 
-        <div>
-          <p className="eyebrow mb-2">Engine Model</p>
-          <div className="rounded-lg border border-neutral-800 bg-surface px-3 py-2.5">
-            <p className="text-sm font-medium text-white flex items-center gap-2">
-              <Flame size={14} className="text-neutral-300" />
-              Gemini Omni Flash
-            </p>
-            <p className="text-[11px] text-neutral-400 mt-0.5">Highest fidelity, native audio sync</p>
-          </div>
-        </div>
-
         <Segmented label="Aspect ratio" options={ASPECTS} value={aspect} onChange={setAspect} />
-        <Segmented label="Duration" options={DURATIONS} value={duration} onChange={setDuration} render={(d) => `${d}s`} />
-        <Segmented label="Resolution" options={RESOLUTIONS} value={resolution} onChange={setResolution} />
 
+        {/* ── CLIP LENGTH & PRICING ── */}
         <div>
-          <p className="eyebrow mb-2">Native Audio Track</p>
-          <button
-            onClick={() => setAudioOn(!audioOn)}
-            className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-surface px-3 py-2.5 text-sm hover:border-neutral-700 transition-colors"
-          >
-            <span>{audioOn ? "Synthesize on-the-fly" : "Silent render"}</span>
-            {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} className="text-neutral-500" />}
-          </button>
-        </div>
-
-        <div>
-          <p className="eyebrow mb-2">Negative restrictions</p>
-          <textarea
-            rows={1}
-            value={negativePrompt}
-            onChange={(e) => setNegativePrompt(e.target.value)}
-            placeholder="Blurry, low-fps, artifacts…"
-            className="w-full resize-none rounded-lg border border-neutral-800 bg-surface px-3 py-2 text-xs placeholder:text-neutral-600 focus:border-neutral-700 font-mono"
-          />
+          <p className="eyebrow mb-2">Clip length &amp; pricing</p>
+          <div className="relative rounded-2xl border border-neutral-800/80 bg-[#07090f] p-1.5 overflow-hidden">
+            <div className="relative space-y-1">
+              {DURATIONS.map((d) => {
+                const active = d === duration;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setDuration(d)}
+                    className={`group flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 transition-all border ${
+                      active
+                        ? "border-blue-500/60 bg-[#0c152d] shadow-[0_0_24px_-8px_rgba(59,130,246,0.55)]"
+                        : "border-transparent hover:border-neutral-800 hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`text-sm font-semibold tracking-tight ${
+                          active ? "text-white" : "text-neutral-400 group-hover:text-neutral-200"
+                        }`}
+                      >
+                        {d}s clip
+                      </span>
+                    </span>
+                    <span
+                      className={`font-mono text-[12px] font-bold ${
+                        active ? "text-blue-300" : "text-neutral-500 group-hover:text-neutral-300"
+                      }`}
+                    >
+                      GMD {(perSecondCost * d).toFixed(2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="mt-2 text-[10px] text-neutral-600 font-mono text-center">
+            Pay only for what you generate
+          </p>
         </div>
       </div>
 
-      {/* ── CREDIT ESTIMATION & GENERATION UTILITY ── */}
-      <div className="border-t border-neutral-900 pt-5 mt-auto">
-        <div className="flex items-center gap-2 mb-2">
-          <DollarSign size={14} className="text-neutral-300" />
-          <span className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
-            Wallet Balance Guide
+      {/* ── WALLET ── */}
+      <div className="border-t border-neutral-900 pt-4 mt-auto">
+        <div className="flex items-center justify-between rounded-xl border border-neutral-800/80 bg-[#0a0f1e] px-3.5 py-3">
+          <span className="flex items-center gap-2 text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-wider">
+            <Wallet size={13} className="text-blue-400" />
+            Wallet
           </span>
-        </div>
-        <div className="bg-[#040405] rounded-xl p-3.5 border border-neutral-900 text-[11px] space-y-2.5">
-          <p className="text-[10px] text-neutral-500 leading-normal font-sans">
-            Your wallet balance is consumed on a per-action flat rate basis. No complex credit conversions:
-          </p>
-          <div className="space-y-1.5 font-mono text-[10px] text-neutral-400 border-t border-neutral-900 pt-2.5">
-            <div className="flex justify-between">
-              <span>Direct Video Clip:</span>
-              <span className="text-white font-semibold font-mono">GMD 100.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Direct Audio Synth:</span>
-              <span className="text-white font-semibold font-mono">GMD 100.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Direct Image Gen:</span>
-              <span className="text-white font-semibold font-mono">GMD 100.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Storyboard (30s):</span>
-              <span className="text-white font-semibold font-mono">GMD 300.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Storyboard (60s):</span>
-              <span className="text-white font-semibold font-mono">GMD 600.00</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Storyboard (90s):</span>
-              <span className="text-white font-semibold font-mono">GMD 900.00</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-neutral-900 bg-surface/50 px-3 py-2 mt-3 text-[10px] text-neutral-400 font-mono flex justify-between">
-          <span>
-            Clip Cost: <strong className="text-white font-semibold">GMD 100.00</strong>
-          </span>
-          <span>
-            Balance: <strong className="text-neutral-200">{credits !== null ? `GMD ${credits.toLocaleString()}` : "—"}</strong>
+          <span className="font-mono text-sm font-bold text-white">
+            {credits !== null ? `GMD ${credits.toLocaleString()}` : "—"}
           </span>
         </div>
       </div>

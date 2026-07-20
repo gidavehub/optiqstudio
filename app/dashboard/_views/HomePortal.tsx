@@ -28,7 +28,7 @@ export default function HomePortal() {
                 playsInline
                 className="h-full w-full object-cover opacity-35 group-hover:opacity-55 group-hover:scale-105 transition-all duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/60 to-transparent" />
+              <div className="absolute inset-0 bg-[#0a0f1d]/55" />
             </div>
 
             <div className="relative z-10 flex flex-col items-center">
@@ -77,7 +77,7 @@ export default function HomePortal() {
                   playsInline
                   className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
+                <div className="absolute inset-0 bg-[#0a0f1d]/45" />
                 <div className="relative z-10 p-3 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-white tracking-wide">Video Studio</span>
                   <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />
@@ -94,7 +94,7 @@ export default function HomePortal() {
                   alt="Image Studio Reference"
                   className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
+                <div className="absolute inset-0 bg-[#0a0f1d]/45" />
                 <div className="relative z-10 p-3 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-white tracking-wide">Image Studio</span>
                   <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />
@@ -113,7 +113,7 @@ export default function HomePortal() {
                   playsInline
                   className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1d] via-[#0a0f1d]/45 to-transparent" />
+                <div className="absolute inset-0 bg-[#0a0f1d]/45" />
                 <div className="relative z-10 p-3 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-white tracking-wide">Audio Studio</span>
                   <ChevronRight size={11} className="text-neutral-400 group-hover/item:translate-x-0.5 transition-transform animate-none" />

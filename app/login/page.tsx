@@ -68,8 +68,8 @@ export default function LoginPage() {
         ))}
       </div>
 
-      {/* Premium Cinematic Vignette / Radial Gradient Edge-Tint */}
-      <div className="absolute inset-0 pointer-events-none select-none bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.9)_100%)] bg-gradient-to-b from-black/70 via-transparent to-black" />
+      {/* Solid darkening overlay behind the auth card */}
+      <div className="absolute inset-0 pointer-events-none select-none bg-black/65" />
 
       {/* Floating Glassmorphic Authentication Card — Super Transparent & Blended */}
       <div className="relative z-10 w-full max-w-sm p-7 sm:p-9 transition-all duration-300 animate-in fade-in-50 zoom-in-95 bg-transparent">

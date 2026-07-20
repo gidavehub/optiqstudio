@@ -516,7 +516,7 @@ export default function CharacterStudio() {
             ) : characters.length === 0 ? (
               /* Premium Empty State card */
               <div className="relative rounded-2xl border border-neutral-900 bg-neutral-950/40 p-12 text-center overflow-hidden flex flex-col items-center justify-center min-h-[350px]">
-                <div className="absolute inset-0 bg-gradient-to-b from-neutral-600/[0.03] to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-neutral-600/[0.02] pointer-events-none" />
                 
                 {/* Glowing neon halo behind vector */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-neutral-600/5 blur-[80px] pointer-events-none rounded-full" />

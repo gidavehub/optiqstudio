@@ -52,7 +52,7 @@ export default function FloatingChrome() {
           className="flex items-center gap-2 border-r border-white/15 pr-3.5"
           title={user.displayName || user.email || ""}
         >
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-neutral-700 to-neutral-500 text-[11px] font-bold text-white uppercase">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-600 text-[11px] font-bold text-white uppercase">
             {initial}
           </div>
           <span className="hidden sm:inline font-medium text-neutral-300 max-w-[100px] truncate">

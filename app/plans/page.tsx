@@ -76,7 +76,7 @@ export default function PlansPage() {
   const isSubscribed = profile?.planStatus === "active";
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#0e0a16] via-[#050507] to-black text-white px-6 py-16 flex flex-col items-center">
+    <main className="min-h-screen bg-[#08070c] text-white px-6 py-16 flex flex-col items-center">
       
       {/* Upper Navigation Back */}
       <div className="w-full max-w-6xl flex justify-between items-center mb-12">
@@ -92,7 +92,7 @@ export default function PlansPage() {
       </div>
 
       <div className="w-full max-w-5xl text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-200 to-neutral-500 bg-clip-text text-transparent">
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
           Choose Your Plan
         </h1>
         <p className="mt-3 text-neutral-400 max-w-xl mx-auto text-sm leading-relaxed">

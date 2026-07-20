@@ -290,7 +290,7 @@ export default function LandingPage() {
             className="absolute inset-0 h-full w-full"
             alt="Childhood Kitchen Discovery - a warm nostalgic commercial generated with Omni"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-black/35" />
 
           {/* Headline bottom-left */}
           <div className="absolute bottom-12 left-8 md:left-14 text-white max-w-2xl">

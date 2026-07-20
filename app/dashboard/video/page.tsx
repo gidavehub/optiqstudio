@@ -16,7 +16,6 @@ import BottomPromptConsole from "./_components/BottomPromptConsole";
 import {
   ASPECTS,
   DURATIONS,
-  RESOLUTIONS,
   AttachedAudio,
   AttachedImage,
   AttachedVideo,
@@ -24,7 +23,7 @@ import {
 } from "./_components/types";
 
 function VideoWorkspace() {
-  const { apiFetch, profile, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -36,9 +35,9 @@ function VideoWorkspace() {
 
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("16:9");
   const [duration, setDuration] = useState<(typeof DURATIONS)[number]>(10);
-  const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>("720p");
-  const [audioOn, setAudioOn] = useState(true);
-  const [negativePrompt, setNegativePrompt] = useState("");
+  // Fixed render settings — no longer user-facing controls
+  const resolution = "720p";
+  const audioOn = true;
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [videoFile, setVideoFile] = useState<AttachedVideo | null>(null);
   const [audioFile, setAudioFile] = useState<AttachedAudio | null>(null);
@@ -53,8 +52,9 @@ function VideoWorkspace() {
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
 
-  // Computed / Dynamic pricing properties — Flat-rate GMD 100.00 as specified
-  const calculatedCost = 100;
+  // Computed / Dynamic pricing — priced per generated second from live pricing
+  const perSecondCost = pricing?.costs.videoPerSecond[model] ?? 15;
+  const calculatedCost = perSecondCost * duration;
 
   const triggerGenerate = () => {
     if (!prompt.trim() || phase === "generating") return;
@@ -254,7 +254,6 @@ function VideoWorkspace() {
           durationSeconds: duration,
           resolution,
           generateAudio: audioOn,
-          negativePrompt: negativePrompt || undefined,
           imageBase64: images[0]?.base64 || undefined,
           imageMimeType: images[0]?.mimeType || undefined,
           images: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
@@ -319,12 +318,7 @@ function VideoWorkspace() {
         setAspect={setAspect}
         duration={duration}
         setDuration={setDuration}
-        resolution={resolution}
-        setResolution={setResolution}
-        audioOn={audioOn}
-        setAudioOn={setAudioOn}
-        negativePrompt={negativePrompt}
-        setNegativePrompt={setNegativePrompt}
+        perSecondCost={perSecondCost}
         credits={profile ? profile.credits : null}
       />
 
@@ -391,7 +385,7 @@ function VideoWorkspace() {
         cost={calculatedCost}
         balance={profile?.credits ?? 0}
         title="Confirm Video Generation"
-        description={`You are about to generate a video clip. This will deduct GMD ${calculatedCost.toFixed(2)} from your wallet balance.`}
+        description={`${duration}s video clip`}
         actionLabel="Generate Video"
       />
 

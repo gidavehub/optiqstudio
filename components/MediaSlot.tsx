@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 
 /**
- * Renders a video or image from /public/media, falling back to an animated
- * gradient panel until the generated asset exists (assets are produced by
+ * Renders a video or image from /public/media, falling back to a solid panel
+ * until the generated asset exists (assets are produced by
  * scripts/generate-assets.mjs via Vertex AI).
  */
 export default function MediaSlot({

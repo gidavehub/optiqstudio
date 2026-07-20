@@ -354,11 +354,7 @@ export default function VoiceStudio() {
         cost={cost}
         balance={profile?.credits ?? 0}
         title={engine === "clone" ? "Confirm AI Custom Cloning" : "Confirm Voice Synthesis"}
-        description={
-          engine === "clone"
-            ? `You are about to run our advanced AI voice cloner using your custom voice sample. This GPU operation flat-rates at GMD ${cost.toFixed(2)}.`
-            : `You are about to synthesize a take using the selected localized prebuilt profile. This will deduct GMD ${cost.toFixed(2)} from your wallet balance.`
-        }
+        description={engine === "clone" ? "Custom voice clone" : "Voice synthesis"}
         actionLabel={engine === "clone" ? "Clone Custom Voice" : "Synthesize Voice"}
       />
 

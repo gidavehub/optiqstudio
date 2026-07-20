@@ -192,6 +192,17 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   const renderStatus: string = project?.renderV2Status ?? "idle";
   const renderUrl: string | undefined = project?.renderV2Url;
 
+  // Safety valve: a render that never reported back (instance reclaimed, or the
+  // 540s function timeout hit) would otherwise leave renderV2Status on
+  // "rendering" forever — which disables Export permanently, with no way out.
+  // Past the function's own ceiling we treat it as abandoned and allow a retry.
+  const RENDER_STALE_MS = 12 * 60 * 1000;
+  const renderStartedAt = project?.renderV2StartedAt ? Date.parse(project.renderV2StartedAt) : NaN;
+  const renderStalled =
+    renderStatus === "rendering" &&
+    Number.isFinite(renderStartedAt) &&
+    Date.now() - renderStartedAt > RENDER_STALE_MS;
+
   const handleExport = async () => {
     if (exporting) return;
     setExportError(null);
@@ -211,7 +222,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
     }
   };
 
-  const rendering = exporting || renderStatus === "rendering";
+  const rendering = exporting || (renderStatus === "rendering" && !renderStalled);
 
   return (
     <div className="flex h-full flex-col bg-[#070b16] text-neutral-200 overflow-hidden select-none">
@@ -287,6 +298,11 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       {renderStatus === "failed" && project?.renderV2Error && (
         <div className="mx-4 mt-2 rounded-lg border border-red-500/20 bg-red-950/30 px-3 py-2 text-[11px] text-red-400 shrink-0">
           Last render failed: {project.renderV2Error}
+        </div>
+      )}
+      {renderStalled && (
+        <div className="mx-4 mt-2 rounded-lg border border-amber-500/20 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-400 shrink-0">
+          The previous render stopped responding and was abandoned. You can export again.
         </div>
       )}
 

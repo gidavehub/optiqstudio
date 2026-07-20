@@ -501,10 +501,10 @@ export default function TimelinePanel({
                               : "border-white/10 hover:border-white/25"
                           } ${
                             isAudio
-                              ? "bg-gradient-to-b from-emerald-900/70 to-emerald-950/80"
+                              ? "bg-emerald-950/80"
                               : isImage
-                                ? "bg-gradient-to-b from-purple-900/60 to-purple-950/70"
-                                : "bg-gradient-to-b from-[#12224a] to-[#0c152d]"
+                                ? "bg-purple-950/70"
+                                : "bg-[#0e1a3a]"
                           }`}
                           style={{ left: clip.start * pps, width: Math.max(clip.duration * pps, 6) }}
                         >
@@ -533,7 +533,6 @@ export default function TimelinePanel({
                               style={{
                                 background:
                                   "repeating-linear-gradient(90deg, rgba(16,185,129,0.9) 0 2px, transparent 2px 5px)",
-                                maskImage: "linear-gradient(180deg, transparent, black 30%, black 70%, transparent)",
                               }}
                             />
                           )}
@@ -545,8 +544,8 @@ export default function TimelinePanel({
                             {clip.muted && <span className="text-red-300">M</span>}
                           </span>
                           {/* Trim handles */}
-                          <div className="absolute inset-y-0 left-0 z-10 w-[7px] cursor-ew-resize bg-gradient-to-r from-white/25 to-transparent opacity-0 hover:opacity-100" />
-                          <div className="absolute inset-y-0 right-0 z-10 w-[7px] cursor-ew-resize bg-gradient-to-l from-white/25 to-transparent opacity-0 hover:opacity-100" />
+                          <div className="absolute inset-y-0 left-0 z-10 w-[7px] cursor-ew-resize bg-white/20 opacity-0 hover:opacity-100" />
+                          <div className="absolute inset-y-0 right-0 z-10 w-[7px] cursor-ew-resize bg-white/20 opacity-0 hover:opacity-100" />
                         </div>
                       );
                     })}

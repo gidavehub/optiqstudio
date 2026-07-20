@@ -324,7 +324,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
         cost={EDIT_COST}
         balance={profile?.credits ?? 0}
         title="Confirm Video Modification"
-        description={`You are about to modify this video with Omni. This will deduct GMD ${EDIT_COST.toFixed(2)} from your wallet balance.`}
+        description="Omni video edit"
         actionLabel="Omni Edit"
       />
     </div>

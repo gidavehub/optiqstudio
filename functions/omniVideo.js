@@ -25,6 +25,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // media: { images: [{base64, mimeType}], imageBase64, imageMimeType,
 //          videoBase64, videoMimeType, audioBase64, audioMimeType }
+//
+// Returns a STEP LIST — `[{ type: "user_input", content: [...] }]`. The
+// Interactions API moved to a steps-based version and now rejects the older
+// turn-list shape (`[{ role: "user", content }]`) with:
+//   400 "When using the steps-based API version, use step_list input format
+//        instead of turn_list."
+// Per the SDK's own types, InteractionsInput accepts Array<Step>, and
+// UserInputStep is `{ type: "user_input", content?: Array<Content> }`. The
+// content items themselves (text/image/video/audio) are unchanged.
 function buildInput(prompt, media) {
   const content = [];
 
@@ -44,9 +53,8 @@ function buildInput(prompt, media) {
     content.push({ type: "audio", data: media.audioBase64, mime_type: media.audioMimeType });
   }
 
-  if (content.length === 0) return prompt;
   content.push({ type: "text", text: prompt });
-  return [{ role: "user", content }];
+  return [{ type: "user_input", content }];
 }
 
 /** Generates a video and returns { base64, mimeType }. */

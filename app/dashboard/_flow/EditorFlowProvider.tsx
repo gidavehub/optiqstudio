@@ -18,7 +18,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../components/AuthProvider";
-import { db } from "../../../lib/firebase";
+import { db, storage } from "../../../lib/firebase";
 import {
   doc,
   updateDoc,
@@ -29,13 +29,17 @@ import {
   onSnapshot,
   deleteDoc,
 } from "firebase/firestore";
+import { ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import {
   BrandMaterial,
+  DictationTarget,
   ProductionMode,
   ProjectLength,
+  SceneImage,
+  SceneImagesMap,
   Storyboard,
   VideoStatusMap,
-  STORYBOARD_TEMPLATES,
+  WizardStep,
 } from "./types";
 
 interface EditorFlowValue {
@@ -83,17 +87,12 @@ interface EditorFlowValue {
   musicVolume: number; setMusicVolume: (v: number) => void;
 
   // Wizard
-  wizardStep: 1 | 2 | 3;
-  setWizardStep: (v: 1 | 2 | 3) => void;
-  selectedTemplateIdx: number | null;
-  setSelectedTemplateIdx: (v: number | null) => void;
+  wizardStep: WizardStep;
+  setWizardStep: (v: WizardStep) => void;
   length: ProjectLength; setLength: (v: ProjectLength) => void;
   promptText: string; setPromptText: (v: string) => void;
   brandName: string; setBrandName: (v: string) => void;
   product: string; setProduct: (v: string) => void;
-  hasCharacter: boolean; setHasCharacter: (v: boolean) => void;
-  characterName: string; setCharacterName: (v: string) => void;
-  characterDesc: string; setCharacterDesc: (v: string) => void;
   brandMaterials: BrandMaterial[];
   isDragging: boolean; setIsDragging: (v: boolean) => void;
 
@@ -104,6 +103,7 @@ interface EditorFlowValue {
 
   // Interaction
   recording: boolean;
+  recordingTarget: DictationTarget | null;
   generating: boolean;
   error: string | null; setError: (v: string | null) => void;
   copiedIndex: number | null;
@@ -114,8 +114,20 @@ interface EditorFlowValue {
   videoStatus: VideoStatusMap;
   setVideoStatus: React.Dispatch<React.SetStateAction<VideoStatusMap>>;
 
+  // Cloud storyboard-generation progress (server-driven, survives tab close)
+  pipelineStage: string | null;
+  pipelineProgress: { scenesDone: number; scenesTotal: number } | null;
+  retryStoryboard: () => Promise<void>;
+
+  // Per-scene reference images (product/character consistency)
+  sceneImages: SceneImagesMap;
+  projectMaterials: SceneImage[];
+  addSceneImages: (sceneIndex: number, files: FileList | File[]) => Promise<void>;
+  attachMaterialToScene: (sceneIndex: number, material: SceneImage) => void;
+  removeSceneImage: (sceneIndex: number, imageIndex: number) => void;
+
   // Handlers
-  startSpeechRecognition: () => void;
+  startSpeechRecognition: (target?: DictationTarget) => void;
   stopSpeechRecognition: () => void;
   handleMaterialsUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -133,6 +145,10 @@ interface EditorFlowValue {
   openProject: (proj: any) => void;
   openProjectRoute: (id: string) => void;
 }
+
+// Stages the server-side storyboard job (functions/storyboardGenerate) streams
+// into the project doc while it works. "ready" / "failed" are terminal.
+const PIPELINE_WORKING_STAGES = ["queued", "analyzing", "storylining", "casting", "building"];
 
 const EditorFlowContext = createContext<EditorFlowValue | null>(null);
 
@@ -177,15 +193,11 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [musicVolume, setMusicVolume] = useState<number>(0.2);
 
   // Wizard
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
-  const [selectedTemplateIdx, setSelectedTemplateIdx] = useState<number | null>(null);
+  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [length, setLength] = useState<ProjectLength>("30s");
   const [promptText, setPromptText] = useState("");
   const [brandName, setBrandName] = useState("");
   const [product, setProduct] = useState("");
-  const [hasCharacter, setHasCharacter] = useState(true);
-  const [characterName, setCharacterName] = useState("");
-  const [characterDesc, setCharacterDesc] = useState("");
   const [brandMaterials, setBrandMaterials] = useState<BrandMaterial[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -194,6 +206,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [aspectDropdownOpen, setAspectDropdownOpen] = useState(false);
 
   const [recording, setRecording] = useState(false);
+  const [recordingTarget, setRecordingTarget] = useState<DictationTarget | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -201,21 +214,58 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [videoStatus, setVideoStatus] = useState<VideoStatusMap>({});
 
+  // Cloud-generation progress for the active project. The storyboard is now
+  // built by a server-side Firestore-triggered job (functions/storyboardGenerate)
+  // that streams its stage into the project doc, so this survives a closed tab
+  // and resumes on reopen. `null` = not a cloud-generating project.
+  const [pipelineStage, setPipelineStage] = useState<string | null>(null);
+  const [pipelineProgress, setPipelineProgress] = useState<{ scenesDone: number; scenesTotal: number } | null>(null);
+
+  // Per-scene reference images. Mirrored in a ref so generation callbacks fired
+  // right after a state update (or from stale closures) always see the latest.
+  const [sceneImages, setSceneImages] = useState<SceneImagesMap>({});
+  const [projectMaterials, setProjectMaterials] = useState<SceneImage[]>([]);
+  const sceneImagesRef = useRef<SceneImagesMap>({});
+  useEffect(() => {
+    sceneImagesRef.current = sceneImages;
+  }, [sceneImages]);
+
   // ─── PROJECT STATE LOADER (no navigation) ─────────────────────────────────
   const loadProjectState = useCallback((proj: any) => {
-    setStoryboard({
-      title: proj.title,
-      concept: proj.concept,
-      styleHeader: proj.styleHeader || "",
-      characterLock: proj.characterLock || { name: "", description: "", wardrobe: "" },
-      scenes: proj.scenes,
-    });
+    // A project whose cloud job hasn't produced scenes yet: leave the storyboard
+    // null so the workspace shows the live "generating" state (driven by
+    // pipelineStage), not an empty scene grid.
+    const stillGenerating =
+      PIPELINE_WORKING_STAGES.includes(proj.pipelineStage) &&
+      (!proj.scenes || proj.scenes.length === 0);
+
+    setPipelineStage(proj.pipelineStage || null);
+    setPipelineProgress(proj.pipelineProgress || null);
+
+    if (stillGenerating) {
+      setStoryboard(null);
+    } else {
+      setStoryboard({
+        title: proj.title,
+        concept: proj.concept,
+        styleHeader: proj.styleHeader || "",
+        characterLock: proj.characterLock || { name: "", description: "", wardrobe: "" },
+        scenes: proj.scenes || [],
+        isStory: proj.isStory,
+        storyArc: proj.storyArc,
+        musicSpec: proj.musicSpec,
+        ambienceSpec: proj.ambienceSpec,
+      });
+    }
+    if (proj.pipelineStage === "failed") setError(proj.pipelineError || "Storyboard generation failed");
+
+    setSceneImages(proj.sceneImages || {});
+    setProjectMaterials(proj.materials || []);
     setLength(proj.length);
     setBrandName(proj.brandName || "");
     setProduct(proj.product || "");
-    setHasCharacter(proj.hasCharacter ?? true);
-    setCharacterName(proj.characterName || "");
-    setCharacterDesc(proj.characterDesc || "");
+    setPromptText(proj.concept || "");
+    setAspectRatio(proj.aspectRatio || "16:9");
     setVideoStatus(proj.videoStatus || {});
     setActiveProjectId(proj.id);
     setProductionMode(proj.productionMode || "manual");
@@ -300,10 +350,21 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             scenes: storyboard.scenes,
             title: storyboard.title,
             concept: storyboard.concept,
+            styleHeader: storyboard.styleHeader,
+            characterLock: storyboard.characterLock,
+            musicSpec: storyboard.musicSpec ?? null,
+            ambienceSpec: storyboard.ambienceSpec ?? null,
+            aspectRatio,
+            sceneImages,
+            materials: projectMaterials,
             productionMode: productionMode || "manual",
-            compileStatus,
-            compileVideoUrl,
-            compileError,
+            // compileStatus / compileVideoUrl / compileError are deliberately
+            // NOT written here. They are owned by the server (projectCompile),
+            // exactly like pipelineStage. Echoing local state back raced the
+            // server: a debounced write still holding "compiling" could land
+            // after the server wrote "succeeded", clobbering it — after which
+            // doc and local agreed on "compiling" and the export UI spun
+            // forever. We only ever read these.
             timeline,
             musicUrl,
             musicVolume,
@@ -323,12 +384,12 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     storyboard,
     productionMode,
     user,
-    compileStatus,
-    compileVideoUrl,
-    compileError,
     timeline,
     musicUrl,
     musicVolume,
+    aspectRatio,
+    sceneImages,
+    projectMaterials,
   ]);
 
   // ─── RESUME/ACTIVATE PROJECT FROM /project/[id] ROUTE ─────────────────────
@@ -346,6 +407,34 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       }
     }
   }, [routeProjectId, projects, activeProjectId, compileStatus, compileVideoUrl, compileError, loadProjectState]);
+
+  // ─── HYDRATE FROM THE CLOUD STORYBOARD JOB ────────────────────────────────
+  // Reflects the server-side generation stage into the UI in real time (via the
+  // projects onSnapshot listener). When the job reaches "ready" we load the
+  // freshly-written scenes; when it "failed" we surface the error. This is what
+  // makes a reopened tab resume at the exact stage the cloud is at.
+  useEffect(() => {
+    if (!activeProjectId) return;
+    const match = projects.find((p) => p.id === activeProjectId);
+    if (!match) return;
+
+    setPipelineStage(match.pipelineStage || null);
+    setPipelineProgress(match.pipelineProgress || null);
+
+    if (match.pipelineStage === "ready") {
+      const loadedCount = storyboard?.scenes.length ?? 0;
+      const docCount = match.scenes?.length ?? 0;
+      if (!storyboard || (docCount > 0 && loadedCount !== docCount)) {
+        loadProjectState(match);
+      }
+      setGenerating(false);
+    } else if (match.pipelineStage === "failed") {
+      setError(match.pipelineError || "Storyboard generation failed");
+      setGenerating(false);
+    } else if (PIPELINE_WORKING_STAGES.includes(match.pipelineStage)) {
+      setGenerating(true);
+    }
+  }, [projects, activeProjectId, storyboard, loadProjectState]);
 
   // ─── INITIALIZE TIMELINE FROM COMPLETED VIDEOS ──────────────────────────
   useEffect(() => {
@@ -405,48 +494,57 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
-  // Sync template selection index with the active prompt text
-  useEffect(() => {
-    if (!promptText.trim()) {
-      setSelectedTemplateIdx(null);
-    } else {
-      const matchIdx = STORYBOARD_TEMPLATES.findIndex((item) => item.concept === promptText);
-      setSelectedTemplateIdx(matchIdx !== -1 ? matchIdx : null);
-    }
-  }, [promptText]);
-
-  const startSpeechRecognition = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Please type your prompt.");
-      return;
-    }
-    const rec = new SpeechRecognition();
-    rec.continuous = true;
-    rec.interimResults = false;
-    rec.lang = "en-US";
-    const initialText = promptText;
-    rec.onstart = () => setRecording(true);
-    rec.onresult = (e: any) => {
-      let sessionText = "";
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) sessionText += e.results[i][0].transcript + " ";
+  // Voice dictation — the same speech-to-text pipeline works on every wizard
+  // text field (vision prompt, brand name, product/service).
+  const startSpeechRecognition = useCallback(
+    (target: DictationTarget = "prompt") => {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Speech recognition is not supported in this browser. Please type instead.");
+        return;
       }
-      const trimmed = sessionText.trim();
-      if (trimmed) setPromptText(initialText ? `${initialText} ${trimmed}` : trimmed);
-    };
-    rec.onerror = (e: any) => {
-      console.error("Speech recognition error:", e);
-      setRecording(false);
-    };
-    rec.onend = () => setRecording(false);
-    (window as any)._rec = rec;
-    rec.start();
-  }, [promptText]);
+      const fieldByTarget: Record<DictationTarget, { value: string; set: (v: string) => void }> = {
+        prompt: { value: promptText, set: setPromptText },
+        brand: { value: brandName, set: setBrandName },
+        product: { value: product, set: setProduct },
+      };
+      const field = fieldByTarget[target];
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = "en-US";
+      const initialText = field.value;
+      rec.onstart = () => {
+        setRecording(true);
+        setRecordingTarget(target);
+      };
+      rec.onresult = (e: any) => {
+        let sessionText = "";
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) sessionText += e.results[i][0].transcript + " ";
+        }
+        const trimmed = sessionText.trim();
+        if (trimmed) field.set(initialText ? `${initialText} ${trimmed}` : trimmed);
+      };
+      rec.onerror = (e: any) => {
+        console.error("Speech recognition error:", e);
+        setRecording(false);
+        setRecordingTarget(null);
+      };
+      rec.onend = () => {
+        setRecording(false);
+        setRecordingTarget(null);
+      };
+      (window as any)._rec = rec;
+      rec.start();
+    },
+    [promptText, brandName, product]
+  );
 
   const stopSpeechRecognition = useCallback(() => {
     if ((window as any)._rec) (window as any)._rec.stop();
     setRecording(false);
+    setRecordingTarget(null);
   }, []);
 
   const processUploadedFiles = useCallback((files: FileList) => {
@@ -498,14 +596,18 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       });
 
       try {
+        // Attach this scene's reference images (brand/product/character
+        // consistency) — the render backend reads them straight from Storage.
+        const refs = sceneImagesRef.current[sceneIndex] || [];
         const res = await apiFetch<{ id: string }>("/api/video/generate", {
           method: "POST",
           body: JSON.stringify({
             prompt: promptTextArg,
             model: "omni",
-            aspectRatio: "16:9",
+            aspectRatio,
             durationSeconds: 10,
             generateAudio: true,
+            imagePaths: refs.map((img) => ({ path: img.path, mimeType: img.mimeType })),
           }),
         });
 
@@ -560,7 +662,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         }));
       }
     },
-    [apiFetch, refreshProfile]
+    [apiFetch, refreshProfile, aspectRatio]
   );
 
   // Resume background polling with existing generation ID
@@ -615,111 +717,110 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     [apiFetch, refreshProfile]
   );
 
-  // Trigger Storyboard Generation
+  // Uploads the wizard's brand materials to per-user Storage so the cloud job
+  // (and later the media library) can read them by path.
+  const uploadBrandMaterials = useCallback(
+    async (projectId: string): Promise<SceneImage[]> => {
+      if (!user || brandMaterials.length === 0) return [];
+      try {
+        return await Promise.all(
+          brandMaterials.map(async (mat, i) => {
+            const safeName = mat.name.replace(/[^\w.-]/g, "_");
+            const path = `users/${user.uid}/projects/${projectId}/materials/${i}-${safeName}`;
+            const fileRef = storageRef(storage, path);
+            await uploadString(fileRef, mat.data, "data_url");
+            const url = await getDownloadURL(fileRef);
+            const mimeType = /^data:([^;]+);/.exec(mat.data)?.[1] || "image/png";
+            return { name: mat.name, path, url, mimeType };
+          })
+        );
+      } catch (uploadErr) {
+        console.error("Failed to persist brand materials to Storage:", uploadErr);
+        return [];
+      }
+    },
+    [user, brandMaterials]
+  );
+
+  // Trigger Storyboard Generation — fully cloud-managed. The client only
+  // creates the project doc, uploads materials, and drops a job in
+  // `storyboardJobs`. The server-side trigger (functions/storyboardGenerate)
+  // runs the whole Optiq Skills swarm and writes the scenes + live stage back
+  // to the project doc, so generation survives a closed tab and resumes on
+  // reopen. No HTTP wait, no client-side result write.
   const generateStoryboard = useCallback(async () => {
     if (!promptText.trim()) {
       alert("Please describe your campaign or video pitch.");
+      return;
+    }
+    if (!user) {
+      alert("Please sign in to generate a storyboard.");
       return;
     }
 
     setGenerating(true);
     setError(null);
     setStoryboard(null);
-
-    let preDocId = "";
-
-    if (user) {
-      try {
-        const docRef = await addDoc(collection(db, "projects"), {
-          uid: user.uid,
-          title: "Analyzing Campaign Concept...",
-          concept: promptText,
-          length,
-          brandName: brandName || "Client",
-          product: product || "Product offering",
-          hasCharacter,
-          characterName: hasCharacter ? characterName : "No recurring main character",
-          characterDesc: hasCharacter ? characterDesc : "Different people featured in separate scenes",
-          scenes: [],
-          styleHeader: "",
-          characterLock: "",
-          videoStatus: {},
-          productionMode: productionMode || "manual",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-        preDocId = docRef.id;
-        setActiveProjectId(preDocId);
-        setRouteProjectId(preDocId);
-        router.push(`/dashboard/project/${preDocId}`);
-      } catch (dbErr) {
-        console.error("Failed to pre-create project:", dbErr);
-      }
-    }
+    setSceneImages({});
+    sceneImagesRef.current = {};
+    setProjectMaterials([]);
+    setPipelineStage("queued");
+    setPipelineProgress(null);
 
     try {
-      const audioContinuityDirective = `
-\n\n[AUDIO CONTINUITY & CINEMATIC AUDIO UNIFORMITY DIRECTIVE]:
-To ensure professional commercial grade continuity, you must maintain a uniform audio backdrop across all scenes.
-Determine one consistent background music track (e.g. "Upbeat acoustic folk with native Gambian kora accents", "Modern clean electronic synth-pop beats", or "Warm cinematic string orchestra") and specify this identical track in the "audioCues" of EVERY scene.
-Similarly, determine a uniform ambient noise level (e.g. "Gentle coastal wind and soft rustling waves", "Faint distant street market chattering", or "Quiet modern office ambiance") and carry it continuously frame-to-frame.
-The voice-over and dialogue tone should remain tightly synchronized in style, speaker accent, and pacing across the entire run-time.
-`;
-      const data = await apiFetch<Storyboard>("/api/story/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          prompt:
-            (selectedTemplateIdx !== null
-              ? `${promptText}\n\n[STYLE LOCK DIRECTIVE]: This is a pre-built campaign template. You must base the entire storyboard, styling, tone, and visual direction precisely on the "${STORYBOARD_TEMPLATES[selectedTemplateIdx].subtitle}" style and the concept described above. Keep the visuals, pacing, lighting, and aesthetic tightly aligned with this specific theme.`
-              : promptText) + audioContinuityDirective,
-          length,
-          brandName: brandName || "Client",
-          product: product || "Product offering",
-          characterName: hasCharacter
-            ? characterName
-            : "No recurring main character (Multiple different people featured in various scenes interacting around the product)",
-          characterDesc: hasCharacter
-            ? characterDesc
-            : "Different people, community members, or customers featured in separate scenes, no single locked actor face",
-          logo: brandMaterials.length > 0 ? brandMaterials[0].data : null,
-        }),
+      // 1. Create the project doc up front so it appears in "past projects" and
+      //    the workspace can start showing progress immediately.
+      const docRef = await addDoc(collection(db, "projects"), {
+        uid: user.uid,
+        title: "Optiq Skills at work…",
+        concept: promptText,
+        length,
+        brandName: brandName || "Client",
+        product: product || "Product offering",
+        aspectRatio,
+        scenes: [],
+        styleHeader: "",
+        characterLock: "",
+        videoStatus: {},
+        productionMode: productionMode || "manual",
+        pipelineStage: "queued",
+        pipelineError: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
+      const projectId = docRef.id;
+      setActiveProjectId(projectId);
+      setRouteProjectId(projectId);
+      router.push(`/dashboard/project/${projectId}`);
 
-      setStoryboard(data);
-
-      const initialStatus: VideoStatusMap = {};
-      data.scenes.forEach((_, idx) => {
-        initialStatus[idx] = { status: "idle", revisionInput: "", customPrompt: "" };
-      });
-      setVideoStatus(initialStatus);
-
-      if (preDocId) {
-        try {
-          const projectDocRef = doc(db, "projects", preDocId);
-          await updateDoc(projectDocRef, {
-            title: data.title,
-            concept: data.concept,
-            scenes: data.scenes,
-            styleHeader: data.styleHeader || "",
-            characterLock: data.characterLock || "",
-            videoStatus: initialStatus,
-            updatedAt: new Date().toISOString(),
-          });
-        } catch (dbErr) {
-          console.error("Failed to update Firestore project document with spec:", dbErr);
-        }
+      // 2. Upload brand materials, then record them on the project.
+      const uploadedMaterials = await uploadBrandMaterials(projectId);
+      if (uploadedMaterials.length > 0) {
+        setProjectMaterials(uploadedMaterials);
+        await updateDoc(doc(db, "projects", projectId), { materials: uploadedMaterials });
       }
 
-      if (productionMode === "auto-merge") {
-        data.scenes.forEach((scene, idx) => {
-          void generateVideoForScene(idx, scene.fullPrompt);
-        });
-      }
+      // 3. Enqueue the cloud job. Everything else happens server-side.
+      await addDoc(collection(db, "storyboardJobs"), {
+        uid: user.uid,
+        projectId,
+        prompt: promptText,
+        length,
+        brandName: brandName || "Client",
+        product: product || "Product offering",
+        aspectRatio,
+        productionMode: productionMode || "manual",
+        materialPaths: uploadedMaterials,
+        status: "queued",
+        createdAt: new Date().toISOString(),
+      });
+      // Generation continues in the cloud; the hydration effect flips the UI
+      // out of "generating" once the project doc reaches a terminal stage.
     } catch (err) {
-      console.error("Storyboard generation endpoint error:", err);
-      setError(err instanceof Error ? err.message : "Storyboard generation failed");
-    } finally {
+      console.error("Failed to enqueue storyboard generation:", err);
+      setError(err instanceof Error ? err.message : "Could not start storyboard generation");
       setGenerating(false);
+      setPipelineStage("failed");
     }
   }, [
     promptText,
@@ -727,16 +828,47 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
     length,
     brandName,
     product,
-    hasCharacter,
-    characterName,
-    characterDesc,
+    aspectRatio,
     productionMode,
-    selectedTemplateIdx,
-    brandMaterials,
-    apiFetch,
     router,
-    generateVideoForScene,
+    uploadBrandMaterials,
   ]);
+
+  // Retry a failed cloud generation on the SAME project (free — the spec was
+  // already paid for). Re-enqueues a fresh job from the project's stored brief.
+  const retryStoryboard = useCallback(async () => {
+    if (!user || !activeProjectId) return;
+    setError(null);
+    setStoryboard(null);
+    setGenerating(true);
+    setPipelineStage("queued");
+    setPipelineProgress(null);
+    try {
+      await updateDoc(doc(db, "projects", activeProjectId), {
+        pipelineStage: "queued",
+        pipelineError: null,
+        updatedAt: new Date().toISOString(),
+      });
+      await addDoc(collection(db, "storyboardJobs"), {
+        uid: user.uid,
+        projectId: activeProjectId,
+        prompt: promptText,
+        length,
+        brandName: brandName || "Client",
+        product: product || "Product offering",
+        aspectRatio,
+        productionMode: productionMode || "manual",
+        materialPaths: projectMaterials,
+        status: "queued",
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("Failed to retry storyboard generation:", err);
+      setError(err instanceof Error ? err.message : "Could not restart generation");
+      setGenerating(false);
+      setPipelineStage("failed");
+    }
+  }, [user, activeProjectId, promptText, length, brandName, product, aspectRatio, productionMode, projectMaterials]);
 
   // ─── AUTO-RESUME OR INITIATE QUEUED GENERATIONS ON PROJECT LOAD ──────────
   useEffect(() => {
@@ -778,6 +910,11 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
             revisionRequest: status.revisionInput,
             characterLock: storyboard.characterLock,
             styleHeader: storyboard.styleHeader,
+            // Continuity context: the reviser keeps this scene flowing from the
+            // one before it and into the one after it, on the same music bed.
+            previousScenePrompt: storyboard.scenes[sceneIndex - 1]?.fullPrompt || null,
+            nextScenePrompt: storyboard.scenes[sceneIndex + 1]?.fullPrompt || null,
+            musicSpec: storyboard.musicSpec || null,
           }),
         });
 
@@ -809,6 +946,64 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
     [storyboard, videoStatus, apiFetch]
   );
 
+  // ─── PER-SCENE REFERENCE IMAGE MANAGEMENT ────────────────────────────────
+  const updateSceneImages = useCallback((sceneIndex: number, next: SceneImage[]) => {
+    setSceneImages((prev) => {
+      const map = { ...prev, [sceneIndex]: next };
+      sceneImagesRef.current = map;
+      return map;
+    });
+  }, []);
+
+  const addSceneImages = useCallback(
+    async (sceneIndex: number, files: FileList | File[]) => {
+      if (!user || !activeProjectId) return;
+      const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+      if (list.length === 0) return;
+      try {
+        const uploaded = await Promise.all(
+          list.map(async (file) => {
+            const safeName = file.name.replace(/[^\w.-]/g, "_");
+            const path = `users/${user.uid}/projects/${activeProjectId}/materials/${Date.now()}-${safeName}`;
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const fileRef = storageRef(storage, path);
+            await uploadString(fileRef, dataUrl, "data_url");
+            const url = await getDownloadURL(fileRef);
+            return { name: file.name, path, url, mimeType: file.type } as SceneImage;
+          })
+        );
+        setProjectMaterials((prev) => [...prev, ...uploaded]);
+        updateSceneImages(sceneIndex, [...(sceneImagesRef.current[sceneIndex] || []), ...uploaded]);
+      } catch (err) {
+        console.error("Failed to upload scene reference images:", err);
+        alert("Image upload failed. Please try again.");
+      }
+    },
+    [user, activeProjectId, updateSceneImages]
+  );
+
+  const attachMaterialToScene = useCallback(
+    (sceneIndex: number, material: SceneImage) => {
+      const current = sceneImagesRef.current[sceneIndex] || [];
+      if (current.some((img) => img.path === material.path)) return;
+      updateSceneImages(sceneIndex, [...current, material]);
+    },
+    [updateSceneImages]
+  );
+
+  const removeSceneImage = useCallback(
+    (sceneIndex: number, imageIndex: number) => {
+      const current = sceneImagesRef.current[sceneIndex] || [];
+      updateSceneImages(sceneIndex, current.filter((_, i) => i !== imageIndex));
+    },
+    [updateSceneImages]
+  );
+
   const copyToClipboard = useCallback((text: string, index: number) => {
     void navigator.clipboard.writeText(text);
     setCopiedIndex(index);
@@ -838,21 +1033,20 @@ The voice-over and dialogue tone should remain tightly synchronized in style, sp
     musicUrl, setMusicUrl,
     musicVolume, setMusicVolume,
     wizardStep, setWizardStep,
-    selectedTemplateIdx, setSelectedTemplateIdx,
     length, setLength,
     promptText, setPromptText,
     brandName, setBrandName,
     product, setProduct,
-    hasCharacter, setHasCharacter,
-    characterName, setCharacterName,
-    characterDesc, setCharacterDesc,
     brandMaterials, isDragging, setIsDragging,
     promptExpanded, setPromptExpanded,
     aspectRatio, setAspectRatio,
     aspectDropdownOpen, setAspectDropdownOpen,
-    recording, generating, error, setError, copiedIndex,
+    recording, recordingTarget, generating, error, setError, copiedIndex,
     storyboard, setStoryboard,
     videoStatus, setVideoStatus,
+    pipelineStage, pipelineProgress, retryStoryboard,
+    sceneImages, projectMaterials,
+    addSceneImages, attachMaterialToScene, removeSceneImage,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,
     generateStoryboard, generateVideoForScene, reviseScenePrompt,

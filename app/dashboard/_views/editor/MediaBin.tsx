@@ -9,12 +9,15 @@
 
 import React, { useRef, useState } from "react";
 import { Clapperboard, Film, ImageIcon, Loader2, Music, Plus, Upload } from "lucide-react";
-import { doc as fsDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc as fsDoc, updateDoc, arrayUnion, addDoc, collection } from "firebase/firestore";
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../../../lib/firebase";
 import { useAuth } from "../../../../components/AuthProvider";
 import { EditorEngine, EditorDoc, genId } from "../../../../lib/editor";
-import { MEDIA_DRAG_TYPE, MediaPayload, placeMediaOnTimeline, withDuration } from "./placement";
+import ImportMediaModal from "./ImportMediaModal";
+import {
+  MEDIA_DRAG_TYPE, MediaPayload, placeMediaOnTimeline, setActiveDragPayload, withDuration,
+} from "./placement";
 
 export interface LibraryItem extends MediaPayload {
   id: string;
@@ -77,6 +80,7 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
   const [dragOver, setDragOver] = useState(false);
   const [uploads, setUploads] = useState<{ name: string; pct: number }[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const sceneClips: { label: string; url: string }[] = Object.entries(project?.videoStatus ?? {})
     .filter(([, s]: [string, any]) => s?.status === "succeeded" && s?.url)
@@ -102,7 +106,10 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
         continue;
       }
       const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
-      const path = `projects/${user.uid}/${project.id}/media/${Date.now()}_${safeName}`;
+      // Per-user library folders (users/{uid}/library/{videos|images|audio}) so
+      // every upload is organized by owner + type and reusable across projects.
+      const folder = kind === "audio" ? "audio" : `${kind}s`;
+      const path = `users/${user.uid}/library/${folder}/${Date.now()}_${safeName}`;
       setUploads((u) => [...u, { name: file.name, pct: 0 }]);
       try {
         const meta = await probeFile(file, kind);
@@ -137,6 +144,9 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
           mediaLibrary: arrayUnion(item),
           updatedAt: new Date().toISOString(),
         });
+        // Register in the user-level library too, so the Import popup's
+        // "My Library" tab can offer this file to every future project.
+        await addDoc(collection(db, "users", user.uid, "mediaLibrary"), item);
       } catch (err: any) {
         console.error("Media upload failed:", err);
         setUploadError(`${file.name}: ${err?.message ?? "upload failed"}`);
@@ -151,7 +161,11 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
     onDragStart: (e: React.DragEvent) => {
       e.dataTransfer.setData(MEDIA_DRAG_TYPE, JSON.stringify(payload));
       e.dataTransfer.effectAllowed = "copy";
+      // Published so the timeline can hit-test kind/duration DURING the hover
+      // (dataTransfer payloads are unreadable until the drop).
+      setActiveDragPayload(payload);
     },
+    onDragEnd: () => setActiveDragPayload(null),
   });
 
   return (
@@ -178,7 +192,7 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
           Media Bin
         </span>
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => setImportOpen(true)}
           className="flex items-center gap-1 rounded-md bg-blue-600/20 border border-blue-500/30 px-2 py-1 text-[9px] font-bold text-blue-400 hover:bg-blue-600/30 transition-colors"
         >
           <Upload size={9} /> Import
@@ -299,7 +313,7 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
           </p>
           {visualMedia.length === 0 ? (
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setImportOpen(true)}
               className="w-full rounded-lg border border-dashed border-white/10 p-3 text-center text-[9px] text-neutral-600 hover:border-purple-500/40 hover:text-neutral-400 transition-colors"
             >
               Drop videos or images here, or click to import
@@ -351,7 +365,7 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
           <div className="space-y-1.5">
             {audioMedia.length === 0 && !project?.musicUrl && (
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setImportOpen(true)}
                 className="w-full rounded-lg border border-dashed border-white/10 p-3 text-center text-[9px] text-neutral-600 hover:border-emerald-500/40 hover:text-neutral-400 transition-colors"
               >
                 Drop soundtracks or voiceovers here, or click to import
@@ -405,6 +419,16 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
           </div>
         </section>
       </div>
+
+      <ImportMediaModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        user={user}
+        projectId={project?.id ?? null}
+        existingUrls={library.map((m) => m.url)}
+        onUploadFiles={(files) => void uploadFiles(files)}
+        uploads={uploads}
+      />
     </aside>
   );
 }

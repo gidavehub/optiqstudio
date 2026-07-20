@@ -94,7 +94,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
       />
 
       {/* Control overlay — stark monochrome glassmorphism */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
         {/* Progress seek bar */}
         <div className="flex items-center gap-2">
           <input

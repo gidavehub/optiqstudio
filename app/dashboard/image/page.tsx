@@ -243,7 +243,7 @@ export default function ImageStudioPage() {
         cost={generationCost}
         balance={userBalance}
         title="Confirm Image Generation"
-        description={`You are about to launch a high-fidelity image generation using Gemini-3.1-Flash model. This will deduct GMD ${generationCost.toFixed(2)} from your wallet balance.`}
+        description="High-fidelity image generation"
         actionLabel="Generate Image"
       />
 

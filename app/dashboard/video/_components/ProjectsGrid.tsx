@@ -68,8 +68,8 @@ export default function ProjectsGrid({
                       autoPlay
                       className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                     />
-                    {/* Ambient gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent z-10" />
+                    {/* Ambient solid overlay */}
+                    <div className="absolute inset-0 bg-black/30 z-10" />
 
                     {/* Hover overlay — displays prompt in the center elegantly */}
                     <div className="absolute inset-0 bg-black/65 backdrop-blur-md transition-opacity duration-300 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center p-5 text-center z-20">
