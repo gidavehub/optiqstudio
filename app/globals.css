@@ -32,19 +32,41 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Custom scrollbars ────────────────────────────────────────────────────
+   Slim, rounded, translucent — never the OS default chrome. Applied globally
+   plus Firefox's standards-based properties. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Opt-out utility for rails/strips where a bar would be visual noise */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 input:focus,
@@ -53,35 +75,84 @@ select:focus {
   outline: none;
 }
 
-/* Rotating multi-color aurora used inside generating clip thumbnails */
-@keyframes aurora-spin {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  to {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
+/* ── Aurora: the "work in progress" light field ───────────────────────────
+   Not a spinning wheel of colour. Soft coloured lights that drift across the
+   frame, swelling and fading at their own pace, sunk under a heavy blur and a
+   frosted veil — a slow, expensive-looking bloom rather than a loading spinner.
+
+   Three independent layers (the element + its two pseudo-elements) each carry
+   two radial "lamps", so six lights wander on different clocks and never
+   visibly loop together. Only transform/opacity animate, so this stays on the
+   compositor and costs no layout or paint work. */
+@keyframes aurora-drift-a {
+  0%   { transform: translate3d(-10%, -6%, 0) scale(1);    opacity: 0.9; }
+  25%  { transform: translate3d(16%, 12%, 0) scale(1.28);  opacity: 0.45; }
+  50%  { transform: translate3d(4%, 20%, 0) scale(1.08);   opacity: 1; }
+  75%  { transform: translate3d(-18%, 8%, 0) scale(1.34);  opacity: 0.5; }
+  100% { transform: translate3d(-10%, -6%, 0) scale(1);    opacity: 0.9; }
+}
+@keyframes aurora-drift-b {
+  0%   { transform: translate3d(14%, 10%, 0) scale(1.2);   opacity: 0.5; }
+  30%  { transform: translate3d(-12%, -14%, 0) scale(1);   opacity: 0.95; }
+  55%  { transform: translate3d(-4%, 14%, 0) scale(1.35);  opacity: 0.35; }
+  80%  { transform: translate3d(18%, -8%, 0) scale(1.1);   opacity: 0.85; }
+  100% { transform: translate3d(14%, 10%, 0) scale(1.2);   opacity: 0.5; }
+}
+@keyframes aurora-drift-c {
+  0%   { transform: translate3d(2%, 16%, 0) scale(1.15);   opacity: 0.75; }
+  35%  { transform: translate3d(-16%, 4%, 0) scale(1.32);  opacity: 0.3; }
+  65%  { transform: translate3d(12%, -12%, 0) scale(1);    opacity: 1; }
+  100% { transform: translate3d(2%, 16%, 0) scale(1.15);   opacity: 0.75; }
+}
+
+.aurora,
+.aurora::before,
+.aurora::after {
+  position: absolute;
+  inset: -35%;
+  content: "";
+  border-radius: 50%;
+  will-change: transform, opacity;
 }
 
 .aurora {
+  /* Bleeds past the frame so the blur never shows a hard edge */
+  filter: blur(44px) saturate(1.55);
+  background:
+    radial-gradient(38% 38% at 26% 30%, #2563eb 0%, transparent 68%),
+    radial-gradient(34% 34% at 74% 66%, #06b6d4 0%, transparent 70%);
+  animation: aurora-drift-a 13s ease-in-out infinite;
+}
+.aurora::before {
+  background:
+    radial-gradient(36% 36% at 70% 24%, #7c3aed 0%, transparent 68%),
+    radial-gradient(32% 32% at 30% 76%, #db2777 0%, transparent 70%);
+  animation: aurora-drift-b 17s ease-in-out infinite;
+}
+.aurora::after {
+  background:
+    radial-gradient(34% 34% at 50% 58%, #f59e0b 0%, transparent 66%),
+    radial-gradient(30% 30% at 22% 20%, #10b981 0%, transparent 68%);
+  animation: aurora-drift-c 21s ease-in-out infinite;
+}
+
+/* Frosted glass laid over the light field — this is what turns raw colour
+   into something that reads as premium. Sits above .aurora, below content. */
+.aurora-veil {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 220%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(
-    from 0deg,
-    #2563eb,
-    #7c3aed,
-    #db2777,
-    #f59e0b,
-    #10b981,
-    #06b6d4,
-    #2563eb
-  );
-  filter: blur(38px) saturate(1.4);
-  animation: aurora-spin 5s linear infinite;
+  inset: 0;
+  backdrop-filter: blur(26px) saturate(1.15);
+  -webkit-backdrop-filter: blur(26px) saturate(1.15);
+  background: rgba(10, 15, 29, 0.3);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .aurora::before,
+  .aurora::after {
+    animation: none;
+  }
 }
 
 /* Tiny uppercase label used across the marketing site */

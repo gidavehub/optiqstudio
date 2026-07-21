@@ -16,12 +16,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) {
-      if (profile && profile.planStatus === "active") {
-        router.replace("/dashboard");
-      } else if (profile) {
-        router.replace("/plans");
-      }
+    if (!loading && user && profile) {
+      // There are no subscriptions any more, so plan status can't gate entry.
+      // Brand-new accounts land on the paywall once (to meet their welcome
+      // bonus and see what things cost); everyone else goes straight in.
+      const isNewAccount = (profile.welcomeBonus ?? 0) > 0 && !profile.welcomeBonusSeen;
+      router.replace(isNewAccount ? "/plans" : "/dashboard");
     }
   }, [loading, user, profile, router]);
 

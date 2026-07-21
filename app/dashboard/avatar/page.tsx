@@ -62,10 +62,10 @@ export default function AvatarStudioPage() {
       )}
 
       {/* Main Grid Workspace */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
 
-        {/* Left Settings Sidebar */}
-        <aside className="w-[320px] shrink-0 border-r border-white/5 bg-background flex flex-col min-h-0 overflow-y-auto">
+        {/* Settings — stacked above the stage on small screens */}
+        <aside className="w-full lg:w-[320px] shrink-0 border-b lg:border-b-0 lg:border-r border-white/5 bg-background flex flex-col min-h-0 lg:overflow-y-auto">
           <form onSubmit={handleGenerateAttempt} className="p-5 pt-20 flex flex-col gap-5">
             
             {/* Stage 1: Choose Style */}

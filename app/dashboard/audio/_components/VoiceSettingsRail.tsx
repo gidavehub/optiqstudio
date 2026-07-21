@@ -119,7 +119,8 @@ export default function VoiceSettingsRail({
   };
 
   return (
-    <aside className="w-72 shrink-0 space-y-6 overflow-y-auto border-r border-neutral-900 p-5 bg-background flex flex-col justify-between">
+    // Full width and stacked above the canvas on phones; a fixed rail from sm up.
+    <aside className="w-full sm:w-72 shrink-0 space-y-6 overflow-y-auto border-b sm:border-b-0 sm:border-r border-neutral-900 p-5 pt-20 sm:pt-5 bg-background flex flex-col justify-between">
       <div className="space-y-6 pt-16">
         <Link
           href="/dashboard"

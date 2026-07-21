@@ -33,12 +33,16 @@ import { auth, db, rtdb, storage } from "../lib/firebase";
 import { ref, onValue } from "firebase/database";
 
 export interface Profile {
+  /** Wallet balance, denominated in GMD. */
   credits: number;
   plan: string | null;
   planStatus: "active" | "none";
   planRenewsAt: string | null;
   email: string | null;
   name: string | null;
+  /** Signup gift in GMD, and whether the paywall has celebrated it yet. */
+  welcomeBonus?: number;
+  welcomeBonusSeen?: boolean;
 }
 
 export interface Pricing {

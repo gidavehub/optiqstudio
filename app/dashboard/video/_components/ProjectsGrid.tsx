@@ -3,6 +3,7 @@
 import React from "react";
 import { Clapperboard, Loader2, MoreVertical, Play, Trash2 } from "lucide-react";
 import { HistoryItem } from "./types";
+import HoverPreviewVideo from "../../_shared/HoverPreviewVideo";
 
 interface ProjectsGridProps {
   history: HistoryItem[];
@@ -60,12 +61,10 @@ export default function ProjectsGrid({
                 ) : (
                   /* Done state: Render unblurred completed preview video */
                   <div className="absolute inset-0 h-full w-full">
-                    <video
-                      src={item.videoUrl ?? undefined}
-                      playsInline
-                      muted
-                      loop
-                      autoPlay
+                    {/* Streams on hover only — autoplaying every tile at once
+                        saturated the connection and slowed the whole page. */}
+                    <HoverPreviewVideo
+                      src={item.videoUrl ?? ""}
                       className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                     />
                     {/* Ambient solid overlay */}

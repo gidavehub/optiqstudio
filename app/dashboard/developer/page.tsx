@@ -362,7 +362,8 @@ Response Example:
 
   return (
     <div className="h-full overflow-y-auto bg-black text-white">
-      <div className="w-full px-8 py-10">
+      {/* pt-24 clears the fixed FloatingChrome pills (logo + account) */}
+      <div className="w-full px-5 sm:px-8 pt-24 pb-10">
         
         {/* Title */}
         <div className="flex items-center gap-2.5">

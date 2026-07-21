@@ -52,10 +52,10 @@ export default function ProjectWorkspace() {
       <div className="flex h-full flex-col bg-background text-neutral-200">
         <div className="flex flex-1 flex-col items-center justify-center p-12 text-center h-full max-w-lg mx-auto">
           {isCloudGenerating ? (
-            <div className="space-y-5">
-              <div className="relative mx-auto h-24 w-40 overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <div className="space-y-6">
+              <div className="relative mx-auto h-44 w-72 sm:h-52 sm:w-96 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.7)]">
                 <div className="aurora" aria-hidden />
-                <div className="absolute inset-0 bg-black/40" aria-hidden />
+                <div className="aurora-veil" aria-hidden />
               </div>
               <div className="space-y-1.5">
                 <h3 className="text-sm font-bold text-white tracking-tight text-center">{stageLabel}</h3>
@@ -124,9 +124,9 @@ export default function ProjectWorkspace() {
     return (
       <div className="flex h-full flex-col bg-background text-neutral-200">
         {/* Minimal chrome, top corners only */}
-        <div className="absolute top-16 left-0 right-0 z-10 flex items-center justify-between px-6 py-4">
-          <h2 className="text-sm font-bold tracking-tight text-white/90 truncate max-w-[45%]">{storyboard.title}</h2>
-          <div className="flex items-center gap-2">
+        <div className="absolute top-16 sm:top-16 left-0 right-0 z-10 flex items-center justify-between gap-2 px-4 sm:px-6 py-4">
+          <h2 className="text-sm font-bold tracking-tight text-white/90 truncate max-w-[40%]">{storyboard.title}</h2>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <span className="font-mono text-[11px] font-bold text-neutral-400">
               {completedCount}<span className="text-neutral-600"> / {totalScenes}</span>
             </span>
@@ -146,10 +146,10 @@ export default function ProjectWorkspace() {
         </div>
 
         {/* Clips — dead center of the screen */}
-        <div className="flex flex-1 items-center justify-center px-6 py-24 overflow-y-auto">
+        <div className="flex flex-1 items-center justify-center px-4 sm:px-6 pt-28 pb-24 overflow-y-auto">
           <div
-            className={`grid w-full gap-5 ${
-              totalScenes <= 3 ? "max-w-4xl grid-cols-1 sm:grid-cols-3" : "max-w-5xl grid-cols-2 md:grid-cols-3"
+            className={`grid w-full gap-4 sm:gap-6 ${
+              totalScenes <= 3 ? "max-w-5xl grid-cols-1 sm:grid-cols-3" : "max-w-6xl grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
             }`}
           >
             {storyboard.scenes.map((scene, idx) => {
@@ -170,9 +170,9 @@ export default function ProjectWorkspace() {
                   ) : (
                     <>
                       <div className="aurora" aria-hidden />
-                      <div className="absolute inset-0 bg-black/45" aria-hidden />
+                      <div className="aurora-veil" aria-hidden />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-display text-3xl text-white/90 drop-shadow-lg">{scene.sceneNumber}</span>
+                        <span className="font-display text-4xl sm:text-5xl text-white/90 drop-shadow-lg">{scene.sceneNumber}</span>
                       </div>
                     </>
                   )}
@@ -195,7 +195,7 @@ export default function ProjectWorkspace() {
   // ── SCRIPT / PROMPT-ENGINEERING FACE ──────────────────────────────────
   return (
     <div className="flex h-full flex-col bg-background text-neutral-200">
-      <div className="flex flex-1 flex-col overflow-y-auto px-6 pb-6 pt-24 w-full max-w-6xl mx-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto px-4 sm:px-6 pb-6 pt-20 sm:pt-24 w-full max-w-6xl mx-auto">
         {/* Header Controls */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
           <div>
@@ -316,7 +316,7 @@ export default function ProjectWorkspace() {
             return (
               <div
                 key={scene.sceneNumber}
-                className="rounded-2xl border border-white/5 bg-[#0a1124] p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start hover:border-blue-500/30 transition-colors"
+                className="rounded-2xl border border-white/5 bg-[#0a1124] p-4 sm:p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start hover:border-blue-500/30 transition-colors"
               >
                 {/* Scene description columns */}
                 <div className="lg:col-span-7 space-y-4">

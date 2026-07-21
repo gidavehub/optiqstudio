@@ -9,14 +9,15 @@ export default function HomePortal() {
   const { goCreate } = useEditorFlow();
 
   return (
-    <div className="flex h-full flex-col bg-background text-neutral-200">
+    <div className="flex h-full flex-col overflow-y-auto bg-background text-neutral-200">
       {/* ─── PORTAL GATEWAY: CENTERED MINIMAL CARD PORTAL ────────────────────── */}
-      <div className="flex flex-1 items-center justify-center p-6 md:p-12 min-h-[calc(100vh-4rem)]">
-        <div className="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
+      {/* pt-20 clears the floating chrome; centres on desktop, flows on phones */}
+      <div className="flex flex-1 items-center justify-center px-4 pt-20 pb-8 sm:p-6 sm:pt-24 md:p-12 md:pt-24">
+        <div className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:gap-6 md:gap-8 md:grid-cols-2">
           {/* OPTION 1: AGENTIC STORYBOARDING */}
           <button
             onClick={goCreate}
-            className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black p-10 text-center hover:border-white/10 transition-all duration-300 shadow-2xl hover:shadow-neutral-900/10 min-h-[340px] md:min-h-[380px]"
+            className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black p-6 sm:p-10 text-center hover:border-white/10 transition-all duration-300 shadow-2xl hover:shadow-neutral-900/10 active:scale-[0.99] min-h-[260px] sm:min-h-[340px] md:min-h-[380px]"
           >
             {/* Loop video cover showing cinematic ambient scene */}
             <div className="absolute inset-0 z-0">
@@ -26,6 +27,7 @@ export default function HomePortal() {
                 loop
                 muted
                 playsInline
+                preload="metadata"
                 className="h-full w-full object-cover opacity-35 group-hover:opacity-55 group-hover:scale-105 transition-all duration-700"
               />
               <div className="absolute inset-0 bg-[#0a0f1d]/55" />
@@ -49,7 +51,7 @@ export default function HomePortal() {
           </button>
 
           {/* OPTION 2: DIRECT STUDIO GATEWAY WITH THREE SUB-BOXES */}
-          <div className="flex flex-col justify-center rounded-2xl border border-white/5 bg-surface/40 p-10 hover:border-white/10 transition-all duration-300 min-h-[340px] md:min-h-[380px]">
+          <div className="flex flex-col justify-center rounded-2xl border border-white/5 bg-surface/40 p-6 sm:p-10 hover:border-white/10 transition-all duration-300 min-h-[260px] sm:min-h-[340px] md:min-h-[380px]">
             <div className="flex flex-col items-center text-center">
               <span className="flex h-14 w-16 items-center justify-center rounded-2xl bg-[#0e1630] border border-white/10 text-neutral-400">
                 <Video size={24} />
@@ -75,6 +77,7 @@ export default function HomePortal() {
                   loop
                   muted
                   playsInline
+                  preload="metadata"
                   className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                 />
                 <div className="absolute inset-0 bg-[#0a0f1d]/45" />
@@ -111,6 +114,7 @@ export default function HomePortal() {
                   loop
                   muted
                   playsInline
+                  preload="metadata"
                   className="absolute inset-0 h-full w-full object-cover opacity-50 group-hover/item:opacity-85 group-hover/item:scale-105 transition-all duration-500"
                 />
                 <div className="absolute inset-0 bg-[#0a0f1d]/45" />

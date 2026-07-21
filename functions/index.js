@@ -61,6 +61,12 @@ const MODEMPAY_API_KEY = defineSecret("MODEMPAY_API_KEY");
 
 const PLAN_CREDITS = 10000;
 
+// The wallet is denominated in GMD (the `credits` field holds a GMD balance).
+// New accounts get this much free; top-ups are charged 1:1 in GMD.
+const WELCOME_BONUS_GMD = 1000;
+const MIN_TOPUP_GMD = 50;
+const MAX_TOPUP_GMD = 500000;
+
 /** ModemPay webhook: verifies x-modem-signature (HMAC-SHA512) and fulfills. */
 exports.modemWebhook = onRequest(
   { region: "us-east4", secrets: [MODEM_WEBHOOK_SECRET] },
@@ -297,7 +303,7 @@ exports.modemPayCheckout = onRequest(
       const email = decoded.email || null;
       const name = decoded.name || null;
 
-      const { kind, packId, planId } = req.body;
+      const { kind, packId, planId, amountGmd: topupAmountGmd } = req.body;
       const appUrl = "https://optiq.studio"; // Production URL!
 
       const pricing = await getPricing();
@@ -308,6 +314,62 @@ exports.modemPayCheckout = onRequest(
       let title;
       let credits;
       let selectedPlanId = "pro-monthly";
+
+      // ── Wallet top-up: the only path the new paywall uses ────────────────
+      // The user names their own amount. The wallet is already GMD, so the
+      // charge and the credited balance are the same number — no USD
+      // conversion, no packs, no subscription.
+      if (kind === "topup") {
+        const requested = Math.round(Number(topupAmountGmd));
+        if (!Number.isFinite(requested) || requested < MIN_TOPUP_GMD || requested > MAX_TOPUP_GMD) {
+          return res.status(400).json({
+            error: `Top-up must be between GMD ${MIN_TOPUP_GMD} and GMD ${MAX_TOPUP_GMD.toLocaleString()}`,
+          });
+        }
+
+        const apiKeyTopup = MODEMPAY_API_KEY.value().trim();
+        const topupBody = {
+          data: {
+            amount: requested,
+            currency: "GMD",
+            title: `Optiq Studio wallet top-up — GMD ${requested.toLocaleString()}`,
+            description: `Adds GMD ${requested.toLocaleString()} to your Optiq Studio wallet`,
+            customer_email: email,
+            customer_name: name,
+            metadata: {
+              uid,
+              kind: "credits", // the webhook already credits `credits` for this kind
+              packId: "",
+              planId: "",
+              credits: String(requested),
+            },
+            return_url: `${appUrl}/dashboard/billing?status=success`,
+            cancel_url: `${appUrl}/dashboard/billing?status=cancelled`,
+            callback_url: `https://us-east4-davelabs-tools.cloudfunctions.net/modemWebhook`,
+            from_sdk: false,
+          },
+        };
+
+        const topupRes = await fetch("https://api.modempay.com/v1/payments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKeyTopup}`,
+          },
+          body: JSON.stringify(topupBody),
+        });
+        const topupJson = await topupRes.json().catch(() => ({}));
+        if (!topupRes.ok) {
+          console.error("ModemPay top-up error:", topupJson);
+          return res.status(502).json({ error: topupJson?.message || "Payment provider error" });
+        }
+        const link = topupJson?.data?.payment_link || topupJson?.payment_link;
+        if (!link) {
+          console.error("ModemPay top-up returned no payment link:", topupJson);
+          return res.status(502).json({ error: "Payment provider returned no link" });
+        }
+        return res.status(200).json({ paymentLink: link, amountGmd: requested });
+      }
 
       if (kind === "subscription") {
         const plan = PLANS.find((p) => p.id === planId) || PLANS[0];
@@ -461,6 +523,13 @@ async function uploadBase64(base64, path, contentType) {
   await file.save(Buffer.from(base64, "base64"), {
     contentType,
     resumable: false,
+    metadata: {
+      // Generated media is immutable — the path always carries a unique id, so
+      // a new render is a new URL. Without this every scrub, replay or revisit
+      // re-downloaded the whole mp4 from GCS, which is a large part of why
+      // playback felt slow. Now the browser (and any CDN) keeps it for a year.
+      cacheControl: "public, max-age=31536000, immutable",
+    },
   });
   return `https://storage.googleapis.com/${STORAGE_BUCKET}/${path}`;
 }
@@ -1926,7 +1995,13 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
 
   try {
     await ref.set({
-      credits: 0,
+      // Every new account starts with GMD 1,000 on the house — enough to feel
+      // the product before paying. `welcomeBonus` is what the paywall
+      // celebrates once; `welcomeBonusSeen` is set by the client afterwards.
+      credits: WELCOME_BONUS_GMD,
+      welcomeBonus: WELCOME_BONUS_GMD,
+      welcomeBonusGrantedAt: new Date().toISOString(),
+      welcomeBonusSeen: false,
       plan: null,
       planStatus: "none",
       planRenewsAt: null,
@@ -1935,7 +2010,7 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
       createdAt: new Date().toISOString()
     }, { merge: true });
 
-    console.log(`Successfully initialized user doc for UID: ${uid} with 0 signup credits.`);
+    console.log(`Initialized user doc for UID: ${uid} with GMD ${WELCOME_BONUS_GMD} welcome bonus.`);
   } catch (error) {
     console.error(`Failed to initialize user doc for UID: ${uid}:`, error);
   }

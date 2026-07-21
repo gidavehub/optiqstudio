@@ -4,13 +4,14 @@ import React from "react";
 import {
   Clapperboard, X, Mic, MicOff, Upload, Play, RefreshCw,
   ChevronRight, ChevronLeft, Check, Paperclip, AlertCircle, Zap,
-  Monitor, Smartphone,
+  Monitor, Smartphone, Plus,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { LENGTH_PRICING_GMD, ProjectLength, DictationTarget } from "../_flow/types";
+import HoverPreviewVideo from "../_shared/HoverPreviewVideo";
 import StoryboardPaywallModal from "./StoryboardPaywallModal";
 
-const STEP_COUNT = 6;
+const STEP_COUNT = 7;
 
 // One mic pipeline for every text field in the flow. Declared outside the
 // wizard so it isn't re-created (and state-reset) on every render.
@@ -65,9 +66,9 @@ export default function StoryboardWizard() {
   } = useEditorFlow();
 
   const canContinue =
-    wizardStep === 2 ? !!promptText.trim()
-    : wizardStep === 4 ? !!brandName.trim()
-    : wizardStep === 5 ? !!product.trim()
+    wizardStep === 3 ? !!promptText.trim()
+    : wizardStep === 5 ? !!brandName.trim()
+    : wizardStep === 6 ? !!product.trim()
     : true;
 
   const goNext = () => {
@@ -83,7 +84,7 @@ export default function StoryboardWizard() {
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background text-neutral-200">
       {/* Cinematic backdrop for the vision step */}
-      {wizardStep === 2 && !generating && (
+      {wizardStep === 3 && !generating && (
         <div className="absolute inset-0 z-0 pointer-events-none">
           <div
             className="h-full w-full bg-cover bg-center bg-no-repeat"
@@ -119,9 +120,9 @@ export default function StoryboardWizard() {
       <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6">
         {generating ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <div className="relative h-28 w-48 overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <div className="relative h-44 w-72 sm:h-52 sm:w-96 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.7)]">
               <div className="aurora" aria-hidden />
-              <div className="absolute inset-0 bg-black/40" aria-hidden />
+              <div className="aurora-veil" aria-hidden />
             </div>
             <h3 className="mt-5 text-sm font-bold text-white">Optiq Skills are writing your story…</h3>
             <p className="mt-1.5 text-xs text-neutral-500 max-w-xs">
@@ -130,60 +131,57 @@ export default function StoryboardWizard() {
           </div>
         ) : (
           <>
-            {/* STEP 1 — RUN-TIME + PAST PROJECTS */}
+            {/* STEP 1 — PROJECT LAUNCHER
+                Start a new film, or reopen an old one. Nothing else. This is
+                the only step that can exceed a viewport, so it flows naturally
+                and the page itself is the scroll surface. */}
             {wizardStep === 1 && (
-              <div className="flex flex-1 flex-col justify-center gap-5 py-3 mx-auto w-full max-w-3xl min-h-0">
-                <div className="text-center">
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">How long should your ad run?</h1>
-                  <p className="mt-1 text-xs text-neutral-500">Every scene is 10 seconds of finished video.</p>
-                </div>
+              <div className="mx-auto w-full max-w-3xl space-y-8 pt-2 pb-6">
+                {/* Create new — blurred cinematic card, same treatment as the
+                    landing page's developer-engine band */}
+                <button
+                  onClick={() => setWizardStep(2)}
+                  className="group relative block w-full overflow-hidden rounded-2xl border-2 border-dashed border-white/20 hover:border-blue-400/60 transition-all duration-300 active:scale-[0.99]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/media/research-bg.jpg"
+                    alt=""
+                    aria-hidden
+                    className="absolute inset-0 h-full w-full scale-125 object-cover opacity-90 blur-[70px]"
+                  />
+                  <div className="absolute inset-0 bg-black/35 group-hover:bg-black/25 transition-colors" />
 
-                <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-                  {(
-                    [
-                      { id: "30s", title: "30s", subtitle: "3 Scenes", desc: "Sleek, rapid ad" },
-                      { id: "60s", title: "60s", subtitle: "6 Scenes", desc: "Standard campaign" },
-                      { id: "90s", title: "90s", subtitle: "9 Scenes", desc: "Longform story" },
-                    ] as { id: ProjectLength; title: string; subtitle: string; desc: string }[]
-                  ).map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setLength(item.id)}
-                      className={`group flex flex-col items-center rounded-2xl border px-2 py-4 sm:py-6 text-center transition-all duration-300 ${
-                        length === item.id
-                          ? "border-blue-500 bg-[#0c152d] text-white"
-                          : "border-white/5 bg-surface-2 hover:border-white/10 hover:bg-[#131d35]"
-                      }`}
-                    >
-                      <span className="text-[9px] sm:text-[10px] font-bold text-neutral-400 tracking-wider uppercase">{item.subtitle}</span>
-                      <span className="mt-1 text-xl sm:text-2xl font-extrabold tracking-tight group-hover:text-blue-400 transition-colors">
-                        {item.title}
-                      </span>
-                      <p className="mt-1 hidden sm:block text-[11px] text-neutral-400">{item.desc}</p>
-                      <span className={`mt-2 text-[11px] font-bold tracking-tight ${length === item.id ? "text-blue-400" : "text-neutral-500"}`}>
-                        GMD {LENGTH_PRICING_GMD[item.id].toFixed(2)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                  <div className="relative flex flex-col items-center justify-center gap-3 px-6 py-14 sm:py-20 text-center">
+                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/10 text-white backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                      <Plus size={24} />
+                    </span>
+                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow">
+                      Create new project
+                    </h1>
+                    <p className="max-w-sm text-xs sm:text-[13px] text-white/70 leading-relaxed">
+                      Describe your brand and let the Optiq Skills agents write, cast and shoot the whole ad.
+                    </p>
+                  </div>
+                </button>
 
-                {/* Past projects — capped height so the step still fits one screen */}
-                <div className="min-h-0 flex flex-col pt-4 border-t border-white/5">
-                  <h4 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono flex items-center gap-1.5 shrink-0">
+                {/* Past projects — full height, the page scrolls */}
+                <div className="pt-2">
+                  <h4 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest font-mono flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-neutral-500 animate-pulse" />
                     Past Storyboard Projects
                   </h4>
                   {projectsLoading ? (
-                    <div className="flex items-center gap-2 py-6 justify-center text-xs text-neutral-500 font-mono uppercase tracking-wider">
+                    <div className="flex items-center gap-2 py-8 justify-center text-xs text-neutral-500 font-mono uppercase tracking-wider">
                       <RefreshCw size={12} className="animate-spin" /> Loading Projects...
                     </div>
                   ) : projects.length === 0 ? (
-                    <div className="mt-3 rounded-xl border border-dashed border-white/5 bg-[#0c152d]/20 py-6 px-4 text-center">
+                    <div className="mt-4 rounded-xl border border-dashed border-white/5 bg-[#0c152d]/20 py-8 px-4 text-center">
                       <Clapperboard size={18} className="text-neutral-600 mx-auto mb-1.5" />
                       <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono">No past projects yet</p>
                     </div>
                   ) : (
-                    <div className="mt-3 grid gap-2.5 grid-cols-2 sm:grid-cols-3 max-h-[30dvh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+                    <div className="mt-4 grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3">
                       {projects.map((proj) => {
                         const clipUrl =
                           proj.compileVideoUrl ||
@@ -198,14 +196,14 @@ export default function StoryboardWizard() {
                             className="group relative aspect-video overflow-hidden rounded-xl border border-white/5 bg-[#0c152d] cursor-pointer transition-all duration-300 hover:border-blue-500/60 shadow-lg"
                           >
                             {clipUrl ? (
-                              <video
+                              <HoverPreviewVideo
                                 src={clipUrl}
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                preload="metadata"
                                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                                fallback={
+                                  <div className="media-fallback absolute inset-0 flex items-center justify-center">
+                                    <Clapperboard size={18} className="text-neutral-600" />
+                                  </div>
+                                }
                               />
                             ) : (
                               <div className="media-fallback absolute inset-0 flex items-center justify-center">
@@ -236,8 +234,47 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 2 — DIRECT YOUR VISION */}
+            {/* STEP 2 — RUN-TIME (its own screen, nothing competing) */}
             {wizardStep === 2 && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-8 mx-auto w-full max-w-2xl">
+                <div className="text-center">
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">How long should your ad run?</h1>
+                  <p className="mt-1.5 text-xs text-neutral-500">Every scene is 10 seconds of finished video.</p>
+                </div>
+
+                <div className="grid w-full grid-cols-3 gap-3 sm:gap-4">
+                  {(
+                    [
+                      { id: "30s", title: "30s", subtitle: "3 Scenes", desc: "Sleek, rapid ad" },
+                      { id: "60s", title: "60s", subtitle: "6 Scenes", desc: "Standard campaign" },
+                      { id: "90s", title: "90s", subtitle: "9 Scenes", desc: "Longform story" },
+                    ] as { id: ProjectLength; title: string; subtitle: string; desc: string }[]
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setLength(item.id)}
+                      className={`group flex flex-col items-center rounded-2xl border px-2 py-6 sm:py-9 text-center transition-all duration-300 active:scale-[0.98] ${
+                        length === item.id
+                          ? "border-blue-500 bg-[#0c152d] text-white"
+                          : "border-white/5 bg-surface-2 hover:border-white/10 hover:bg-[#131d35]"
+                      }`}
+                    >
+                      <span className="text-[9px] sm:text-[10px] font-bold text-neutral-400 tracking-wider uppercase">{item.subtitle}</span>
+                      <span className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight group-hover:text-blue-400 transition-colors">
+                        {item.title}
+                      </span>
+                      <p className="mt-1.5 hidden sm:block text-[11px] text-neutral-400">{item.desc}</p>
+                      <span className={`mt-2.5 text-[11px] font-bold tracking-tight ${length === item.id ? "text-blue-400" : "text-neutral-500"}`}>
+                        GMD {LENGTH_PRICING_GMD[item.id].toFixed(2)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 — DIRECT YOUR VISION */}
+            {wizardStep === 3 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-2xl">
                 <h1 className="text-3xl sm:text-5xl font-black tracking-widest text-white uppercase text-center select-none drop-shadow-2xl">
                   Direct Your Vision
@@ -261,8 +298,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 3 — ORIENTATION */}
-            {wizardStep === 3 && (
+            {/* STEP 4 — ORIENTATION */}
+            {wizardStep === 4 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-2xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Pick your canvas</h1>
@@ -311,8 +348,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 4 — BRAND NAME */}
-            {wizardStep === 4 && (
+            {/* STEP 5 — BRAND NAME */}
+            {wizardStep === 5 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">What is your brand called?</h1>
@@ -333,8 +370,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 5 — PRODUCT / SERVICE */}
-            {wizardStep === 5 && (
+            {/* STEP 6 — PRODUCT / SERVICE */}
+            {wizardStep === 6 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">What are you selling?</h1>
@@ -356,8 +393,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 6 — BRAND MATERIALS */}
-            {wizardStep === 6 && (
+            {/* STEP 7 — BRAND MATERIALS */}
+            {wizardStep === 7 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Brand materials</h1>
@@ -457,7 +494,13 @@ export default function StoryboardWizard() {
               Step {wizardStep} / {STEP_COUNT}
             </span>
 
-            {wizardStep < STEP_COUNT ? (
+            {/* Step 1's call to action is the "Create new project" card
+                itself, so no duplicate Continue button competes with it. */}
+            {wizardStep === 1 ? (
+              <span className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest">
+                Pick up where you left off
+              </span>
+            ) : wizardStep < STEP_COUNT ? (
               <button
                 disabled={!canContinue}
                 onClick={goNext}

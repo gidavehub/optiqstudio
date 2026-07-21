@@ -1,8 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+// Confirms spending wallet balance on a generation.
+//
+// This used to offer a "Pay on the Spot" card form when the wallet was short.
+// That form collected card details in plain text, faked the authorization with
+// a few setTimeouts, and then simply incremented the balance — no money ever
+// moved. It has been removed. When funds are short we now send the user to the
+// real paywall, which starts on the pricing panel and steps into checkout.
+
+import React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CreditCard, X, Zap, Loader2, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { X, Zap, Wallet } from "lucide-react";
 import { doc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 
@@ -29,110 +37,20 @@ export default function ConfirmGenerationModal({
 }: ConfirmGenerationModalProps) {
   const router = useRouter();
 
-  // Local checkout states
-  const [showSpotCheckout, setShowSpotCheckout] = useState(false);
-  const [cardName, setCardName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [processingMessage, setProcessingPaymentMessage] = useState("");
-  const [paymentCompleted, setPaymentCompleted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   if (!isOpen) return null;
 
   const hasEnoughBalance = balance >= cost;
   const remainingBalance = balance - cost;
-
-  // Handle spot payment
-  const handleSpotPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cardName.trim() || !cardNumber.trim() || !cardExpiry.trim() || !cardCvv.trim()) {
-      setError("Please fill in all credit card details.");
-      return;
-    }
-
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      setError("You must be logged in to authorize payments.");
-      return;
-    }
-
-    setError(null);
-    setProcessingPayment(true);
-    setProcessingPaymentMessage("Contacting payment gateway via ModemPay...");
-
-    try {
-      // Step 1: Secure auth steps simulation
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setProcessingPaymentMessage("Authorizing card credentials...");
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      setProcessingPaymentMessage("Deducting funds and crediting wallet...");
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      // Step 2: Write Transaction record to Firestore
-      const dateString = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
-      
-      const lastFour = cardNumber.replace(/\s/g, "").slice(-4) || "4242";
-
-      await addDoc(collection(db, "transactions"), {
-        uid: currentUser.uid,
-        invoiceId,
-        date: dateString,
-        description: `Direct Studio Clip Generation (${actionLabel})`,
-        method: `ModemPay (Visa *${lastFour})`,
-        status: "Succeeded",
-        amount: `GMD ${cost.toFixed(2)}`,
-        createdAt: new Date().toISOString(),
-      });
-
-      // Step 3: Increment user balance by the cost so they can satisfy the cost deduction
-      const userRef = doc(db, "users", currentUser.uid);
-      await updateDoc(userRef, {
-        credits: increment(cost),
-      });
-
-      setPaymentCompleted(true);
-      setProcessingPayment(false);
-
-      // Brief success pause, then trigger generation
-      setTimeout(() => {
-        onConfirm();
-        onClose();
-        // Reset local states
-        setShowSpotCheckout(false);
-        setCardName("");
-        setCardNumber("");
-        setCardExpiry("");
-        setCardCvv("");
-        setPaymentCompleted(false);
-      }, 1500);
-
-    } catch (err) {
-      console.error("Payment failure:", err);
-      setError("Payment authorization failed. Please try a different card.");
-      setProcessingPayment(false);
-    }
-  };
+  const shortfall = cost - balance;
 
   const handleWalletConfirm = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
     try {
-      // Deduct from wallet balance in Firestore
       const userRef = doc(db, "users", currentUser.uid);
-      await updateDoc(userRef, {
-        credits: increment(-cost),
-      });
+      await updateDoc(userRef, { credits: increment(-cost) });
 
-      // Write a direct internal statement transaction to ledger
       const dateString = new Date().toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -160,224 +78,59 @@ export default function ConfirmGenerationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
-        onClick={processingPayment ? undefined : onClose}
-      />
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-      {/* Modal Container */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/90 p-6 shadow-2xl backdrop-blur-2xl transition-all animate-in fade-in-50 zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-          <h3 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
-            <Zap className="text-violet-400 animate-pulse" size={16} />
-            {title}
-          </h3>
+      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a1024] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+        <div className="flex items-start justify-between">
+          <h3 className="text-lg font-black tracking-tight text-white">{title}</h3>
           <button
-            onClick={processingPayment ? undefined : onClose}
-            className="rounded-full p-1 text-neutral-400 hover:bg-white/5 hover:text-white transition-colors"
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-white/5 hover:text-white"
           >
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Loading Spinner */}
-        {processingPayment && (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-            <Loader2 className="text-violet-400 animate-spin" size={32} />
-            <p className="text-xs font-semibold text-white">{processingMessage}</p>
-            <p className="text-[10px] text-neutral-500">Please do not refresh or close this tab.</p>
-          </div>
-        )}
+        <p className="mt-1 text-[13px] text-neutral-400">{description}</p>
 
-        {/* Success Screen */}
-        {paymentCompleted && (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
-            <CheckCircle2 className="text-emerald-400 animate-bounce" size={40} />
-            <p className="text-sm font-bold text-white">Payment Authorized!</p>
-            <p className="text-xs text-neutral-400">Direct Studio Clip generation starting now...</p>
-          </div>
-        )}
+        <div className="mt-6 text-center">
+          <p className="font-display text-5xl font-black leading-none tracking-tight text-white">
+            <span className="mr-1.5 align-top text-xl font-bold text-neutral-500">GMD</span>
+            {cost.toLocaleString()}
+          </p>
+          <p className="mt-2 text-[11px] text-neutral-500">
+            {hasEnoughBalance
+              ? `GMD ${remainingBalance.toLocaleString()} left after this`
+              : `GMD ${shortfall.toLocaleString()} short`}
+          </p>
+        </div>
 
-        {/* Form / Content View */}
-        {!processingPayment && !paymentCompleted && (
-          <div className="mt-4">
-            {!showSpotCheckout ? (
-              <>
-                {/* Balance chip — top right */}
-                <div className="flex justify-end">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-mono text-neutral-400">
-                    Balance
-                    <span className="font-bold text-neutral-200">GMD {balance.toFixed(2)}</span>
-                  </span>
-                </div>
-
-                {/* Generation cost — the hero */}
-                <div className="relative mt-3 overflow-hidden rounded-2xl border border-violet-500/30 bg-[#100b20] px-4 pt-6 pb-5 text-center">
-                  <p className="relative text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-violet-300/80">
-                    Generation Cost
-                  </p>
-                  <p className="relative mt-2 font-display text-6xl leading-none text-white">
-                    <span className="align-top text-2xl text-violet-300 mr-1">GMD</span>
-                    {cost.toFixed(2)}
-                  </p>
-                  <p className="relative mt-3 text-[11px] text-neutral-400">{description}</p>
-                </div>
-
-                {hasEnoughBalance ? (
-                  <p className="mt-3 text-center text-[10px] font-mono text-neutral-500">
-                    GMD {remainingBalance.toFixed(2)} left after this
-                  </p>
-                ) : (
-                  <div className="mt-3 flex items-center justify-center gap-2 rounded-lg bg-red-950/20 border border-red-900/30 px-3 py-2.5">
-                    <AlertCircle size={13} className="text-red-400 shrink-0" />
-                    <p className="text-[10px] text-red-300">
-                      GMD {(cost - balance).toFixed(2)} short — top up to continue
-                    </p>
-                  </div>
-                )}
-
-                {/* Footer Buttons */}
-                <div className="mt-6 flex gap-3">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 rounded-xl border border-white/5 bg-white/5 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition-all"
-                  >
-                    Cancel
-                  </button>
-
-                  {hasEnoughBalance ? (
-                    <button
-                      onClick={handleWalletConfirm}
-                      className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-violet-500/10"
-                    >
-                      <Zap size={12} />
-                      Pay from Wallet
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowSpotCheckout(true)}
-                      className="flex-1 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-black hover:bg-neutral-200 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-white/5"
-                    >
-                      <CreditCard size={12} />
-                      Pay on the Spot
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* ON THE SPOT CREDIT CARD SECURE CHECKOUT FORM */
-              <form onSubmit={handleSpotPayment} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Spot Checkout</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowSpotCheckout(false)}
-                    className="text-[10px] text-violet-400 hover:underline font-bold"
-                  >
-                    Back to Wallet
-                  </button>
-                </div>
-
-                <div className="rounded-xl border border-violet-500/15 bg-violet-500/5 px-3.5 py-2.5 flex items-start gap-2.5">
-                  <ShieldCheck size={14} className="text-violet-400 shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-violet-300 leading-normal">
-                    Secure checkout provided by <strong>ModemPay</strong>. Your card details are fully encrypted and will be charged exactly <strong>GMD {cost.toFixed(2)}</strong>.
-                  </p>
-                </div>
-
-                {error && (
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 flex gap-2 text-[10px] text-red-400 items-start">
-                    <AlertCircle size={12} className="shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <div className="space-y-3.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-neutral-400 uppercase">Cardholder Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={cardName}
-                      onChange={(e) => setCardName(e.target.value)}
-                      placeholder="e.g. Nyima Salaam"
-                      className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-neutral-400 uppercase">Card Number</label>
-                    <div className="relative mt-1">
-                      <input
-                        type="text"
-                        required
-                        value={cardNumber}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "").slice(0, 16);
-                          const formatted = val.replace(/(\d{4})(?=\d)/g, "$1 ");
-                          setCardNumber(formatted);
-                        }}
-                        placeholder="4242 4242 4242 4242"
-                        className="w-full rounded-xl border border-white/5 bg-[#0e0e11] pl-4.5 pr-10 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono"
-                      />
-                      <CreditCard size={14} className="absolute right-3.5 top-3 text-neutral-500" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-400 uppercase">Expiry Date</label>
-                      <input
-                        type="text"
-                        required
-                        value={cardExpiry}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                          const formatted = val.length >= 2 ? `${val.slice(0, 2)}/${val.slice(2)}` : val;
-                          setCardExpiry(formatted);
-                        }}
-                        placeholder="MM/YY"
-                        className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono text-center"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-neutral-400 uppercase">CVV</label>
-                      <input
-                        type="password"
-                        required
-                        value={cardCvv}
-                        onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                        placeholder="•••"
-                        className="mt-1 w-full rounded-xl border border-white/5 bg-[#0e0e11] px-4.5 py-2.5 text-xs text-white focus:border-violet-500/25 outline-none font-mono text-center"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowSpotCheckout(false)}
-                    className="flex-1 rounded-xl border border-white/5 bg-white/5 px-4 py-2.5 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2.5 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-violet-500/10"
-                  >
-                    <ShieldCheck size={13} />
-                    Authorize GMD {cost.toFixed(2)}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
-
+        <div className="mt-7 grid gap-2.5">
+          {hasEnoughBalance ? (
+            <button
+              onClick={handleWalletConfirm}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+            >
+              <Zap size={15} />
+              Pay from wallet
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push("/plans")}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+            >
+              <Wallet size={15} />
+              Top up wallet
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="py-2 text-[13px] font-semibold text-neutral-500 transition-colors hover:text-white"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

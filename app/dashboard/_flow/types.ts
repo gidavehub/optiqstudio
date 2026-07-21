@@ -69,9 +69,13 @@ export type ProductionMode = "manual" | "auto-merge" | null;
 export type DashboardView = "home" | "wizard" | "storyboard";
 
 /** The storyboard wizard is a full-screen, one-question-at-a-time flow:
- * 1 run-time → 2 vision prompt → 3 orientation → 4 brand name →
- * 5 product/service → 6 brand materials + generate. */
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+ * 1 projects (create new / reopen) → 2 run-time → 3 vision prompt →
+ * 4 orientation → 5 brand name → 6 product/service →
+ * 7 brand materials + generate.
+ *
+ * Step 1 exists purely so the run-time choice gets a screen of its own with
+ * nothing else competing for attention. */
+export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /** Fields that support voice dictation in the wizard. */
 export type DictationTarget = "prompt" | "brand" | "product";

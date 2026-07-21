@@ -245,7 +245,7 @@ export default function VoiceStudio() {
   };
 
   return (
-    <div className="flex h-full bg-black text-white">
+    <div className="flex h-full flex-col sm:flex-row overflow-y-auto sm:overflow-hidden bg-black text-white">
       {/* Settings Panel & WorkSpace configuration */}
       <VoiceSettingsRail
         engine={engine}
@@ -263,7 +263,7 @@ export default function VoiceStudio() {
 
       {/* Creative workspace viewport */}
       <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 pt-24">
+        <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6 md:p-8 pt-6 sm:pt-24">
           {/* Header section */}
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
             <div>

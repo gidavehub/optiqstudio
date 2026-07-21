@@ -27,6 +27,7 @@ import {
 } from "../../../../lib/editor";
 import { useEditorFlow } from "../../_flow/EditorFlowProvider";
 import { useAuth } from "../../../../components/AuthProvider";
+import useIsMobile from "../../_shared/useIsMobile";
 import PreviewStage from "./PreviewStage";
 import TimelinePanel from "./TimelinePanel";
 import MediaBin from "./MediaBin";
@@ -40,9 +41,14 @@ interface EditorStudioProps {
 
 const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+// A render that hasn't reported back within the function's own ceiling is
+// treated as abandoned, so Export can never stay disabled forever.
+const RENDER_STALE_MS = 12 * 60 * 1000;
+
 export default function EditorStudio({ project }: EditorStudioProps) {
   const { setProductionMode, goHome } = useEditorFlow();
   const { apiFetch } = useAuth();
+  const isMobile = useIsMobile();
 
   // ── Engine session (one per project id) ────────────────────────────────
   const session = useMemo(() => {
@@ -196,12 +202,28 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   // 540s function timeout hit) would otherwise leave renderV2Status on
   // "rendering" forever — which disables Export permanently, with no way out.
   // Past the function's own ceiling we treat it as abandoned and allow a retry.
-  const RENDER_STALE_MS = 12 * 60 * 1000;
   const renderStartedAt = project?.renderV2StartedAt ? Date.parse(project.renderV2StartedAt) : NaN;
+
+  // The clock is read on a timer, never during render (reading it while
+  // rendering is impure, and a plain expression would only re-evaluate when
+  // something else happened to re-render). Ticking state means the button
+  // frees itself while the user is sitting there watching it.
+  const [nowTs, setNowTs] = useState(0);
+  useEffect(() => {
+    const tick = () => setNowTs(Date.now());
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 30_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+
   const renderStalled =
     renderStatus === "rendering" &&
     Number.isFinite(renderStartedAt) &&
-    Date.now() - renderStartedAt > RENDER_STALE_MS;
+    nowTs > 0 &&
+    nowTs - renderStartedAt > RENDER_STALE_MS;
 
   const handleExport = async () => {
     if (exporting) return;
@@ -237,7 +259,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           </button>
 
           {/* Optiq Studio brand (the floating pills are hidden in this editor) */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
               <circle cx="16" cy="16" r="16" fill="white" />
               <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
@@ -247,13 +269,13 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             </span>
           </div>
 
-          <span className="h-4 w-px bg-white/10 shrink-0" />
+          <span className="hidden sm:block h-4 w-px bg-white/10 shrink-0" />
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Film size={13} className="text-blue-400 shrink-0" />
-              <h1 className="text-xs font-bold text-white truncate max-w-[260px]">{project?.title || "Untitled Film"}</h1>
-              <span className="rounded bg-[#0c152d] border border-blue-500/40 px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider text-blue-400 shrink-0">
+              <h1 className="text-xs font-bold text-white truncate max-w-[110px] sm:max-w-[260px]">{project?.title || "Untitled Film"}</h1>
+              <span className="hidden sm:inline rounded bg-[#0c152d] border border-blue-500/40 px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider text-blue-400 shrink-0">
                 Timeline Editor
               </span>
             </div>
@@ -261,14 +283,15 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-[9px] font-mono uppercase tracking-wider ${autosaver.isDirty ? "text-yellow-400" : "text-neutral-600"}`}>
+          <span className={`hidden sm:inline text-[9px] font-mono uppercase tracking-wider ${autosaver.isDirty ? "text-yellow-400" : "text-neutral-600"}`}>
             {autosaver.isDirty ? "● Saving…" : "● Saved"}
           </span>
           <button
             onClick={() => setProductionMode("manual")}
-            className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-3 py-1.5 text-[11px] font-semibold hover:bg-white/10 hover:text-blue-400 transition-colors"
+            aria-label="Script editor"
+            className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-white/10 hover:text-blue-400 active:scale-95 transition-all"
           >
-            <Edit3 size={11} /> Script Editor
+            <Edit3 size={11} /> <span className="hidden sm:inline">Script Editor</span>
           </button>
           {renderStatus === "succeeded" && renderUrl ? (
             <a
@@ -306,51 +329,66 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         </div>
       )}
 
-      {/* ── MAIN ROW: MEDIA BIN | PREVIEW | PROPERTIES ─────────────────── */}
-      <div className="flex min-h-0 flex-1">
-        <MediaBin project={project} engine={engine} doc={doc} playhead={playhead} width={binW} />
+      {/* ── MAIN ROW ─────────────────────────────────────────────────────
+          Desktop: bin | preview | properties, all resizable.
+          Mobile: just the preview — the bin becomes a filmstrip under it and
+          properties becomes a sheet that rises when a clip is selected. */}
+      {isMobile ? (
+        <>
+          <div className="flex min-h-0 flex-1 flex-col bg-black/60">
+            <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
+          </div>
+          <MediaBin project={project} engine={engine} doc={doc} playhead={playhead} width={binW} variant="strip" />
+        </>
+      ) : (
+        <>
+          <div className="flex min-h-0 flex-1">
+            <MediaBin project={project} engine={engine} doc={doc} playhead={playhead} width={binW} />
 
-        {/* Bin ↔ preview divider */}
-        <div
-          onPointerDown={(e) => startResize(e, "bin")}
-          className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
-        >
-          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
-        </div>
+            {/* Bin ↔ preview divider */}
+            <div
+              onPointerDown={(e) => startResize(e, "bin")}
+              className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
+            >
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+            </div>
 
-        <div className="flex min-w-0 flex-1 flex-col bg-black/60">
-          <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
-        </div>
+            <div className="flex min-w-0 flex-1 flex-col bg-black/60">
+              <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
+            </div>
 
-        {/* Preview ↔ properties divider */}
-        <div
-          onPointerDown={(e) => startResize(e, "props")}
-          className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
-        >
-          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
-        </div>
+            {/* Preview ↔ properties divider */}
+            <div
+              onPointerDown={(e) => startResize(e, "props")}
+              className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
+            >
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+            </div>
 
-        <PropertiesPanel
-          engine={engine}
-          doc={doc}
-          selectedClipId={selectedClipId}
-          onDeselect={() => setSelectedClipId(null)}
-          playhead={playhead}
-          width={propsW}
-        />
-      </div>
+            <PropertiesPanel
+              engine={engine}
+              doc={doc}
+              selectedClipId={selectedClipId}
+              onDeselect={() => setSelectedClipId(null)}
+              playhead={playhead}
+              width={propsW}
+            />
+          </div>
 
-      {/* Main row ↔ timeline divider */}
-      <div
-        onPointerDown={(e) => startResize(e, "timeline")}
-        className="group relative z-10 -my-[3px] h-[7px] shrink-0 cursor-row-resize"
-      >
-        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
-      </div>
+          {/* Main row ↔ timeline divider */}
+          <div
+            onPointerDown={(e) => startResize(e, "timeline")}
+            className="group relative z-10 -my-[3px] h-[7px] shrink-0 cursor-row-resize"
+          >
+            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+          </div>
+        </>
+      )}
 
-      {/* ── TIMELINE TOOLBAR ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-t border-white/5 bg-[#0a0f1d] px-3 py-1.5 shrink-0">
-        <div className="flex items-center gap-1">
+      {/* ── TIMELINE TOOLBAR ──────────────────────────────────────────────
+          Scrolls sideways on narrow screens rather than wrapping or clipping. */}
+      <div className="flex items-center justify-between gap-2 overflow-x-auto border-t border-white/5 bg-[#0a0f1d] px-3 py-1.5 shrink-0 scrollbar-none">
+        <div className="flex items-center gap-1 shrink-0">
           <ToolButton title="Undo (Ctrl+Z)" disabled={!engine.canUndo()} onClick={() => engine.undo()}>
             <Undo2 size={13} />
           </ToolButton>
@@ -419,12 +457,42 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         doc={doc}
         pps={pps}
         playhead={playhead}
-        height={timelineH}
+        height={isMobile ? Math.min(timelineH, 200) : timelineH}
         tool={tool}
         selectedClipId={selectedClipId}
         onSelect={setSelectedClipId}
         onSeek={(t) => playerRef.current?.seek(t)}
       />
+
+      {/* ── MOBILE: CONTEXTUAL PROPERTIES SHEET ─────────────────────────
+          Rises only when a clip is selected, and only on phones. Nothing is
+          parked on screen waiting to be opened — no drawer, no tab bar. */}
+      {isMobile && selectedClipId && (
+        <div className="fixed inset-x-0 bottom-0 z-50 animate-slideUp">
+          <div className="max-h-[55dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0f1d]/95 backdrop-blur-xl shadow-[0_-20px_60px_rgba(0,0,0,0.8)] pb-[env(safe-area-inset-bottom)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#0a0f1d]/95 px-4 py-2.5">
+              <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-neutral-400">
+                Clip Settings
+              </span>
+              <button
+                onClick={() => setSelectedClipId(null)}
+                className="rounded-lg bg-white/5 px-3 py-1 text-[11px] font-bold text-neutral-300 active:scale-95 transition-transform"
+              >
+                Done
+              </button>
+            </div>
+            <PropertiesPanel
+              engine={engine}
+              doc={doc}
+              selectedClipId={selectedClipId}
+              onDeselect={() => setSelectedClipId(null)}
+              playhead={playhead}
+              width={0}
+              variant="sheet"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,18 +19,31 @@ interface PropertiesPanelProps {
   onDeselect: () => void;
   playhead: number;
   width: number;
+  /** Inside the mobile sheet: fill the sheet instead of a fixed side column. */
+  variant?: "panel" | "sheet";
 }
 
-export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselect, playhead, width }: PropertiesPanelProps) {
+export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselect, playhead, width, variant = "panel" }: PropertiesPanelProps) {
   const loc = selectedClipId ? engine.findClip(selectedClipId) : null;
+  const isSheet = variant === "sheet";
 
   return (
-    <aside style={{ width }} className="flex shrink-0 flex-col border-l border-white/5 bg-[#0a0f1d]/80">
-      <div className="border-b border-white/5 px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
-          <SlidersHorizontal size={10} /> Clip Properties
-        </span>
-      </div>
+    <aside
+      style={isSheet ? undefined : { width }}
+      className={
+        isSheet
+          ? "flex w-full flex-col bg-transparent"
+          : "flex shrink-0 flex-col border-l border-white/5 bg-[#0a0f1d]/80"
+      }
+    >
+      {/* The sheet supplies its own header, so skip the panel one */}
+      {!isSheet && (
+        <div className="border-b border-white/5 px-3 py-2">
+          <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+            <SlidersHorizontal size={10} /> Clip Properties
+          </span>
+        </div>
+      )}
 
       {!loc ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">

@@ -1,40 +1,14 @@
-﻿"use client";
- 
+"use client";
+
+// Wallet & billing. Optiq is pay-as-you-go: there are no subscriptions, so this
+// page is about one thing — the GMD balance, what it gets spent on, and topping
+// it up. Rates shown here are read from the same numbers the functions charge.
+
 import React, { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Check, Loader2, Zap, CreditCard, Receipt, ShieldCheck } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Loader2, Receipt, Wallet, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
- 
-const PLAN_FEATURES_MAP: Record<string, string[]> = {
-  "pro-monthly": [
-    "GMD 1,000.00 wallet credit every month",
-    "Gemini Omni Flash video generation",
-    "Flat rate of GMD 100.00 per direct generation",
-    "Character consistency tools",
-    "Voice Studio with all profiles",
-    "Standard rendering queue",
-  ],
-  "studio-monthly": [
-    "GMD 2,500.00 wallet credit every month",
-    "Gemini Omni Flash video generation",
-    "Flat rate of GMD 100.00 per direct generation",
-    "Character consistency tools",
-    "Voice Studio with all profiles",
-    "2x faster priority queue",
-    "Dedicated rendering slots",
-  ],
-  "enterprise-monthly": [
-    "GMD 4,500.00 wallet credit every month",
-    "Gemini Omni Flash video generation",
-    "Flat rate of GMD 100.00 per direct generation",
-    "Character consistency tools",
-    "Voice Studio with all profiles",
-    "Ultra-priority VIP queue",
-    "Dedicated cloud resources",
-    "Direct technical support",
-  ],
-};
- 
+
 interface Transaction {
   id: string;
   date: string;
@@ -45,12 +19,27 @@ interface Transaction {
   amount: string;
 }
 
+/** All-in ad costs: storyboard spec + every scene rendered at 15 GMD/second. */
+const AD_RATES = [
+  { label: "30-second ad", detail: "3 scenes", spec: 450, render: 450, total: 900 },
+  { label: "60-second ad", detail: "6 scenes", spec: 900, render: 900, total: 1800 },
+  { label: "90-second ad", detail: "9 scenes", spec: 1350, render: 1350, total: 2700 },
+];
+
+/** Direct Studio rates, mirrored from the functions pricing table. */
+const ASSET_RATES = [
+  { label: "Video", detail: "per second", price: "GMD 15" },
+  { label: "Video", detail: "10-second clip", price: "GMD 150" },
+  { label: "Image", detail: "per generation", price: "GMD 50" },
+  { label: "Voice", detail: "per 100 characters", price: "GMD 10" },
+  { label: "Character sheet", detail: "per set", price: "GMD 150" },
+];
+
 function BillingInner() {
-  const { profile, pricing, apiFetch, refreshProfile } = useAuth();
+  const { profile, apiFetch, refreshProfile } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const status = searchParams.get("status");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txLoading, setTxLoading] = useState(true);
@@ -68,13 +57,10 @@ function BillingInner() {
   }, [apiFetch]);
 
   useEffect(() => {
-    if (profile) {
-      loadTransactions();
-    }
+    if (profile) loadTransactions();
   }, [profile, loadTransactions]);
- 
-  // After returning from ModemPay checkout, the webhook may land a moment
-  // later — refresh a few times so the new balance shows up.
+
+  // The webhook may land a moment after we return from checkout.
   useEffect(() => {
     if (status === "success") {
       const timers = [0, 3000, 8000, 15000].map((ms) =>
@@ -86,66 +72,26 @@ function BillingInner() {
       return () => timers.forEach(clearTimeout);
     }
   }, [status, refreshProfile, loadTransactions]);
- 
-  const checkout = async (kind: "subscription" | "credits", id?: string) => {
-    setBusyId(id ?? "subscription");
-    setError(null);
-    try {
-      const data = await apiFetch<{ paymentLink: string }>("/api/payments/checkout", {
-        method: "POST",
-        body: JSON.stringify({
-          kind,
-          packId: kind === "credits" ? id : undefined,
-          planId: kind === "subscription" ? id : undefined,
-        }),
-      });
-      window.location.href = data.paymentLink;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed");
-      setBusyId(null);
-    }
-  };
-  const isSubscribed = profile?.planStatus === "active";
 
-  const convertTxAmount = (amount: string) => {
-    const clean = amount.replace(/[^0-9.]/g, "");
-    const num = parseFloat(clean);
-    if (!isNaN(num)) {
-      if (num === 100) return "GMD 7,000.00";
-      if (num === 50) return "GMD 3,500.00";
-      if (num === 12 || num === 15) return "GMD 1,000.00";
-      if (num === 1000) return "GMD 7,000.00";
-      if (num === 500) return "GMD 3,500.00";
-      if (num === 10000) return "GMD 7,000.00";
-      return `GMD ${(num * 70).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-    return amount.replace("$", "GMD ");
-  };
-
-  const gmdPacks = [
-    { id: "pack-1000", credits: 1000, priceGmd: 1000, label: "Starter Top-up (GMD 1,000)" },
-    { id: "pack-5000", credits: 3500, priceGmd: 3500, label: "Creator Top-up (GMD 3,500)" },
-    { id: "pack-12000", credits: 7000, priceGmd: 7000, label: "Studio Top-up (GMD 7,000)" },
-  ];
+  const balance = profile?.credits ?? 0;
 
   return (
     <div className="h-full overflow-y-auto bg-black text-white">
-      <div className="mx-auto max-w-5xl px-8 py-10">
-        
-        {/* Header Title */}
+      {/* pt-24 clears the fixed FloatingChrome pills (logo + account) */}
+      <div className="mx-auto max-w-4xl px-5 pb-16 pt-24 sm:px-8">
         <div className="flex items-center gap-3">
-          <CreditCard className="text-neutral-400" size={24} />
+          <Wallet className="text-neutral-400" size={22} />
           <div>
-            <h1 className="text-[24px] font-bold tracking-tight">Plans & Wallet</h1>
-            <p className="mt-1 text-xs text-neutral-500">
-              Your wallet balance powers every generation. Top up with Gambian Dalasis (GMD) to fund your creative campaign pipeline.
+            <h1 className="text-[22px] font-bold tracking-tight sm:text-[24px]">Wallet</h1>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              Pay only for what you make. No subscription, and your balance never expires.
             </p>
           </div>
         </div>
 
         {status === "success" && (
           <div className="mt-6 rounded-xl border border-emerald-950 bg-emerald-950/30 px-4 py-3.5 text-xs text-emerald-300">
-            Payment received — your balance will appear in your wallet within a few seconds of confirmation.
+            Payment received — your balance updates within a few seconds of confirmation.
           </div>
         )}
         {status === "cancelled" && (
@@ -153,179 +99,128 @@ function BillingInner() {
             Checkout cancelled. No charge was made.
           </div>
         )}
-        {error && (
-          <div className="mt-6 rounded-xl border border-red-950 bg-red-950/30 px-4 py-3.5 text-xs text-red-300">
-            {error}
-          </div>
-        )}
+        {/* ── BALANCE + TOP UP ──────────────────────────────────────────── */}
+        <div className="mt-8 rounded-2xl border border-white/5 bg-surface p-6">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+            Current balance
+          </p>
+          <p className="mt-2 font-display text-4xl font-extrabold tracking-tight tabular-nums text-white sm:text-5xl">
+            <span className="mr-1.5 align-top text-lg font-bold text-neutral-500">GMD</span>
+            {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
 
-        {/* Balance Status Container */}
-        <div className="mt-8 flex items-center justify-between rounded-xl border border-neutral-900 bg-surface px-6 py-5 shadow-inner">
-          <div>
-            <p className="text-[10px] font-bold font-mono text-neutral-500 uppercase tracking-widest">
-              CURRENT WALLET BALANCE
-            </p>
-            <p className="mt-2 text-3xl font-extrabold tracking-tight tabular-nums text-white">
-              GMD {profile ? profile.credits.toLocaleString() : "—"}
-              <span className="ml-2 text-xs font-normal font-mono text-neutral-500 uppercase tracking-wider">
-                GMD Balance
-              </span>
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold font-mono text-neutral-500 uppercase tracking-widest">
-              ACTIVE ACCOUNT PLAN
-            </p>
-            <p className="mt-2 text-sm font-semibold text-neutral-200">
-              Optiq Studio Production Workspace
-            </p>
-          </div>
+          {/* Topping up lives in one place — the paywall — so there is a single
+              amount entry and a single checkout path to maintain. */}
+          <button
+            onClick={() => router.push("/plans?topup=1")}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.99]"
+          >
+            <Wallet size={16} />
+            Top up wallet
+          </button>
+
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-neutral-500">
+            <ShieldCheck size={11} /> Card or mobile money, secured by ModemPay
+          </p>
         </div>
 
-        {/* Platform Production Rates Section */}
-        <div className="mt-10">
-          <p className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest mb-4">
-            Platform Production Rates & Pricing (GMD)
-          </p>
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Cinematic Production Videos Card */}
-            <div className="rounded-2xl border border-white/5 bg-surface/60 p-6 flex flex-col justify-between">
-              <div>
-                <span className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[8px] font-bold font-mono text-neutral-300 uppercase tracking-widest">
-                  Cinematic Ads
-                </span>
-                <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">Multi-Scene Director Specs</h3>
-                <p className="mt-1 text-[10px] text-neutral-500">Fully synthesized multi-scene advertising campaigns matching your exact brand accents and actors.</p>
-                
-                <div className="mt-6 space-y-3 font-sans">
-                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
-                    <span className="text-xs text-neutral-300">30-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 450.00</span>
+        {/* ── WHAT THINGS COST ──────────────────────────────────────────── */}
+        <div className="mt-10 grid gap-5 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white">Complete ads</h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+              Each ad is charged twice: once for the storyboard script, then per scene as it renders.
+            </p>
+            <div className="mt-4 space-y-2.5">
+              {AD_RATES.map((r) => (
+                <div key={r.label} className="border-b border-white/[0.04] pb-2.5 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-neutral-200">{r.label}</span>
+                    <span className="font-mono text-xs font-bold text-white">
+                      GMD {r.total.toLocaleString()}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
-                    <span className="text-xs text-neutral-300">60-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 900.00</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs text-neutral-300">90-Second Commercial Spec</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 1,350.00</span>
-                  </div>
+                  <span className="text-[10px] text-neutral-500">
+                    {r.detail} · {r.spec.toLocaleString()} script + {r.render.toLocaleString()} render
+                  </span>
                 </div>
-              </div>
-            </div>
-
-            {/* Individual Assets Card */}
-            <div className="rounded-2xl border border-white/5 bg-surface/60 p-6 flex flex-col justify-between">
-              <div>
-                <span className="rounded bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[8px] font-bold font-mono text-neutral-300 uppercase tracking-widest">
-                  Individual Assets
-                </span>
-                <h3 className="mt-3 text-sm font-bold text-white uppercase tracking-wider">A-La-Carte Syntheses</h3>
-                <p className="mt-1 text-[10px] text-neutral-500">Direct studio asset generation rates. Charged per single generation request from your wallet balance.</p>
-                
-                <div className="mt-6 space-y-3 font-sans">
-                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
-                    <span className="text-xs text-neutral-300">6-Second Premium B-Roll Clip</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 300.00</span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
-                    <span className="text-xs text-neutral-300">10-Second Premium B-Roll Clip</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 500.00</span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-white/[0.02] pb-2">
-                    <span className="text-xs text-neutral-300">Brand Style Logo / Creative AI Image</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 50.00</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs text-neutral-300">Custom Audio track / Voiceover Synthesis</span>
-                    <span className="text-xs font-mono font-bold text-white">GMD 100.00</span>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Credit Packs Section */}
-        <div className="mt-12">
-          <p className="text-[10px] font-bold font-mono text-neutral-400 uppercase tracking-widest mb-4">
-            Top up wallet balance
-          </p>
-          <div className="grid gap-4 md:grid-cols-3">
-            {gmdPacks.map((pack) => (
-              <div
-                key={pack.id}
-                className="flex flex-col justify-between rounded-xl border border-neutral-900 bg-surface/60 p-4 hover:border-neutral-800 transition-colors"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-white">GMD {pack.priceGmd.toLocaleString()}.00</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5">{pack.label}</p>
-                </div>
-                <button
-                  onClick={() => void checkout("credits", pack.id)}
-                  disabled={busyId !== null}
-                  className="mt-4 flex items-center justify-center rounded-full border border-neutral-800 bg-black hover:bg-neutral-900 px-4 py-2 text-xs font-semibold hover:border-neutral-700 transition-colors disabled:opacity-50 w-full"
+          <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white">Direct Studio</h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+              Single assets generated on demand, charged per request.
+            </p>
+            <div className="mt-4 space-y-2.5">
+              {ASSET_RATES.map((r) => (
+                <div
+                  key={`${r.label}-${r.detail}`}
+                  className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
                 >
-                  {busyId === pack.id ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    `Purchase Pack`
-                  )}
-                </button>
-              </div>
-            ))}
+                  <span className="text-xs text-neutral-200">
+                    {r.label}
+                    <span className="ml-1.5 text-[10px] text-neutral-500">{r.detail}</span>
+                  </span>
+                  <span className="font-mono text-xs font-bold text-white">{r.price}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="mt-3 text-[10px] leading-relaxed text-neutral-500 font-sans">
-            Payments are processed securely by ModemPay. Balance is added to your wallet immediately once confirmed.
-          </p>
         </div>
 
-        {/* ── TRANSACTION LEDGER / PAYMENT HISTORY (DYNAMICALLY READ FROM FIRESTORE DATABASE) ── */}
-        <div className="mt-12 border-t border-neutral-900 pt-10">
-          <div className="flex items-center gap-2 mb-4">
-            <Receipt className="text-neutral-400" size={16} />
-            <h3 className="text-xs font-bold font-mono text-neutral-400 uppercase tracking-widest">
-              Payment History & Receipts
+        {/* ── HISTORY ───────────────────────────────────────────────────── */}
+        <div className="mt-12 border-t border-white/5 pt-10">
+          <div className="mb-4 flex items-center gap-2">
+            <Receipt className="text-neutral-400" size={15} />
+            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-neutral-400">
+              Payment history
             </h3>
           </div>
-          
+
           {txLoading ? (
-            <div className="flex items-center justify-center p-6 text-neutral-500 text-xs font-mono uppercase tracking-wider gap-2">
+            <div className="flex items-center justify-center gap-2 p-6 font-mono text-xs uppercase tracking-wider text-neutral-500">
               <Loader2 className="animate-spin text-neutral-400" size={14} />
-              Retrieving transaction ledger...
+              Loading…
             </div>
           ) : transactions.length > 0 ? (
-            <div className="rounded-xl border border-neutral-900 bg-surface/60 overflow-hidden shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-white/5 bg-surface/60">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-neutral-900 bg-background text-neutral-500 font-mono text-[9px] uppercase tracking-wider">
-                      <th className="py-3 px-4 font-semibold">Date</th>
-                      <th className="py-3 px-4 font-semibold">Description</th>
-                      <th className="py-3 px-4 font-semibold">Invoice ID</th>
-                      <th className="py-3 px-4 font-semibold">Method</th>
-                      <th className="py-3 px-4 font-semibold">Status</th>
-                      <th className="py-3 px-4 font-semibold text-right">Amount</th>
+                    <tr className="border-b border-white/5 bg-background font-mono text-[9px] uppercase tracking-wider text-neutral-500">
+                      <th className="px-4 py-3 font-semibold">Date</th>
+                      <th className="px-4 py-3 font-semibold">Description</th>
+                      <th className="hidden px-4 py-3 font-semibold sm:table-cell">Method</th>
+                      <th className="hidden px-4 py-3 font-semibold sm:table-cell">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-900/60 font-sans text-neutral-300">
+                  <tbody className="divide-y divide-white/[0.04] text-neutral-300">
                     {transactions.map((tx) => (
-                      <tr key={tx.id || tx.invoiceId} className="hover:bg-neutral-900/20 transition-colors">
-                        <td className="py-3 px-4 font-mono text-neutral-400">{tx.date}</td>
-                        <td className="py-3 px-4 font-medium text-neutral-200">{tx.description}</td>
-                        <td className="py-3 px-4 font-mono text-neutral-500">{tx.invoiceId}</td>
-                        <td className="py-3 px-4 text-neutral-400">{tx.method}</td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase font-mono ${
-                            tx.status?.toLowerCase() === "succeeded"
-                              ? "bg-emerald-950/40 border border-emerald-900 text-emerald-400"
-                              : "bg-neutral-950 border border-neutral-800 text-neutral-400"
-                          }`}>
+                      <tr key={tx.id || tx.invoiceId} className="transition-colors hover:bg-white/[0.02]">
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-neutral-400">{tx.date}</td>
+                        <td className="px-4 py-3 font-medium text-neutral-200">{tx.description}</td>
+                        <td className="hidden px-4 py-3 text-neutral-400 sm:table-cell">{tx.method}</td>
+                        <td className="hidden px-4 py-3 sm:table-cell">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[9px] font-bold uppercase ${
+                              tx.status?.toLowerCase() === "succeeded"
+                                ? "border border-emerald-900 bg-emerald-950/40 text-emerald-400"
+                                : "border border-neutral-800 bg-neutral-950 text-neutral-400"
+                            }`}
+                          >
                             {tx.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-white">
-                          {convertTxAmount(tx.amount)}
+                        {/* Amounts are already GMD — shown exactly as recorded */}
+                        <td
+                          className={`whitespace-nowrap px-4 py-3 text-right font-mono font-bold ${
+                            tx.amount?.trim().startsWith("-") ? "text-neutral-400" : "text-emerald-400"
+                          }`}
+                        >
+                          {tx.amount}
                         </td>
                       </tr>
                     ))}
@@ -334,17 +229,22 @@ function BillingInner() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-neutral-900 bg-background p-6 text-center text-neutral-500 text-xs font-mono uppercase tracking-wider">
-              No transactions found on this account yet. Top up your wallet or subscribe above to see receipts.
+            <div className="rounded-xl border border-white/5 bg-background p-8 text-center">
+              <p className="font-mono text-xs uppercase tracking-wider text-neutral-500">No transactions yet</p>
+              <button
+                onClick={() => router.push("/plans")}
+                className="mt-3 text-xs font-bold text-blue-400 hover:underline"
+              >
+                See what things cost
+              </button>
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
 }
- 
+
 export default function BillingPage() {
   return (
     <Suspense>

@@ -31,6 +31,8 @@ interface MediaBinProps {
   doc: EditorDoc;
   playhead: number;
   width: number;
+  /** "panel" = desktop side column; "strip" = mobile horizontal filmstrip. */
+  variant?: "panel" | "strip";
 }
 
 function fileKind(file: File): MediaPayload["kind"] | null {
@@ -74,7 +76,7 @@ function probeFile(file: File, kind: MediaPayload["kind"]): Promise<Partial<Medi
   });
 }
 
-export default function MediaBin({ project, engine, doc, playhead, width }: MediaBinProps) {
+export default function MediaBin({ project, engine, doc, playhead, width, variant = "panel" }: MediaBinProps) {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -167,6 +169,78 @@ export default function MediaBin({ project, engine, doc, playhead, width }: Medi
     },
     onDragEnd: () => setActiveDragPayload(null),
   });
+
+  // Phones get the same bin as a short horizontal filmstrip under the preview
+  // (the CapCut arrangement) instead of a side column — same data, same
+  // add-at-playhead behaviour, just laid out for a thumb.
+  if (variant === "strip") {
+    return (
+      <div className="flex shrink-0 flex-col border-t border-white/5 bg-[#0a0f1d]/80">
+        <div className="flex items-center justify-between px-3 pt-2">
+          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+            Media
+          </span>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1 rounded-md bg-blue-600/20 border border-blue-500/30 px-2 py-1 text-[9px] font-bold text-blue-400 active:scale-95 transition-transform"
+          >
+            <Upload size={9} /> Import
+          </button>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto px-3 py-2 scrollbar-none">
+          {sceneClips.length === 0 && visualMedia.length === 0 ? (
+            <p className="w-full rounded-lg border border-dashed border-white/10 py-3 text-center text-[9px] text-neutral-600">
+              No media yet — tap Import
+            </p>
+          ) : (
+            [
+              ...sceneClips.map((c) => ({ kind: "video" as const, url: c.url, label: c.label, duration: 10 })),
+              ...visualMedia.map((m) => ({
+                kind: m.kind as "video" | "image",
+                url: m.url,
+                label: m.label,
+                duration: m.duration,
+              })),
+            ].map((item) => (
+              <button
+                key={`${item.label}-${item.url}`}
+                onClick={() => void addToTimeline(item as MediaPayload)}
+                title={`Add ${item.label} at playhead`}
+                className="relative aspect-video h-14 shrink-0 overflow-hidden rounded-lg border border-white/5 bg-[#0c152d] active:scale-95 active:border-blue-500/60 transition-all"
+              >
+                {item.kind === "image" ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={item.url} alt={item.label} className="h-full w-full object-cover opacity-80" />
+                ) : (
+                  <video src={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover opacity-80" />
+                )}
+                <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[7px] font-bold font-mono uppercase text-white">
+                  {item.label}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+
+        {uploads.map((u) => (
+          <div key={u.name} className="mx-3 mb-2 h-0.5 overflow-hidden rounded-full bg-white/5">
+            <div className="h-full bg-blue-500 transition-all" style={{ width: `${u.pct}%` }} />
+          </div>
+        ))}
+
+        <ImportMediaModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          user={user}
+          projectId={project?.id ?? null}
+          existingUrls={library.map((m) => m.url)}
+          onUploadFiles={(files) => void uploadFiles(files)}
+          uploads={uploads}
+        />
+      </div>
+    );
+  }
 
   return (
     <aside

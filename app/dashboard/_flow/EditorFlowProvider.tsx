@@ -62,15 +62,6 @@ interface EditorFlowValue {
   setCurrentScenePlayIdx: React.Dispatch<React.SetStateAction<number>>;
 
   // Spot checkout card fields
-  ccName: string; setCcName: (v: string) => void;
-  ccNumber: string; setCcNumber: (v: string) => void;
-  ccExpiry: string; setCcExpiry: (v: string) => void;
-  ccCvv: string; setCcCvv: (v: string) => void;
-  ccError: string | null; setCcError: (v: string | null) => void;
-  ccPaying: boolean; setCcPaying: (v: boolean) => void;
-  ccPayMessage: string; setCcPayMessage: (v: string) => void;
-  ccCompleted: boolean; setCcCompleted: (v: boolean) => void;
-  ccSpotCheckout: boolean; setCcSpotCheckout: (v: boolean) => void;
 
   // Projects
   projects: any[];
@@ -168,15 +159,6 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [productionMode, setProductionMode] = useState<ProductionMode>(null);
   const [theaterPlaying, setTheaterPlaying] = useState(false);
   const [currentScenePlayIdx, setCurrentScenePlayIdx] = useState(0);
-  const [ccName, setCcName] = useState("");
-  const [ccNumber, setCcNumber] = useState("");
-  const [ccExpiry, setCcExpiry] = useState("");
-  const [ccCvv, setCcCvv] = useState("");
-  const [ccError, setCcError] = useState<string | null>(null);
-  const [ccPaying, setCcPaying] = useState(false);
-  const [ccPayMessage, setCcPayMessage] = useState("");
-  const [ccCompleted, setCcCompleted] = useState(false);
-  const [ccSpotCheckout, setCcSpotCheckout] = useState(false);
 
   // Projects
   const [projects, setProjects] = useState<any[]>([]);
@@ -1018,15 +1000,6 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     productionMode, setProductionMode,
     theaterPlaying, setTheaterPlaying,
     currentScenePlayIdx, setCurrentScenePlayIdx,
-    ccName, setCcName,
-    ccNumber, setCcNumber,
-    ccExpiry, setCcExpiry,
-    ccCvv, setCcCvv,
-    ccError, setCcError,
-    ccPaying, setCcPaying,
-    ccPayMessage, setCcPayMessage,
-    ccCompleted, setCcCompleted,
-    ccSpotCheckout, setCcSpotCheckout,
     projects, projectsLoading, activeProjectId,
     compileStatus, compileVideoUrl, compileError,
     timeline, setTimeline,

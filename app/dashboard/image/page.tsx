@@ -165,7 +165,7 @@ export default function ImageStudioPage() {
 
   return (
     <div className="h-full bg-black text-white overflow-y-auto">
-      <div className="px-8 py-6 flex flex-col min-h-full w-full pt-20">
+      <div className="px-4 sm:px-8 py-6 flex flex-col min-h-full w-full pt-20">
         {/* Back Button */}
         <Link
           href="/dashboard"
