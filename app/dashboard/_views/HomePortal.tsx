@@ -17,10 +17,10 @@ export default function HomePortal() {
           {/* OPTION 1: AGENTIC STORYBOARDING */}
           <button
             onClick={goCreate}
-            className="group relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/5 bg-black p-6 sm:p-10 text-center hover:border-white/10 transition-all duration-300 shadow-2xl hover:shadow-neutral-900/10 active:scale-[0.99] min-h-[260px] sm:min-h-[340px] md:min-h-[380px]"
+            className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-500/30 bg-black p-6 sm:p-10 text-center hover:border-blue-400/60 transition-all duration-300 shadow-2xl hover:shadow-neutral-900/10 active:scale-[0.99] min-h-[260px] sm:min-h-[340px] md:min-h-[380px]"
           >
             {/* Loop video cover showing cinematic ambient scene */}
-            <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl">
               <video
                 src="/media/dash-storyboard.mp4"
                 autoPlay
@@ -33,6 +33,11 @@ export default function HomePortal() {
               <div className="absolute inset-0 bg-[#0a0f1d]/55" />
             </div>
 
+            {/* Tilted tag at the top */}
+            <span className="absolute -top-2.5 left-6 z-20 -rotate-6 rounded-md bg-blue-600 border border-blue-400/30 px-2.5 py-0.5 text-[10px] font-extrabold tracking-widest text-white uppercase shadow-lg shadow-blue-500/30 select-none">
+              New
+            </span>
+
             <div className="relative z-10 flex flex-col items-center">
               <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#131d35] border border-white/10 text-neutral-300 group-hover:scale-110 transition-transform">
                 <Clapperboard size={26} />
@@ -44,14 +49,14 @@ export default function HomePortal() {
               <p className="mt-4 text-xs text-neutral-400 leading-relaxed max-w-xs">
                 Pitch your concept or script. Our Gemini AI director drafts a complete, cohesive multi-scene storyboard with custom style headers instantly.
               </p>
-              <span className="mt-8 flex items-center gap-1 text-xs font-bold text-white group-hover:translate-x-1 transition-transform">
-                Initialize Storyboard <ChevronRight size={14} />
+              <span className="mt-8 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white px-5 py-2.5 transition-all duration-300 shadow-lg shadow-blue-600/20 border border-blue-400/20 group-hover:scale-[1.03] active:scale-[0.98]">
+                Create your ad <ChevronRight size={13} />
               </span>
             </div>
           </button>
 
           {/* OPTION 2: DIRECT STUDIO GATEWAY WITH THREE SUB-BOXES */}
-          <div className="flex flex-col justify-center rounded-2xl border border-white/5 bg-surface/40 p-6 sm:p-10 hover:border-white/10 transition-all duration-300 min-h-[260px] sm:min-h-[340px] md:min-h-[380px]">
+          <div className="flex flex-col justify-center rounded-2xl border-2 border-dashed border-blue-500/30 bg-surface/40 p-6 sm:p-10 hover:border-blue-400/60 transition-all duration-300 min-h-[260px] sm:min-h-[340px] md:min-h-[380px]">
             <div className="flex flex-col items-center text-center">
               <span className="flex h-14 w-16 items-center justify-center rounded-2xl bg-[#0e1630] border border-white/10 text-neutral-400">
                 <Video size={24} />
