@@ -16,7 +16,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-const EMAIL = "virtualteacherprojectgm@gmail.com";
+const EMAIL = process.argv[2] || "virtualteacherprojectgm@gmail.com";
 
 async function main() {
   console.log(`Searching for all data associated with ${EMAIL}...`);

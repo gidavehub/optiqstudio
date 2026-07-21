@@ -12,11 +12,11 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const EMAIL = "virtualteacherprojectgm@gmail.com";
-const TARGET_CREDITS = 30000;
+const EMAIL = process.argv[2] || "virtualteacherprojectgm@gmail.com";
+const TARGET_CREDITS = process.argv[3] ? parseFloat(process.argv[3]) : 30000;
 
 async function main() {
-  console.log(`Starting credit update process for ${EMAIL}...`);
+  console.log(`Starting GMD balance update process for ${EMAIL}...`);
   try {
     let uid = null;
     let name = "Virtual Teacher";
@@ -47,24 +47,24 @@ async function main() {
     // 3. Get current Firestore document details to know current balance
     const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
-    let currentCredits = 0;
+    let currentGMD = 0;
     let exists = false;
 
     if (userSnap.exists) {
       exists = true;
       const data = userSnap.data();
-      currentCredits = data.credits || 0;
-      console.log(`Current Firestore credits for user: ${currentCredits}`);
+      currentGMD = data.credits || 0; // Note: 'credits' field is used in Firestore for GMD balance
+      console.log(`Current Firestore GMD balance for user: ${currentGMD}`);
     } else {
       console.log(`No existing Firestore document found for UID: ${uid}. Creating a new profile.`);
     }
 
-    const delta = TARGET_CREDITS - currentCredits;
-    console.log(`Updating credit balance to ${TARGET_CREDITS} (Delta: ${delta >= 0 ? '+' : ''}${delta})`);
+    const delta = TARGET_CREDITS - currentGMD;
+    console.log(`Updating GMD balance to ${TARGET_CREDITS} (Delta: ${delta >= 0 ? '+' : ''}${delta})`);
 
     // 4. Update/merge Firestore user document
     const updateData = {
-      credits: TARGET_CREDITS,
+      credits: TARGET_CREDITS, // Firestore field name remains 'credits'
       email: EMAIL,
       name: name,
     };
@@ -83,14 +83,14 @@ async function main() {
     const ledgerRef = userRef.collection("ledger");
     await ledgerRef.add({
       delta: delta,
-      reason: `Admin update: set credits to ${TARGET_CREDITS}`,
+      reason: `Admin update: set GMD balance to ${TARGET_CREDITS}`,
       at: new Date().toISOString(),
     });
 
-    console.log(`\n[SUCCESS] Successfully updated ${EMAIL} to ${TARGET_CREDITS} credits!`);
+    console.log(`\n[SUCCESS] Successfully updated ${EMAIL} to GMD ${TARGET_CREDITS}!`);
     console.log("Ledger transaction added.");
   } catch (err) {
-    console.error(`Failed to update user credits: ${err.message}`);
+    console.error(`Failed to update user GMD balance: ${err.message}`);
     process.exit(1);
   }
 }
