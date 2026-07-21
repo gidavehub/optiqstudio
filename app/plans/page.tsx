@@ -33,20 +33,19 @@ const SHOWCASE = [
 ];
 
 /**
- * All-in cost of a finished ad. Two charges make up an ad and quoting only the
- * first is what leaves people stranded halfway through:
- *   • the storyboard spec  — LENGTH_PRICING_GMD (450 / 900 / 1350)
- *   • every scene rendered — 15 GMD per second, i.e. 150 per 10s scene
- * They happen to come out equal, so the true total is exactly double the spec.
+ * One price per ad, covering everything — the storyboard AND every scene
+ * render. Paying for the spec grants the project its scene renders up front
+ * (see `prepaidRenders`), so nothing is charged again while the ad is being
+ * made. Mirrors LENGTH_PRICING_GMD.
  */
 const AD_PRICING = [
-  { length: "30s", scenes: 3, spec: 450, render: 450, total: 900 },
-  { length: "60s", scenes: 6, spec: 900, render: 900, total: 1800, popular: true },
-  { length: "90s", scenes: 9, spec: 1350, render: 1350, total: 2700 },
+  { length: "30s", scenes: 3, total: 450 },
+  { length: "60s", scenes: 6, total: 900, popular: true },
+  { length: "90s", scenes: 9, total: 1350 },
 ];
 
 /** Cheapest complete ad — used to translate a top-up into something concrete. */
-const CHEAPEST_AD = 900;
+const CHEAPEST_AD = 450;
 
 /** Everything else the wallet pays for, straight from the functions pricing. */
 const UNIT_PRICING = [
@@ -212,7 +211,7 @@ function PaywallInner() {
 
               {/* Ad pricing */}
               <p className="mt-6 text-[11px] font-bold uppercase tracking-widest text-neutral-400">
-                A finished ad, start to finish
+                One price per ad
               </p>
               <div className="mt-2.5 grid grid-cols-3 gap-2.5">
                 {AD_PRICING.map((tier) => (
@@ -236,13 +235,12 @@ function PaywallInner() {
                     >
                       GMD {tier.total.toLocaleString()}
                     </span>
-                    <span className="mt-1 text-[9px] leading-tight text-neutral-400">
-                      {tier.spec.toLocaleString()} script
-                      <br />+ {tier.render.toLocaleString()} render
-                    </span>
                   </div>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] text-neutral-400">
+                Script, cast and every scene rendered — nothing else to pay.
+              </p>
 
               {/* Unit pricing */}
               <p className="mt-6 text-[11px] font-bold uppercase tracking-widest text-neutral-400">

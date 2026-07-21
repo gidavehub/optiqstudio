@@ -938,6 +938,7 @@ exports.videoGenerate = onRequest(
         resolution = "720p",
         generateAudio = true,
         negativePrompt = null,
+        projectId = null,
       } = req.body;
 
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
@@ -945,9 +946,37 @@ exports.videoGenerate = onRequest(
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
       const pricing = await getPricing();
       const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? 15;
-      const cost = perSecCost * duration;
+      let cost = perSecCost * duration;
 
-      await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);
+      // An ad is ONE price. Paying for the storyboard buys its scene renders up
+      // front, so a storyboard project carries a `prepaidRenders` allowance and
+      // those scenes cost nothing again. The allowance is decremented inside a
+      // transaction, so a client can only ever consume what was actually paid
+      // for — extra re-renders fall through and are charged normally.
+      let usedPrepaid = false;
+      if (projectId) {
+        const projectRef = db.collection("projects").doc(projectId);
+        usedPrepaid = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(projectRef);
+          if (!snap.exists) return false;
+          const data = snap.data();
+          if (data.uid !== user.uid) return false;
+          const remaining = Number(data.prepaidRenders) || 0;
+          if (remaining <= 0) return false;
+          tx.update(projectRef, { prepaidRenders: remaining - 1 });
+          return true;
+        }).catch((err) => {
+          console.error(`prepaidRenders check failed for project ${projectId}:`, err);
+          return false;
+        });
+      }
+
+      if (usedPrepaid) {
+        cost = 0;
+        console.log(`[video] scene render covered by prepaid allowance (project ${projectId})`);
+      } else {
+        await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);
+      }
 
       const doc = db.collection("generations").doc();
       const media = await persistReferenceMedia(user.uid, doc.id, req.body);
@@ -963,6 +992,8 @@ exports.videoGenerate = onRequest(
         resolution,
         generateAudio,
         negativePrompt: negativePrompt || null,
+        // Recorded so a failed render hands the paid scene back.
+        prepaidProjectId: usedPrepaid ? projectId : null,
         ...media,
         createdAt: new Date().toISOString(),
       });
@@ -1031,6 +1062,15 @@ async function runVideoGeneration(id, ref, gen) {
     console.log(`[video ${id}] succeeded`);
   } catch (err) {
     console.error(`[video ${id}] generation failed:`, err);
+    if (gen.prepaidProjectId) {
+      // The scene was covered by the ad's prepaid allowance — give it back so a
+      // failure doesn't quietly consume something the user already paid for.
+      await db
+        .collection("projects")
+        .doc(gen.prepaidProjectId)
+        .update({ prepaidRenders: admin.firestore.FieldValue.increment(1) })
+        .catch((e) => console.error(`[video ${id}] could not restore prepaid render:`, e.message));
+    }
     await refundCredits(gen.uid, gen.cost || 0, `${label} ${id} failed`);
     await ref.update({
       status: "failed",

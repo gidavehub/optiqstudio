@@ -19,11 +19,11 @@ interface Transaction {
   amount: string;
 }
 
-/** All-in ad costs: storyboard spec + every scene rendered at 15 GMD/second. */
+/** One price per ad — the storyboard AND every scene render are included. */
 const AD_RATES = [
-  { label: "30-second ad", detail: "3 scenes", spec: 450, render: 450, total: 900 },
-  { label: "60-second ad", detail: "6 scenes", spec: 900, render: 900, total: 1800 },
-  { label: "90-second ad", detail: "9 scenes", spec: 1350, render: 1350, total: 2700 },
+  { label: "30-second ad", detail: "3 scenes", total: 450 },
+  { label: "60-second ad", detail: "6 scenes", total: 900 },
+  { label: "90-second ad", detail: "9 scenes", total: 1350 },
 ];
 
 /** Direct Studio rates, mirrored from the functions pricing table. */
@@ -129,19 +129,20 @@ function BillingInner() {
           <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">Complete ads</h3>
             <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
-              Each ad is charged twice: once for the storyboard script, then per scene as it renders.
+              One price covers the script, the cast and every scene rendered.
             </p>
             <div className="mt-4 space-y-2.5">
               {AD_RATES.map((r) => (
-                <div key={r.label} className="border-b border-white/[0.04] pb-2.5 last:border-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-200">{r.label}</span>
-                    <span className="font-mono text-xs font-bold text-white">
-                      GMD {r.total.toLocaleString()}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-neutral-500">
-                    {r.detail} · {r.spec.toLocaleString()} script + {r.render.toLocaleString()} render
+                <div
+                  key={r.label}
+                  className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
+                >
+                  <span className="text-xs text-neutral-200">
+                    {r.label}
+                    <span className="ml-1.5 text-[10px] text-neutral-500">{r.detail}</span>
+                  </span>
+                  <span className="font-mono text-xs font-bold text-white">
+                    GMD {r.total.toLocaleString()}
                   </span>
                 </div>
               ))}
@@ -151,7 +152,7 @@ function BillingInner() {
           <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">Direct Studio</h3>
             <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
-              Single assets generated on demand, charged per request.
+              Single assets generated outside an ad, charged per request.
             </p>
             <div className="mt-4 space-y-2.5">
               {ASSET_RATES.map((r) => (

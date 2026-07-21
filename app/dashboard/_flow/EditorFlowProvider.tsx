@@ -589,6 +589,9 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             aspectRatio,
             durationSeconds: 10,
             generateAudio: true,
+            // Lets the server draw this scene from the ad's prepaid allowance
+            // instead of charging again.
+            projectId: activeProjectId,
             imagePaths: refs.map((img) => ({ path: img.path, mimeType: img.mimeType })),
           }),
         });
@@ -644,7 +647,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         }));
       }
     },
-    [apiFetch, refreshProfile, aspectRatio]
+    [apiFetch, refreshProfile, aspectRatio, activeProjectId]
   );
 
   // Resume background polling with existing generation ID
@@ -767,6 +770,9 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         productionMode: productionMode || "manual",
         pipelineStage: "queued",
         pipelineError: null,
+        // An ad is one price: the spec payment covers every scene render, so
+        // the project carries an allowance the render endpoint draws down.
+        prepaidRenders: length === "30s" ? 3 : length === "60s" ? 6 : 9,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
