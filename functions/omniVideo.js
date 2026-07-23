@@ -10,6 +10,8 @@
  */
 
 const { GoogleGenAI } = require("@google/genai");
+const admin = require("firebase-admin");
+const { withSdkRetry } = require("./vertexQuota");
 
 const PROJECT_ID = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
 const MODEL = "gemini-omni-flash-preview";
@@ -59,11 +61,24 @@ function buildInput(prompt, media) {
 
 /** Generates a video and returns { base64, mimeType }. */
 async function generateOmniVideo(prompt, media) {
-  const interaction = await ai.interactions.create({
+  const db = admin.firestore();
+
+  // Creating the interaction is what consumes video quota, so it runs through
+  // the quota manager: a bucket reservation smooths us under the per-minute cap,
+  // and a bounded retry waits out a 429 window before giving up. Kept modest so
+  // the create + the polling below still fit inside the function deadline.
+  const interaction = await withSdkRetry({
+    db,
     model: MODEL,
-    input: buildInput(prompt, media),
-    background: true,
-    store: true,
+    fn: () =>
+      ai.interactions.create({
+        model: MODEL,
+        input: buildInput(prompt, media),
+        background: true,
+        store: true,
+      }),
+    maxAttempts: 3,
+    maxTotalWaitMs: 90000,
   });
   console.log(`[omni] interaction ${interaction.id} created (status: ${interaction.status})`);
 
@@ -74,7 +89,14 @@ async function generateOmniVideo(prompt, media) {
       throw new Error(`Video generation timed out after ${DEADLINE_MS / 1000}s (interaction ${interaction.id})`);
     }
     await sleep(POLL_INTERVAL_MS);
-    current = await ai.interactions.get(interaction.id);
+    // Status polls don't consume generation quota, so no bucket reservation
+    // (db omitted) — just a light retry so a blip doesn't kill an in-flight job.
+    current = await withSdkRetry({
+      model: MODEL,
+      fn: () => ai.interactions.get(interaction.id),
+      maxAttempts: 3,
+      maxTotalWaitMs: 20000,
+    });
   }
 
   if (current.status !== "completed") {

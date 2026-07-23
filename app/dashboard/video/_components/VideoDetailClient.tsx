@@ -203,7 +203,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                   <Loader2 size={30} className="mb-4 animate-spin text-white" />
                   <span className="mb-1 font-mono text-sm font-semibold uppercase tracking-wider text-white">Rendering Stream…</span>
                   <p className="max-w-sm text-xs leading-normal text-neutral-400">
-                    Gemini Omni Flash is generating frames. This usually takes 1-3 minutes.
+                    The Optiq Video Engine is generating frames. This usually takes 1-3 minutes.
                   </p>
                 </div>
               </div>
@@ -234,10 +234,10 @@ export default function VideoDetailClient({ id }: { id: string }) {
             {/* 3 · OMNI REFINEMENT CONSOLE */}
             <div className="rounded-2xl border border-white/5 bg-[#0a0f1d]/80 p-4 backdrop-blur">
               <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
-                Omni Refinement Console
+                Optiq Refinement Console
               </p>
               <p className="mt-1 text-[11px] leading-normal text-neutral-500">
-                Describe an adjustment (&ldquo;make it rain heavily&rdquo;, &ldquo;switch to a close-up tracking shot&rdquo;) — Omni renders a new take of this scene.
+                Describe an adjustment (&ldquo;make it rain heavily&rdquo;, &ldquo;switch to a close-up tracking shot&rdquo;) — Optiq renders a new take of this scene.
               </p>
 
               {(images.length > 0 || audioFile) && (
@@ -293,7 +293,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                     e.target.style.height = "auto";
                     e.target.style.height = `${e.target.scrollHeight}px`;
                   }}
-                  placeholder="Instruct Omni to modify this video…"
+                  placeholder="Instruct Optiq to modify this video…"
                   className="max-h-24 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-xs placeholder:text-neutral-600 focus:outline-none"
                 />
                 <button
@@ -309,7 +309,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                   disabled={editing || !prompt.trim() || isRendering}
                   className="shrink-0 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-40 shadow-lg shadow-blue-500/20"
                 >
-                  {editing ? "Editing…" : "Omni Edit"}
+                  {editing ? "Editing…" : "Optiq Edit"}
                 </button>
               </div>
             </div>
@@ -324,8 +324,8 @@ export default function VideoDetailClient({ id }: { id: string }) {
         cost={EDIT_COST}
         balance={profile?.credits ?? 0}
         title="Confirm Video Modification"
-        description="Omni video edit"
-        actionLabel="Omni Edit"
+        description="Optiq video edit"
+        actionLabel="Optiq Edit"
       />
     </div>
   );

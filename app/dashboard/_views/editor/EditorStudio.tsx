@@ -32,6 +32,7 @@ import PreviewStage from "./PreviewStage";
 import TimelinePanel from "./TimelinePanel";
 import MediaBin from "./MediaBin";
 import PropertiesPanel from "./PropertiesPanel";
+import MobileEditorDock from "./MobileEditorDock";
 
 export type EditorTool = "select" | "razor";
 
@@ -334,12 +335,9 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           Mobile: just the preview — the bin becomes a filmstrip under it and
           properties becomes a sheet that rises when a clip is selected. */}
       {isMobile ? (
-        <>
-          <div className="flex min-h-0 flex-1 flex-col bg-black/60">
-            <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
-          </div>
-          <MediaBin project={project} engine={engine} doc={doc} playhead={playhead} width={binW} variant="strip" />
-        </>
+        <div className="flex min-h-0 flex-1 flex-col bg-black/60">
+          <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
+        </div>
       ) : (
         <>
           <div className="flex min-h-0 flex-1">
@@ -385,8 +383,10 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         </>
       )}
 
-      {/* ── TIMELINE TOOLBAR ──────────────────────────────────────────────
-          Scrolls sideways on narrow screens rather than wrapping or clipping. */}
+      {/* ── TIMELINE TOOLBAR (desktop only) ───────────────────────────────
+          Scrolls sideways rather than wrapping or clipping. On phones this is
+          replaced by the CapCut-style MobileEditorDock below the timeline. */}
+      {!isMobile && (
       <div className="flex items-center justify-between gap-2 overflow-x-auto border-t border-white/5 bg-[#0a0f1d] px-3 py-1.5 shrink-0 scrollbar-none">
         <div className="flex items-center gap-1 shrink-0">
           <ToolButton title="Undo (Ctrl+Z)" disabled={!engine.canUndo()} onClick={() => engine.undo()}>
@@ -449,6 +449,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           </ToolButton>
         </div>
       </div>
+      )}
 
       {/* ── TIMELINE ────────────────────────────────────────────────────── */}
       <TimelinePanel
@@ -457,41 +458,25 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         doc={doc}
         pps={pps}
         playhead={playhead}
-        height={isMobile ? Math.min(timelineH, 200) : timelineH}
+        height={isMobile ? 176 : timelineH}
         tool={tool}
         selectedClipId={selectedClipId}
         onSelect={setSelectedClipId}
         onSeek={(t) => playerRef.current?.seek(t)}
       />
 
-      {/* ── MOBILE: CONTEXTUAL PROPERTIES SHEET ─────────────────────────
-          Rises only when a clip is selected, and only on phones. Nothing is
-          parked on screen waiting to be opened — no drawer, no tab bar. */}
-      {isMobile && selectedClipId && (
-        <div className="fixed inset-x-0 bottom-0 z-50 animate-slideUp">
-          <div className="max-h-[55dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0f1d]/95 backdrop-blur-xl shadow-[0_-20px_60px_rgba(0,0,0,0.8)] pb-[env(safe-area-inset-bottom)]">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#0a0f1d]/95 px-4 py-2.5">
-              <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-neutral-400">
-                Clip Settings
-              </span>
-              <button
-                onClick={() => setSelectedClipId(null)}
-                className="rounded-lg bg-white/5 px-3 py-1 text-[11px] font-bold text-neutral-300 active:scale-95 transition-transform"
-              >
-                Done
-              </button>
-            </div>
-            <PropertiesPanel
-              engine={engine}
-              doc={doc}
-              selectedClipId={selectedClipId}
-              onDeselect={() => setSelectedClipId(null)}
-              playhead={playhead}
-              width={0}
-              variant="sheet"
-            />
-          </div>
-        </div>
+      {/* ── MOBILE: CapCut-style tool dock (tray + Add/Adjust sheets) ───── */}
+      {isMobile && (
+        <MobileEditorDock
+          engine={engine}
+          interaction={interaction}
+          doc={doc}
+          playhead={playhead}
+          project={project}
+          binWidth={binW}
+          selectedClipId={selectedClipId}
+          onSelect={setSelectedClipId}
+        />
       )}
     </div>
   );

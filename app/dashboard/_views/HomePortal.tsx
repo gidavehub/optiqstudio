@@ -47,7 +47,7 @@ export default function HomePortal() {
                 Agentic Director
               </span>
               <p className="mt-4 text-xs text-neutral-400 leading-relaxed max-w-xs">
-                Pitch your concept or script. Our Gemini AI director drafts a complete, cohesive multi-scene storyboard with custom style headers instantly.
+                Pitch your concept or script. Our Optiq AI director drafts a complete, cohesive multi-scene storyboard with custom style headers instantly.
               </p>
               <span className="mt-8 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white px-5 py-2.5 transition-all duration-300 shadow-lg shadow-blue-600/20 border border-blue-400/20 group-hover:scale-[1.03] active:scale-[0.98]">
                 Create your ad <ChevronRight size={13} />

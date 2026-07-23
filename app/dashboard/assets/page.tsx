@@ -91,12 +91,12 @@ export default function AssetsPage() {
                   {item.videoUrl ? (
                     <video
                       src={item.videoUrl}
+                      autoPlay
                       muted
                       loop
                       playsInline
+                      preload="auto"
                       className="h-full w-full object-cover"
-                      onMouseEnter={(e) => void e.currentTarget.play()}
-                      onMouseLeave={(e) => e.currentTarget.pause()}
                     />
                   ) : item.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

@@ -11,7 +11,9 @@ import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import AssetPickerModal from "../../../components/AssetPickerModal";
 import SettingsRail from "./_components/SettingsRail";
-import ProjectsGrid from "./_components/ProjectsGrid";
+import StudioProjectsGrid from "../_shared/StudioProjectsGrid";
+import AspectRatioStrip from "../_shared/AspectRatioStrip";
+import { VIDEO_ASPECTS } from "../_shared/aspectOptions";
 import BottomPromptConsole from "./_components/BottomPromptConsole";
 import {
   ASPECTS,
@@ -48,6 +50,7 @@ function VideoWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
@@ -286,32 +289,34 @@ function VideoWorkspace() {
     }
   };
 
-  // Delete video project via API
-  const deleteProject = async (id: string, e: React.MouseEvent) => {
+  // Delete video project — fade the card out first, then drop it. The API call
+  // fires in the background so the animation always feels instant.
+  const deleteProject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenedMenuId(null);
-    try {
-      if (pollRefs.current[id]) {
-        clearInterval(pollRefs.current[id]);
-        delete pollRefs.current[id];
-      }
-      await apiFetch(`/api/generations?id=${id}`, {
-        method: "DELETE",
-      });
-      setHistory((prev) => prev.filter((item) => item.id !== id));
-      void refreshProfile();
-    } catch {
-      // Optimistic delete
-      if (pollRefs.current[id]) {
-        clearInterval(pollRefs.current[id]);
-        delete pollRefs.current[id];
-      }
-      setHistory((prev) => prev.filter((item) => item.id !== id));
+    if (pollRefs.current[id]) {
+      clearInterval(pollRefs.current[id]);
+      delete pollRefs.current[id];
     }
+    setDeletingIds((prev) => new Set(prev).add(id));
+
+    void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" })
+      .catch(() => {})
+      .finally(() => void refreshProfile());
+
+    // Let the fade-out play out, then remove the card from the list.
+    setTimeout(() => {
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 320);
   };
 
   return (
-    <div className="flex h-full flex-col sm:flex-row overflow-y-auto sm:overflow-hidden bg-black text-white">
+    <div className="flex h-full flex-col sm:flex-row overflow-hidden bg-black text-white">
       {/* Settings & Financial Comparison Rail */}
       <SettingsRail
         aspect={aspect}
@@ -319,13 +324,12 @@ function VideoWorkspace() {
         duration={duration}
         setDuration={setDuration}
         perSecondCost={perSecondCost}
-        credits={profile ? profile.credits : null}
       />
 
       {/* Main Viewport Stage */}
       <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
-        {/* Dynamic Canvas Area */}
-        <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6 md:p-8 pt-6 sm:pt-24">
+        {/* Dynamic Canvas Area — only the project wall scrolls */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
           {/* Header navigation bar */}
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
             <div>
@@ -336,14 +340,22 @@ function VideoWorkspace() {
             </div>
           </div>
 
-          <ProjectsGrid
-            history={history}
+          <StudioProjectsGrid
+            items={history.map((h) => ({
+              id: h.id,
+              status: h.status,
+              prompt: h.prompt,
+              mediaUrl: h.videoUrl,
+              createdAt: h.createdAt,
+            }))}
+            mediaType="video"
             openedMenuId={openedMenuId}
             setOpenedMenuId={setOpenedMenuId}
+            deletingIds={deletingIds}
             onOpen={(item) => {
               if (!item.id.startsWith("temp_")) router.push(`/dashboard/video/${item.id}`);
             }}
-            onDelete={(id, e) => void deleteProject(id, e)}
+            onDelete={(id, e) => deleteProject(id, e)}
           />
         </div>
 
@@ -356,6 +368,23 @@ function VideoWorkspace() {
             </button>
           </div>
         )}
+
+        {/* Mobile-only compact settings — desktop uses the left rail */}
+        <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-900 bg-background/90 px-4 py-2.5 backdrop-blur-md scrollbar-none sm:hidden">
+          <AspectRatioStrip options={VIDEO_ASPECTS} value={aspect} onChange={(v) => setAspect(v as (typeof ASPECTS)[number])} />
+          <span className="h-5 w-px shrink-0 bg-neutral-800" />
+          {DURATIONS.map((d) => (
+            <button
+              key={d}
+              onClick={() => setDuration(d)}
+              className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                d === duration ? "border-blue-500 bg-[#0c152d] text-white" : "border-neutral-800 bg-[#07090f] text-neutral-400"
+              }`}
+            >
+              {d}s
+            </button>
+          ))}
+        </div>
 
         {/* ── FLEXIBLE BOTTOM PROMPT CONSOLE ── */}
         <BottomPromptConsole

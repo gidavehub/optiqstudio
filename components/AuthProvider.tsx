@@ -329,6 +329,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/imageGenerate";
       } else if (path === "/api/voice/generate") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/voiceGenerate";
+      } else if (path === "/api/music/generate") {
+        functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/musicGenerate";
       } else if (path === "/api/video/generate") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/videoGenerate";
       } else if (path === "/api/story/generate") {

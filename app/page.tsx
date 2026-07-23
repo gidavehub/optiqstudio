@@ -31,9 +31,9 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
     heading: "Featured Tools",
     links: [
       { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Gemini Omni Flash (Video)", href: "/dashboard/video" },
+      { label: "Optiq Video Engine", href: "/dashboard/video" },
       { label: "Characters", href: "/dashboard/characters" },
-      { label: "Voice Studio", href: "/dashboard/audio" },
+      { label: "Audio Studio", href: "/dashboard/audio" },
       { label: "Assets", href: "/dashboard/assets" },
       { label: "Prompt Enhancer", href: "/dashboard/video" },
     ],
@@ -41,7 +41,7 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
   {
     heading: "Professionals",
     links: [
-      { label: "For Enterprises", href: "mailto:hello@optiq.studio" },
+      { label: "Optiq Studio Enterprise", href: "/enterprise" },
       { label: "For Education", href: "mailto:hello@optiq.studio" },
       { label: "Data Security", href: "#" },
     ],
@@ -52,7 +52,7 @@ const HERO_LINKS = [
   { label: "OPTIQ STUDIO CHARACTERS", href: "/dashboard/characters" },
   { label: "CREATIVE ADS & CAMPAIGNS", href: "#worlds" },
   { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/audio" },
-  { label: "DEVELOPER API PLATFORM", href: "/api-docs" },
+  { label: "OPTIQ STUDIO ENTERPRISE", href: "/enterprise" },
 ];
 
 const PARTNERS = ["AURELIA PICTURES", "NORTHFIELD", "HELIX STUDIOS", "PALE BLUE", "MERIDIAN", "KINO+"];
@@ -66,8 +66,8 @@ const WORLD_CARDS = [
   },
   {
     media: "/media/card-robotics.jpg",
-    title: "Omni Voice: Studio-Grade Voiceovers",
-    body: "Create hyper-realistic voice profiles and natural narrations synchronizing perfectly with your ads.",
+    title: "Optiq Voice: Studio-Grade Voiceovers",
+    body: "Sixteen real African, diaspora and international voices — natural narrations that sit perfectly under your ads.",
     href: "/dashboard/audio",
   },
   {
@@ -85,18 +85,18 @@ const WORLD_CARDS = [
   },
 ];
 
-const PRODUCT_ROWS = [
+const ENTERPRISE_ROWS = [
   {
-    title: "Photorealistic Creations",
-    body: "Bespoke commercial visuals and cinematic shots matching your brand's style guide exactly.",
+    title: "Done with you, not just by AI",
+    body: "Our team sits with you to capture your brand, your mission and your story — then builds it into a cinematic ad with the taste only real directors bring.",
   },
   {
-    title: "Democratized Video Production",
-    body: "Skip expensive physical shoots. Instantly create vertical format video ads built to engage and convert.",
+    title: "Production-quality, cinematic output",
+    body: "Polished, emotionally resonant brand films people don't expect from AI — crafted with professional tools by a team that has done it by hand for years.",
   },
   {
-    title: "Developer First APIs",
-    body: "Integrate video generation, image creation, and TTS audio synthesis directly into your apps and workflows.",
+    title: "A fraction of the time and cost",
+    body: "Powered by our own platform, we deliver studio-grade campaigns far faster and cheaper than a traditional production house.",
   },
 ];
 
@@ -106,7 +106,8 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
     links: [
       { label: "Our Tools", href: "/dashboard" },
       { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Voice Studio", href: "/dashboard/audio" },
+      { label: "Audio Studio", href: "/dashboard/audio" },
+      { label: "Optiq Studio Enterprise", href: "/enterprise" },
       { label: "Characters", href: "/dashboard/characters" },
       { label: "Pricing", href: "/dashboard/billing" },
     ],
@@ -187,12 +188,12 @@ export default function LandingPage() {
           </div>
 
           <div className="ml-auto hidden items-center gap-2 lg:flex">
-            <a
-              href="mailto:hello@optiq.studio"
+            <Link
+              href="/enterprise"
               className="rounded-md bg-neutral-100 px-3.5 py-2 text-[13px] font-medium hover:bg-neutral-200 transition-colors"
             >
-              Enterprise Sales
-            </a>
+              Enterprise
+            </Link>
             {user ? (
               <Link
                 href="/dashboard"
@@ -288,7 +289,7 @@ export default function LandingPage() {
           <MediaSlot
             src="/media/template-2.mp4"
             className="absolute inset-0 h-full w-full"
-            alt="Childhood Kitchen Discovery - a warm nostalgic commercial generated with Omni"
+            alt="A warm, nostalgic brand commercial made with Optiq Studio"
           />
           <div className="absolute inset-0 bg-black/35" />
 
@@ -330,7 +331,7 @@ export default function LandingPage() {
       {/* ── Statement + world cards (white) ────────────────────────── */}
       <section id="worlds" className="mx-auto max-w-[1440px] px-16 pt-28 pb-24">
         <h2 className="display max-w-5xl text-[34px] leading-[1.15] text-neutral-900 md:text-[46px]">
-          Generative AI is democratizing high-quality commercial production, enabling brands to scale visual creation, voiceovers, and ads with absolute photorealism.
+          We help brands tell their story in production-quality video — democratizing the cinematic ads, voiceovers and campaigns that make people stop and watch.
         </h2>
 
         <div className="mt-14 grid grid-cols-2 gap-5 md:grid-cols-4">
@@ -373,20 +374,20 @@ export default function LandingPage() {
 
           <div className="relative mx-auto grid max-w-[1440px] gap-16 px-14 py-24 text-white md:grid-cols-2">
             <div>
-              <p className="mb-8 text-[13px] text-white/80">Optiq Studio Developer Engine</p>
+              <p className="mb-8 text-[13px] text-white/80">Optiq Studio Enterprise</p>
               <h2 className="display max-w-lg text-[26px] leading-[1.25] md:text-[30px]">
-                Integrate our robust generative suite directly into your applications. Scale photorealistic image, video, and text-to-speech generation programmatically with our developer API.
+                Want it done for you? Work directly with the DaveLabs team to produce cinematic, production-quality ads — tailored to your brand and delivered in a fraction of the time and cost of a traditional production house.
               </h2>
               <Link
-                href="/api-docs"
+                href="/enterprise"
                 className="mt-9 inline-block rounded-md border border-white/40 px-4 py-2 text-[13px] font-medium hover:bg-white hover:text-black transition-colors"
               >
-                Read API Documentation
+                Explore Optiq Studio Enterprise
               </Link>
             </div>
 
             <div className="flex flex-col justify-center">
-              {PRODUCT_ROWS.map((row) => (
+              {ENTERPRISE_ROWS.map((row) => (
                 <div key={row.title} className="group border-t border-white/25 py-5 last:border-b">
                   <div className="flex items-start justify-between gap-6">
                     <div>
@@ -412,7 +413,7 @@ export default function LandingPage() {
               <MediaSlot
                 src="/media/news-omni.mp4"
                 className="h-full w-full transition-transform duration-700 group-hover:scale-[1.02]"
-                alt="Gemini Omni Flash reel"
+                alt="Optiq Studio video reel"
               />
             </div>
           </Link>
@@ -466,7 +467,11 @@ export default function LandingPage() {
         <div className="border-t border-neutral-900">
           <div className="mx-auto flex max-w-[1440px] items-center justify-between px-16 py-6">
             <p className="text-[11px] text-neutral-600">© {new Date().getFullYear()} Optiq Studio, Inc.</p>
-            <p className="font-mono text-[11px] tracking-[0.14em] text-neutral-600">MADE WITH OMNI</p>
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/media/davelabs-logo.png" alt="DaveLabs" className="h-4 w-auto opacity-70 invert" />
+              <span className="font-mono text-[11px] tracking-[0.14em] text-neutral-500">A PRODUCT OF DAVELABS</span>
+            </div>
           </div>
         </div>
       </footer>

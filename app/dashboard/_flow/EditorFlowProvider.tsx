@@ -172,7 +172,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [compileError, setCompileError] = useState<string>("");
   const [timeline, setTimeline] = useState<any[]>([]);
   const [musicUrl, setMusicUrl] = useState<string>("");
-  const [musicVolume, setMusicVolume] = useState<number>(0.2);
+  const [musicVolume, setMusicVolume] = useState<number>(0.6);
 
   // Wizard
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
@@ -256,7 +256,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     setCompileError(proj.compileError || "");
     setTimeline(proj.timeline || []);
     setMusicUrl(proj.musicUrl || "");
-    setMusicVolume(proj.musicVolume ?? 0.2);
+    setMusicVolume(proj.musicVolume ?? 0.6);
   }, []);
 
   // ─── NAVIGATION ───────────────────────────────────────────────────────────
@@ -588,7 +588,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             model: "omni",
             aspectRatio,
             durationSeconds: 10,
-            generateAudio: true,
+            // Ads carry NO baked-in sound: no dialogue, no voiceover, no ambience
+            // in the footage. The ad's audio (Optiq Music score + optional TTS
+            // narration) is composed at compile time. So scene clips are silent.
+            generateAudio: false,
             // Lets the server draw this scene from the ad's prepaid allowance
             // instead of charging again.
             projectId: activeProjectId,

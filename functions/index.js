@@ -19,6 +19,7 @@ const { defineSecret } = require("firebase-functions/params");
 const { GoogleAuth } = require("google-auth-library");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const { callVertexWithRetry } = require("./vertexQuota");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -188,7 +189,29 @@ exports.sweepExpiredPlans = onSchedule(
 );
 
 /**
- * Cloud Function to generate an image using Vertex AI gemini-3.1-flash-image-preview with no fallbacks.
+ * Housekeeping: the quota manager writes one tiny counter doc per model-family
+ * per 60-second window into `rateLimits`. Those are dead the moment their window
+ * passes, so sweep the stale ones a few times a day to keep the collection lean.
+ */
+exports.sweepRateLimits = onSchedule(
+  { schedule: "every 6 hours", region: "us-east4" },
+  async () => {
+    const cutoff = Date.now() - 5 * 60000; // any window older than ~5 min is done
+    const snap = await db
+      .collection("rateLimits")
+      .where("staleAfter", "<", cutoff)
+      .limit(500)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    console.log(`Swept ${snap.size} expired rateLimits window doc(s)`);
+  }
+);
+
+/**
+ * Cloud Function to generate an image using Vertex AI gemini-3.1-flash-image with no fallbacks.
  */
 exports.generateImage = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
@@ -203,7 +226,7 @@ exports.generateImage = onRequest(
       const client = await auth.getClient();
       const accessToken = (await client.getAccessToken()).token;
       const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
-      const model = "gemini-3.1-flash-image-preview";
+      const model = "gemini-3.1-flash-image";
 
       console.log(`Starting image generation with model: ${model}`);
       const url = `https://aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/global/publishers/google/models/${model}:generateContent`;
@@ -452,26 +475,41 @@ async function getAccessToken() {
 }
 
 async function vertexFetch(path, body) {
-  const token = await getAccessToken();
   const projectId = "davelabs-tools";
   let url;
-  if (path.includes("gemini-3.1-flash-image-preview") || path.includes("gemini-omni-flash-preview") || path.includes("gemini-3.5-flash")) {
+  if (
+    path.includes("gemini-3.1-flash-image") ||
+    path.includes("gemini-omni-flash-preview") ||
+    path.includes("gemini-3.5-flash") ||
+    path.includes("gemini-3.1-flash-tts-preview") // Gemini 3.1 Flash TTS: serves at global, 404s at us-east4
+  ) {
     url = `https://aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/global${path}`;
   } else {
     url = `https://us-east4-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-east4${path}`;
   }
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+
+  // The quota manager smooths us under the per-minute cap (proactive) and waits
+  // out any 429 that still slips through (reactive, bounded), while surfacing
+  // billing/permission/permanent-quota errors straight away. The model id is
+  // pulled from the path so it can charge the right per-minute bucket, and the
+  // access token is fetched fresh on every attempt (a token can expire while we
+  // wait out a quota window).
+  const model = (path.match(/models\/([^:]+):/) || [])[1] || "text";
+  const res = await callVertexWithRetry({
+    db,
+    model,
+    doFetch: async () => {
+      const token = await getAccessToken();
+      return fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
     },
-    body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Vertex AI ${path} failed (${res.status}): ${text}`);
-  }
   return res.json();
 }
 
@@ -682,7 +720,8 @@ function pcmToWav(pcmBase64, sampleRate) {
 }
 
 exports.enhancePrompt = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -720,7 +759,8 @@ exports.enhancePrompt = onRequest(
 );
 
 exports.imageGenerate = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -740,7 +780,7 @@ exports.imageGenerate = onRequest(
         }
         parts.push({ text: prompt });
 
-        const model = "gemini-3.1-flash-image-preview";
+        const model = "gemini-3.1-flash-image";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {
@@ -789,7 +829,8 @@ exports.imageGenerate = onRequest(
 );
 
 exports.voiceGenerate = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -870,7 +911,7 @@ exports.voiceGenerate = onRequest(
       let audio;
       try {
         const promptText = style ? `${style}:\n\n${text}` : text;
-        const model = "gemini-3.1-flash-preview-tts";
+        const model = "gemini-3.1-flash-tts-preview";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {
@@ -919,6 +960,167 @@ exports.voiceGenerate = onRequest(
       return res.status(200).json({ id: doc.id, url, cost });
     } catch (err) {
       console.error("voiceGenerate error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── Optiq Music (Lyria) ─────────────────────────────────────────────────────
+// Lyria is served ONLY at us-central1 via :predict — not the us-east4/global
+// routing vertexFetch() uses — so it gets its own call, still wrapped in the
+// quota manager. Returns a base64-encoded WAV (~30s clip). Exported so the
+// storyboard flow can score an ad from its musicSpec with the same engine.
+const LYRIA_MODEL = "lyria-002";
+async function lyriaGenerate(prompt, negativePrompt = null) {
+  const projectId = "davelabs-tools";
+  const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/${LYRIA_MODEL}:predict`;
+  const instance = { prompt };
+  if (negativePrompt) instance.negative_prompt = negativePrompt;
+
+  const res = await callVertexWithRetry({
+    db,
+    model: LYRIA_MODEL,
+    doFetch: async () => {
+      const token = await getAccessToken();
+      return fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ instances: [instance], parameters: { sample_count: 1 } }),
+      });
+    },
+  });
+  const json = await res.json();
+  const b64 = json.predictions?.[0]?.bytesBase64Encoded;
+  if (!b64) throw new Error("Optiq Music returned no audio");
+  return b64; // a complete WAV file
+}
+
+// Turns a storyboard's locked soundSpec into a Lyria prompt — or returns null
+// when the spec deliberately locks SILENCE (in which case the ad must stay
+// silent and we never score it).
+function musicPromptFromSpec(spec) {
+  if (!spec || typeof spec !== "string") return null;
+  const s = spec.trim();
+  if (!s) return null;
+  if (/\b(silence|silent|no music|no score|without music)\b/i.test(s)) return null;
+  // Push Lyria toward a rich, evolving, cinematic bed — never a plain looping
+  // beat — while still matching the ad's locked mood.
+  return (
+    "A rich, dynamic, emotionally expressive instrumental score for a premium brand advert — " +
+    "cinematic and vibey, with layered, evolving instrumentation, texture and movement that builds and breathes " +
+    "across the piece. NOT a plain repetitive loop and NOT a bare four-on-the-floor drum beat. No vocals, no lyrics. " +
+    `Match this exact mood and instrumentation: ${s}`
+  );
+}
+
+// ── Optiq narration (Gemini 3.1 Flash TTS) ──────────────────────────────────
+// The ad's footage is silent; the narrator is composed here. One warm voice
+// reads a main narration (plays under the whole ad) plus a short closing tagline
+// (placed at the very end at compile). The agent picks the voice for the vibe.
+const VOICEOVER_VOICES = {
+  "gambian-english": { voice: "Enceladus", style: "a warm, wise Gambian English advertisement narrator — calm, confident and emotive" },
+  "nigerian-british-male": { voice: "Iapetus", style: "a polished Nigerian-British male advertisement narrator — warm, articulate and persuasive" },
+  "nigerian-british-female": { voice: "Vindemiatrix", style: "a polished Nigerian-British female advertisement narrator — warm, elegant and persuasive" },
+  "cinematic-deep": { voice: "Charon", style: "a deep, slow, wise cinematic narrator with rich gravitas and warmth, like a legendary documentary voice" },
+};
+
+// Speaks `text` with Gemini 3.1 Flash TTS. Returns { base64Wav, durationSec }.
+async function ttsGenerate(text, voiceName, style) {
+  const model = "gemini-3.1-flash-tts-preview";
+  const promptText = style ? `${style}:\n\n${text}` : text;
+  const response = await vertexFetch(`/publishers/google/models/${model}:generateContent`, {
+    contents: [{ role: "user", parts: [{ text: promptText }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+    },
+  });
+  const raw = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
+  if (!raw) throw new Error("TTS returned no audio");
+  const rate = parseInt((raw.mimeType || "").match(/rate=(\d+)/)?.[1] || "24000", 10);
+  const pcmBytes = Buffer.from(raw.data, "base64").length;
+  return { base64Wav: pcmToWav(raw.data, rate), durationSec: pcmBytes / (rate * 2) };
+}
+
+// Writes the ad's narration + closing tagline and picks the narrator voice.
+async function writeAdNarration({ concept, brandName, scenes }) {
+  const scenesText = (scenes || [])
+    .map((s, i) => `Scene ${i + 1}: ${String(s.beat || s.summary || s.fullPrompt || "").slice(0, 220)}`)
+    .join("\n")
+    .slice(0, 3000);
+  const schema = {
+    type: "OBJECT",
+    properties: {
+      voiceKey: { type: "STRING", enum: Object.keys(VOICEOVER_VOICES) },
+      narration: { type: "STRING" },
+      tagline: { type: "STRING" },
+    },
+    required: ["voiceKey", "narration", "tagline"],
+  };
+  const sys = `You are the NARRATION DIRECTOR for an Optiq Studio advert. The video is SILENT — you write the spoken narration a professional voice actor reads over the finished ad.
+Return JSON:
+- voiceKey: pick the narrator voice that best fits this ad's vibe. Default "gambian-english" (warm Gambian English) unless the ad clearly calls for another: "nigerian-british-male", "nigerian-british-female", or "cinematic-deep" (a slow, deep, wise cinematic voice).
+- narration: the main voiceover that plays across the ad — warm, advertisement-style, emotive, telling the brand's story and building desire. Concise and punchy, about 35-55 words. ONLY the words to be spoken; no stage directions, no scene numbers.
+- tagline: a short, memorable closing line (6-12 words) that lands at the very end — the brand's closing statement or call to action.
+Natural spoken English (light Gambian English welcome for local brands). No emojis, no markdown, no quotes.`;
+  const brief = `Brand: ${brandName || "the brand"}\nConcept: ${concept || ""}\n\nScenes:\n${scenesText}`;
+  const response = await vertexFetch(`/publishers/google/models/gemini-3.5-flash:generateContent`, {
+    contents: [{ role: "user", parts: [{ text: brief }] }],
+    systemInstruction: { parts: [{ text: sys }] },
+    generationConfig: { temperature: 0.85, responseMimeType: "application/json", responseSchema: schema },
+  });
+  const text = response.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "{}";
+  return JSON.parse(text);
+}
+
+exports.musicGenerate = onRequest(
+  // Longer timeout so a per-minute quota wait can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      const user = await requireAuth(req);
+      const { prompt, negativePrompt = null } = req.body;
+      if (!prompt || typeof prompt !== "string") {
+        return res.status(400).json({ error: "Missing prompt" });
+      }
+      if (prompt.length > 2000) {
+        return res.status(400).json({ error: "Prompt too long (2000 character max)" });
+      }
+
+      const pricing = await getPricing();
+      const cost = pricing.costs?.music ?? 100;
+
+      try {
+        await chargeCredits(user.uid, cost, "optiq music");
+      } catch (e) {
+        return res.status(402).json({ error: e.message || "Insufficient credits" });
+      }
+
+      let base64Wav;
+      try {
+        base64Wav = await lyriaGenerate(prompt, negativePrompt);
+      } catch (err) {
+        await refundCredits(user.uid, cost, "optiq music failed").catch(() => {});
+        throw err;
+      }
+
+      const doc = db.collection("generations").doc();
+      const url = await uploadBase64(base64Wav, `generations/${user.uid}/${doc.id}.wav`, "audio/wav");
+
+      await doc.set({
+        uid: user.uid,
+        type: "music",
+        status: "succeeded",
+        prompt: prompt.slice(0, 500),
+        audioUrl: url,
+        cost,
+        createdAt: new Date().toISOString(),
+      });
+
+      return res.status(200).json({ id: doc.id, url, cost });
+    } catch (err) {
+      console.error("musicGenerate error:", err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -1160,7 +1362,8 @@ async function requireApiKey(req) {
 }
 
 exports.apiGenerateImage = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1179,7 +1382,7 @@ exports.apiGenerateImage = onRequest(
         }
         parts.push({ text: prompt });
 
-        const model = "gemini-3.1-flash-image-preview";
+        const model = "gemini-3.1-flash-image";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {
@@ -1314,7 +1517,8 @@ exports.apiGetVideoStatus = onRequest(
 );
 
 exports.apiGenerateTTS = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1333,7 +1537,7 @@ exports.apiGenerateTTS = onRequest(
       let audio;
       try {
         const promptText = style ? `${style}:\n\n${text}` : text;
-        const model = "gemini-3.1-flash-preview-tts";
+        const model = "gemini-3.1-flash-tts-preview";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {
@@ -1529,6 +1733,51 @@ exports.storyboardGenerate = onDocumentCreated(
         });
       }
 
+      // Score the ad: turn the locked soundSpec into a real background track
+      // with Optiq Music (Lyria), baked into the (prepaid) storyboard so it
+      // mixes under the nine clips at compile with no extra cost. Best-effort —
+      // a scoring failure never fails the storyboard — and skips locked silence.
+      // Deliberately keeps the current working stage (no setStage) so the client
+      // keeps showing the loading UI until scenes + score land together.
+      let musicUrl = null;
+      const musicPrompt = musicPromptFromSpec(storyboard.musicSpec);
+      if (musicPrompt) {
+        try {
+          const wavB64 = await lyriaGenerate(musicPrompt);
+          musicUrl = await uploadBase64(wavB64, `projects/${job.projectId}/score.wav`, "audio/wav");
+          console.log(`[storyboard ${job.projectId}] scored with Optiq Music`);
+        } catch (e) {
+          console.error(`[storyboard ${job.projectId}] scoring failed (continuing without a score):`, e.message);
+        }
+      }
+
+      // Narrate the ad with Optiq TTS (Gemini 3.1 Flash TTS): a main narration
+      // that plays under the whole ad + a closing tagline placed at the very end
+      // at compile. Baked into the (prepaid) storyboard. Best-effort — a failure
+      // never blocks the storyboard; the ad just ships with music only.
+      let voiceoverUrl = null, taglineUrl = null, taglineDuration = null, voiceoverVoice = null;
+      try {
+        const vo = await writeAdNarration({
+          concept: storyboard.concept,
+          brandName: job.brandName,
+          scenes: storyboard.scenes,
+        });
+        const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
+        voiceoverVoice = vo.voiceKey || "gambian-english";
+        if (vo.narration) {
+          const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
+          voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${job.projectId}/voiceover.wav`, "audio/wav");
+        }
+        if (vo.tagline) {
+          const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
+          taglineUrl = await uploadBase64(tag.base64Wav, `projects/${job.projectId}/tagline.wav`, "audio/wav");
+          taglineDuration = tag.durationSec;
+        }
+        console.log(`[storyboard ${job.projectId}] narrated (${voiceoverVoice})`);
+      } catch (e) {
+        console.error(`[storyboard ${job.projectId}] narration failed (continuing without a voiceover):`, e.message);
+      }
+
       await projectRef.update(stripUndefined({
         title: storyboard.title,
         concept: storyboard.concept,
@@ -1539,6 +1788,11 @@ exports.storyboardGenerate = onDocumentCreated(
         storyArc: storyboard.storyArc ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
+        musicUrl,
+        voiceoverUrl,
+        taglineUrl,
+        taglineDuration,
+        voiceoverVoice,
         videoStatus,
         sceneImages,
         pipelineStage: "ready",
@@ -1564,7 +1818,8 @@ exports.storyboardGenerate = onDocumentCreated(
 );
 
 exports.storyRevise = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
+  // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
+  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1624,12 +1879,31 @@ exports.projectCompile = onRequest(
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
       const user = await requireAuth(req);
-      const { projectId, timeline = [], musicUrl = null, musicVolume = 0.2 } = req.body;
+      const { projectId, timeline = [], musicUrl: bodyMusicUrl = null, musicVolume = 0.6 } = req.body;
 
       if (!projectId) return res.status(400).json({ error: "Missing projectId" });
       if (!timeline.length) return res.status(400).json({ error: "Timeline is empty" });
 
       const projectRef = db.collection("projects").doc(projectId);
+
+      // Ads carry NO baked-in audio (clips are silent). The final soundtrack is
+      // composed here from the storyboard's baked Optiq Music score + the two
+      // Optiq narration tracks. Fall back to those baked assets when the client
+      // didn't pass its own, so every ad is scored + narrated by default.
+      let musicUrl = bodyMusicUrl;
+      let voiceoverUrl = null, taglineUrl = null, taglineDuration = null;
+      try {
+        const psnap = await projectRef.get();
+        if (psnap.exists) {
+          const pd = psnap.data();
+          if (!musicUrl) musicUrl = pd.musicUrl || null;
+          voiceoverUrl = pd.voiceoverUrl || null;
+          taglineUrl = pd.taglineUrl || null;
+          taglineDuration = Number(pd.taglineDuration) || null;
+        }
+      } catch (e) {
+        console.error(`[compile ${projectId}] could not read baked audio:`, e.message);
+      }
 
       // Set compileStatus: "compiling" in Firestore
       await projectRef.set({
@@ -1659,22 +1933,28 @@ exports.projectCompile = onRequest(
           const filelistPath = path.join(workDir, "filelist.txt");
           const filelistContent = [];
 
+          let totalDuration = 0;
           for (let i = 0; i < timeline.length; i++) {
             const clip = timeline[i];
             const srcPath = path.join(workDir, `src_${i}.mp4`);
             const trimmedPath = path.join(workDir, `trimmed_${i}.mp4`);
-            
+
             console.log(`[compile ${projectId}] Downloading segment ${i}: ${clip.videoUrl}`);
             await compileDownloadFile(clip.videoUrl, srcPath);
-            
+
             const trimStart = clip.trimStart || 0;
             const trimEnd = clip.trimEnd || 10;
             const duration = Math.max(trimEnd - trimStart, 0.5);
-            
-            console.log(`[compile ${projectId}] Trimming segment ${i} from ${trimStart}s to ${trimEnd}s (duration: ${duration}s)`);
-            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 "${trimmedPath}"`;
+            totalDuration += duration;
+
+            // Ads are SILENT footage: keep the video only and attach a fresh
+            // silent stereo track (anullsrc), discarding whatever audio the clip
+            // may carry. Every segment then has an identical audio stream, so the
+            // concat is clean and the post-mix has a duration anchor to sit on.
+            console.log(`[compile ${projectId}] Trimming + muting segment ${i} (${trimStart}s→${trimEnd}s, ${duration}s)`);
+            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -f lavfi -t ${duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -map 0:v -map 1:a -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 -shortest "${trimmedPath}"`;
             await compileRunCommand(trimCmd);
-            
+
             filelistContent.push(`file '${trimmedPath}'`);
           }
 
@@ -1685,16 +1965,63 @@ exports.projectCompile = onRequest(
           const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${filelistPath}" -c copy "${mergedPath}"`;
           await compileRunCommand(concatCmd);
 
+          // Compose the soundtrack: looped Optiq Music bed + narration from the
+          // top + the closing tagline delayed to the very end. The silent clip
+          // audio ([0:a], volume 0) anchors the mix to the video's length; a
+          // limiter tames peaks. Best-effort — if the mix fails for any reason we
+          // ship the (silent) video rather than failing the whole compile.
           let finalPath = mergedPath;
-          if (musicUrl) {
-            console.log(`[compile ${projectId}] Downloading background music: ${musicUrl}`);
-            const bgmPath = path.join(workDir, "bgm.mp3");
-            await compileDownloadFile(musicUrl, bgmPath);
-            
-            finalPath = path.join(workDir, "final.mp4");
-            console.log(`[compile ${projectId}] Mixing background music (volume: ${musicVolume})`);
-            const mixCmd = `ffmpeg -y -i "${mergedPath}" -i "${bgmPath}" -filter_complex "[0:a]volume=1.0[a1];[1:a]volume=${musicVolume}[a2];[a1][a2]amix=inputs=2:duration=first[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac "${finalPath}"`;
-            await compileRunCommand(mixCmd);
+          try {
+            const audioAssets = [];
+            if (musicUrl) {
+              const bgmPath = path.join(workDir, "bgm.wav");
+              await compileDownloadFile(musicUrl, bgmPath);
+              audioAssets.push({ kind: "music", path: bgmPath });
+            }
+            if (voiceoverUrl) {
+              const voPath = path.join(workDir, "vo.wav");
+              await compileDownloadFile(voiceoverUrl, voPath);
+              audioAssets.push({ kind: "voiceover", path: voPath });
+            }
+            if (taglineUrl) {
+              const tagPath = path.join(workDir, "tag.wav");
+              await compileDownloadFile(taglineUrl, tagPath);
+              audioAssets.push({ kind: "tagline", path: tagPath });
+            }
+
+            if (audioAssets.length > 0) {
+              finalPath = path.join(workDir, "final.mp4");
+              const inputArgs = [`-i "${mergedPath}"`];
+              const filters = [`[0:a]volume=0[base]`];
+              const mixLabels = ["[base]"];
+              let idx = 0;
+              for (const a of audioAssets) {
+                idx++;
+                if (a.kind === "music") {
+                  inputArgs.push(`-stream_loop -1 -i "${a.path}"`);
+                  filters.push(`[${idx}:a]volume=${musicVolume}[music]`);
+                  mixLabels.push("[music]");
+                } else if (a.kind === "voiceover") {
+                  inputArgs.push(`-i "${a.path}"`);
+                  filters.push(`[${idx}:a]volume=1.5[vo]`);
+                  mixLabels.push("[vo]");
+                } else if (a.kind === "tagline") {
+                  inputArgs.push(`-i "${a.path}"`);
+                  const delayMs = Math.max(0, Math.round((totalDuration - (taglineDuration || 4) - 0.3) * 1000));
+                  filters.push(`[${idx}:a]adelay=${delayMs}|${delayMs},volume=1.6[tag]`);
+                  mixLabels.push("[tag]");
+                }
+              }
+              const filterGraph =
+                `${filters.join(";")};${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[mixed];` +
+                `[mixed]alimiter=limit=0.95[aout]`;
+              console.log(`[compile ${projectId}] Composing audio: music@${musicVolume}${voiceoverUrl ? " + narration" : ""}${taglineUrl ? " + tagline" : ""}`);
+              const mixCmd = `ffmpeg -y ${inputArgs.join(" ")} -filter_complex "${filterGraph}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${finalPath}"`;
+              await compileRunCommand(mixCmd);
+            }
+          } catch (mixErr) {
+            console.error(`[compile ${projectId}] audio mix failed, shipping silent video:`, mixErr.message);
+            finalPath = mergedPath;
           }
 
           const remotePath = `projects/${user.uid}/${projectId}/final_video.mp4`;

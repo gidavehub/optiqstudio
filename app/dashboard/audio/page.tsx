@@ -1,414 +1,111 @@
-"use client";
+import Link from "next/link";
+import { ArrowLeft, ChevronRight, Mic, Music } from "lucide-react";
+import { VOICE_PROFILES } from "./_components/voiceProfiles";
 
-// Voice Studio — thin page shell. State, API handlers, and cloning polls live
-// here; UI panels are split into ./_components (VoiceSettingsRail,
-// CustomAudioPlayer, TakesLibrary).
+// /dashboard/audio — the Audio Studio gateway. Two bold doors, mirroring the
+// dashboard portal: the Optiq Voice Engine (narration) and Optiq Music (score).
+export const metadata = {
+  title: "Audio Studio — Optiq Studio",
+};
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, Mic, Plus } from "lucide-react";
-import { useAuth } from "../../../components/AuthProvider";
-import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import AssetPickerModal from "../../../components/AssetPickerModal";
-import VoiceSettingsRail from "./_components/VoiceSettingsRail";
-import CustomAudioPlayer from "./_components/CustomAudioPlayer";
-import TakesLibrary from "./_components/TakesLibrary";
-import { AudioItem, EngineMode, VOICES, VoiceSample } from "./_components/types";
+// A few faces fanned across the Voice Engine card.
+const FACE_STACK = ["awa-wolof", "marcus-american", "eleanor-british", "wei-chinese", "chioma-igbo"];
 
-export default function VoiceStudio() {
-  const { apiFetch, profile, refreshProfile } = useAuth();
-  const router = useRouter();
-  const [text, setText] = useState("");
-  const [engine, setEngine] = useState<EngineMode>("prebuilt");
-
-  // Custom cloning states
-  const [voiceFile, setVoiceFile] = useState<VoiceSample | null>(null);
-
-  const [voice, setVoice] = useState("Kore");
-  const [style, setStyle] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [history, setHistory] = useState<AudioItem[]>([]);
-  const [activeItem, setActiveItem] = useState<AudioItem | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-
-  const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
-
-  // Flat-rate GMD 100.00 as specified
-  const cost = 100;
-
-  const loadHistory = useCallback(() => {
-    apiFetch<{ items: AudioItem[] }>("/api/generations?type=audio")
-      .then((d) => setHistory(d.items))
-      .catch(() => {});
-  }, [apiFetch]);
-
-  useEffect(() => {
-    loadHistory();
-    const activePolls = pollRefs.current;
-    return () => {
-      // Cleanup all active polling intervals on unmount
-      Object.values(activePolls).forEach((interval) => clearInterval(interval));
-    };
-  }, [loadHistory]);
-
-  // Handle active background poll resuming
-  useEffect(() => {
-    history.forEach((item) => {
-      if (item.status === "queued" && !pollRefs.current[item.id] && !item.id.startsWith("temp_")) {
-        startSingleCloningPoll(item.id, item.prompt);
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history]);
-
-  const attachVoiceFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1];
-      setVoiceFile({ base64, mimeType: file.type, preview: dataUrl, name: file.name });
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const triggerGenerate = () => {
-    if (!text.trim() || busy) return;
-    if (engine === "clone" && !voiceFile) {
-      setError("Please upload a 6-15s voice sample for cloning first");
-      return;
-    }
-    setConfirmOpen(true);
-  };
-
-  // Background status checker for Custom AI Cloned jobs
-  const startSingleCloningPoll = (id: string, initialPrompt: string) => {
-    if (pollRefs.current[id]) clearInterval(pollRefs.current[id]);
-
-    pollRefs.current[id] = setInterval(async () => {
-      try {
-        const status = await apiFetch<{
-          status: string;
-          audioUrl?: string;
-          error?: string;
-        }>(`/api/video/status?id=${id}`);
-
-        if (status.status === "succeeded") {
-          clearInterval(pollRefs.current[id]);
-          delete pollRefs.current[id];
-
-          loadHistory();
-          void refreshProfile();
-
-          setHistory((prev) =>
-            prev.map((item) =>
-              item.id === id ? { ...item, status: "succeeded", audioUrl: status.audioUrl ?? null } : item
-            )
-          );
-
-          if (status.audioUrl) {
-            setResultUrl(status.audioUrl);
-            setActiveItem({
-              id,
-              prompt: initialPrompt,
-              audioUrl: status.audioUrl,
-              status: "succeeded",
-              createdAt: new Date().toISOString(),
-            });
-          }
-        } else if (status.status === "failed") {
-          clearInterval(pollRefs.current[id]);
-          delete pollRefs.current[id];
-
-          loadHistory();
-          void refreshProfile();
-
-          setHistory((prev) =>
-            prev.map((item) => (item.id === id ? { ...item, status: "failed", error: status.error } : item))
-          );
-        }
-      } catch {
-        // Ignore network glitches
-      }
-    }, 4000);
-  };
-
-  const generate = async () => {
-    if (!text.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-
-    // Asynchronous Voice Cloning pipeline
-    if (engine === "clone" && voiceFile) {
-      const tempId = `temp_${Date.now()}`;
-      const tempItem: AudioItem = {
-        id: tempId,
-        status: "queued",
-        prompt: text,
-        audioUrl: null,
-        createdAt: new Date().toISOString(),
-      };
-
-      setHistory((prev) => [tempItem, ...prev]);
-      const originalText = text;
-      setText(""); // Instant terminal clear for optimized UX
-
-      try {
-        const d = await apiFetch<{ id: string }>("/api/voice/generate", {
-          method: "POST",
-          body: JSON.stringify({
-            text: originalText,
-            voiceBase64: voiceFile.base64,
-            voiceMimeType: voiceFile.mimeType,
-          }),
-        });
-
-        // Replace local skeleton with real Firestore document ID
-        setHistory((prev) =>
-          prev.map((item) => (item.id === tempId ? { ...item, id: d.id, status: "queued" } : item))
-        );
-
-        // Spin up background status tracker
-        startSingleCloningPoll(d.id, originalText);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Voice cloning failed");
-        setHistory((prev) => prev.filter((item) => item.id !== tempId));
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    // Synchronous Prebuilt Local Profiles pipeline
-    try {
-      const data = await apiFetch<{ url: string }>("/api/voice/generate", {
-        method: "POST",
-        body: JSON.stringify({ text, voice, style: style || undefined }),
-      });
-      setResultUrl(data.url);
-      loadHistory();
-      void refreshProfile();
-
-      const newItem: AudioItem = {
-        id: `local_${Date.now()}`,
-        status: "succeeded",
-        prompt: text,
-        audioUrl: data.url,
-        createdAt: new Date().toISOString(),
-      };
-      setActiveItem(newItem);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Synthesis failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Delete an audio take via API
-  const deleteTake = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      if (pollRefs.current[id]) {
-        clearInterval(pollRefs.current[id]);
-        delete pollRefs.current[id];
-      }
-      await apiFetch(`/api/generations?id=${id}`, {
-        method: "DELETE",
-      });
-      setHistory((prev) => prev.filter((item) => item.id !== id));
-      if (activeItem?.id === id) {
-        setActiveItem(null);
-        setResultUrl(null);
-      }
-      void refreshProfile();
-    } catch {
-      // Optimistic delete
-      if (pollRefs.current[id]) {
-        clearInterval(pollRefs.current[id]);
-        delete pollRefs.current[id];
-      }
-      setHistory((prev) => prev.filter((item) => item.id !== id));
-      if (activeItem?.id === id) {
-        setActiveItem(null);
-        setResultUrl(null);
-      }
-    }
-  };
-
-  const selectTake = (item: AudioItem) => {
-    if (item.audioUrl) {
-      setResultUrl(item.audioUrl);
-      setActiveItem(item);
-    }
-  };
-
+export default function AudioStudioPortal() {
   return (
-    <div className="flex h-full flex-col sm:flex-row overflow-y-auto sm:overflow-hidden bg-black text-white">
-      {/* Settings Panel & WorkSpace configuration */}
-      <VoiceSettingsRail
-        engine={engine}
-        setEngine={setEngine}
-        voice={voice}
-        setVoice={setVoice}
-        voiceFile={voiceFile}
-        clearVoiceFile={() => setVoiceFile(null)}
-        attachVoiceFile={attachVoiceFile}
-        style={style}
-        setStyle={setStyle}
-        setError={setError}
-        credits={profile ? profile.credits : null}
-      />
+    <div className="flex h-full flex-col overflow-y-auto bg-background text-neutral-200">
+      <div className="px-4 pt-20 sm:px-6 sm:pt-24 md:px-12">
+        <Link
+          href="/dashboard"
+          className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-500 transition-colors hover:text-white"
+        >
+          <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
+          Dashboard
+        </Link>
+      </div>
 
-      {/* Creative workspace viewport */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
-        <div className="flex-1 sm:overflow-y-auto p-4 sm:p-6 md:p-8 pt-6 sm:pt-24">
-          {/* Header section */}
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
-            <div>
-              <span className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest block">
-                CREATIVE FLOW
+      <div className="flex flex-1 items-center justify-center px-4 pb-8 pt-6 sm:p-6 md:p-12">
+        <div className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 md:gap-8">
+          {/* OPTIQ VOICE ENGINE */}
+          <Link
+            href="/dashboard/audio/voice"
+            className="group relative flex min-h-[260px] flex-col justify-between rounded-2xl border-2 border-dashed border-blue-500/30 bg-black p-6 shadow-2xl transition-all duration-300 hover:border-blue-400/60 active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
+          >
+            <span className="absolute -top-2.5 left-6 z-20 -rotate-6 select-none rounded-md border border-blue-400/30 bg-blue-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-blue-500/30">
+              16 Voices
+            </span>
+
+            <div className="relative z-10">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-[#131d35] text-neutral-300 transition-transform group-hover:scale-110">
+                <Mic size={26} />
               </span>
-              <h2 className="text-[18px] font-bold tracking-tight text-white mt-1">
-                {engine === "clone" ? "AI Voice Cloning Workspace" : "Studio Voiceover Terminal"}
-              </h2>
-            </div>
-
-            <button
-              onClick={() => setAssetPickerOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-neutral-800 bg-surface/80 hover:bg-neutral-800 text-xs font-semibold text-neutral-300 hover:text-white transition-all shadow-md"
-            >
-              <Plus size={13} />
-              Asset Composer
-            </button>
-          </div>
-
-          <div className="space-y-6">
-            {/* Terminal text area script editor */}
-            <div className="relative">
-              <textarea
-                rows={6}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                maxLength={4000}
-                placeholder="Paste or write your premium narration script here…"
-                className="w-full resize-none rounded-2xl border border-neutral-800 bg-surface/60 p-4 text-sm placeholder:text-neutral-600 focus:border-neutral-700 leading-relaxed transition-all"
-              />
-              <div className="mt-1 flex justify-between text-[10px] font-mono text-neutral-500">
-                <span>{text.length.toLocaleString()} / 4,000 characters</span>
-                <span>GMD {cost}.00 estimate</span>
-              </div>
-            </div>
-
-            {/* Synthesize triggering controls */}
-            <div className="flex justify-start">
-              <button
-                onClick={triggerGenerate}
-                disabled={busy || !text.trim()}
-                className="flex items-center gap-2 rounded-full bg-white px-6 py-2.5 text-xs font-bold text-black hover:bg-neutral-200 transition-all disabled:opacity-40 active:scale-98 shadow-md"
-              >
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Mic size={13} />}
-                {busy ? "Synthesizing Stream…" : `Synthesize Voiceover · ${cost}`}
-              </button>
-            </div>
-
-            {/* Error notifications */}
-            {error && (
-              <p className="rounded-xl border border-red-950 bg-red-950/20 px-4 py-3 text-xs text-red-300 animate-rise border-red-900/40">
-                {error}
+              <h2 className="mt-8 text-2xl font-bold tracking-tight text-white">Optiq Voice Engine</h2>
+              <span className="mt-2.5 inline-flex rounded-full border border-white/10 bg-[#131d35] px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-300">
+                Studio Narration
+              </span>
+              <p className="mt-4 max-w-xs text-xs leading-relaxed text-neutral-400">
+                Pick a speaker, paste your script, and generate a broadcast-clean voiceover. African, diaspora and
+                international accents — each with a real voice you can preview.
               </p>
-            )}
+            </div>
 
-            {/* Premium custom Take Monitor player */}
-            {resultUrl && (
-              <div className="space-y-2 animate-rise">
-                <p className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest">
-                  TAKE MONITOR PLAYER
-                </p>
-                <CustomAudioPlayer src={resultUrl} />
+            <div className="relative z-10 mt-8 flex items-center justify-between">
+              <div className="flex -space-x-2.5">
+                {FACE_STACK.map((id) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={id}
+                    src={`/media/voice-faces/${id}.jpg`}
+                    alt=""
+                    className="h-9 w-9 rounded-full border-2 border-black object-cover"
+                  />
+                ))}
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-[#131d35] text-[10px] font-bold text-neutral-300">
+                  +{VOICE_PROFILES.length - FACE_STACK.length}
+                </span>
               </div>
-            )}
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-400/20 bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition-all group-hover:scale-[1.03]">
+                Open <ChevronRight size={13} />
+              </span>
+            </div>
+          </Link>
 
-            {/* Previous takes library — takes open their dedicated detail route */}
-            <TakesLibrary
-              history={history}
-              activeItem={activeItem}
-              onSelect={(item) => {
-                if (!item.id.startsWith("temp_") && !item.id.startsWith("local_")) {
-                  router.push(`/dashboard/audio/${item.id}`);
-                } else {
-                  selectTake(item);
-                }
-              }}
-              onDelete={(id, e) => void deleteTake(id, e)}
-            />
-          </div>
+          {/* OPTIQ MUSIC */}
+          <Link
+            href="/dashboard/audio/music"
+            className="group relative flex min-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border-2 border-dashed border-emerald-500/30 bg-black p-6 shadow-2xl transition-all duration-300 hover:border-emerald-400/60 active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
+          >
+            <div className="relative z-10">
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-[#10231b] text-emerald-300 transition-transform group-hover:scale-110">
+                <Music size={26} />
+              </span>
+              <h2 className="mt-8 text-2xl font-bold tracking-tight text-white">Optiq Music</h2>
+              <span className="mt-2.5 inline-flex rounded-full border border-white/10 bg-[#10231b] px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-200">
+                Original Score
+              </span>
+              <p className="mt-4 max-w-xs text-xs leading-relaxed text-neutral-400">
+                Describe a mood, genre or scene and generate an original, royalty-free instrumental — a soundtrack made
+                to sit under your ad.
+              </p>
+            </div>
+
+            <div className="relative z-10 mt-8 flex items-center justify-between">
+              <div className="flex h-10 items-end gap-[3px]">
+                {[10, 20, 14, 28, 18, 34, 16, 24, 12].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-[4px] rounded-full bg-emerald-400/80"
+                    style={{ height: `${h}px`, animation: `optiqEq 900ms ease-in-out ${i * 90}ms infinite` }}
+                  />
+                ))}
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 transition-all group-hover:scale-[1.03]">
+                Open <ChevronRight size={13} />
+              </span>
+            </div>
+          </Link>
         </div>
-      </main>
-
-      <ConfirmGenerationModal
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={generate}
-        cost={cost}
-        balance={profile?.credits ?? 0}
-        title={engine === "clone" ? "Confirm AI Custom Cloning" : "Confirm Voice Synthesis"}
-        description={engine === "clone" ? "Custom voice clone" : "Voice synthesis"}
-        actionLabel={engine === "clone" ? "Clone Custom Voice" : "Synthesize Voice"}
-      />
-
-      {/* Asset Picker Modal */}
-      <AssetPickerModal
-        isOpen={assetPickerOpen}
-        onClose={() => setAssetPickerOpen(false)}
-        onSelectCharacter={(character) => {
-          setText((prev) => {
-            const greeting = `[Actor: ${character.name}] hello! I am ready to read this script.`;
-            return prev ? `${prev}\n${greeting}` : greeting;
-          });
-
-          if (character.voiceUrl) {
-            setEngine("clone");
-            setError(null);
-            fetch(character.voiceUrl)
-              .then((res) => res.blob())
-              .then((blob) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  setVoiceFile({
-                    base64: dataUrl.split(",")[1],
-                    mimeType: blob.type || "audio/wav",
-                    preview: dataUrl,
-                    name: `${character.name}_voice.wav`,
-                  });
-                };
-                reader.readAsDataURL(blob);
-              })
-              .catch(() => {
-                setError("Failed to convert character voice for cloning reference");
-              });
-          } else if (character.voiceType === "synthesize") {
-            setEngine("prebuilt");
-            const matchingVoice = VOICES.find(
-              (v) =>
-                v.id.toLowerCase() === character.voiceDescription?.toLowerCase() ||
-                v.label.toLowerCase().includes(character.voiceDescription?.toLowerCase() || "")
-            );
-            if (matchingVoice) {
-              setVoice(matchingVoice.id);
-            }
-          }
-        }}
-        onSelectTrait={(trait) => {
-          setStyle((prev) => (prev ? `${prev}, ${trait}` : trait));
-        }}
-        onUploadFile={(file) => {
-          attachVoiceFile(file);
-        }}
-        allowedUploadTypes="audio/*"
-      />
+      </div>
     </div>
   );
 }

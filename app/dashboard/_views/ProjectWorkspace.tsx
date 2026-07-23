@@ -162,7 +162,7 @@ export default function ProjectWorkspace() {
                 >
                   {isSceneReady && stat.url ? (
                     <>
-                      <video src={stat.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                      <video src={stat.url} autoPlay loop muted playsInline preload="auto" className="h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
                         <Check size={11} strokeWidth={3} />
                       </span>
@@ -502,7 +502,7 @@ export default function ProjectWorkspace() {
                       </span>
                       <h4 className="text-xs font-bold text-white">Video Draft Offline</h4>
                       <p className="mt-1 text-[11px] text-neutral-500 max-w-xs leading-normal">
-                        Trigger the high-motion Gemini Omni Flash engine to render this prompt block.
+                        Trigger the high-motion Optiq Video Engine to render this prompt block.
                       </p>
                       <button
                         onClick={() => generateVideoForScene(idx, status.customPrompt || scene.fullPrompt)}
@@ -518,7 +518,7 @@ export default function ProjectWorkspace() {
                       <RefreshCw size={28} className="text-blue-400 animate-spin" />
                       <h4 className="mt-3 text-xs font-bold text-white">Generating Clip...</h4>
                       <p className="mt-2 text-[10px] text-neutral-500 leading-relaxed max-w-xs">
-                        Gemini Omni Flash is compiling files. This usually takes 1-3 minutes.
+                        The Optiq Video Engine is compiling files. This usually takes 1-3 minutes.
                       </p>
                     </div>
                   )}
