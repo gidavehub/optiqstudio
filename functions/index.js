@@ -1739,16 +1739,19 @@ exports.storyboardGenerate = onDocumentCreated(
       // a scoring failure never fails the storyboard — and skips locked silence.
       // Deliberately keeps the current working stage (no setStage) so the client
       // keeps showing the loading UI until scenes + score land together.
+      // Every ad gets a score — the footage is silent, so music is essential.
+      // Use the swarm's soundSpec for the vibe, or a cinematic default when it
+      // locked silence (which rule 11's silent footage now tends to produce).
       let musicUrl = null;
-      const musicPrompt = musicPromptFromSpec(storyboard.musicSpec);
-      if (musicPrompt) {
-        try {
-          const wavB64 = await lyriaGenerate(musicPrompt);
-          musicUrl = await uploadBase64(wavB64, `projects/${job.projectId}/score.wav`, "audio/wav");
-          console.log(`[storyboard ${job.projectId}] scored with Optiq Music`);
-        } catch (e) {
-          console.error(`[storyboard ${job.projectId}] scoring failed (continuing without a score):`, e.message);
-        }
+      const musicPrompt =
+        musicPromptFromSpec(storyboard.musicSpec) ||
+        "A rich, dynamic, cinematic instrumental score for a premium brand advert — warm, emotive and evolving, with layered instrumentation that builds and breathes. NOT a plain repetitive loop or a bare drum beat. No vocals, no lyrics.";
+      try {
+        const wavB64 = await lyriaGenerate(musicPrompt);
+        musicUrl = await uploadBase64(wavB64, `projects/${job.projectId}/score.wav`, "audio/wav");
+        console.log(`[storyboard ${job.projectId}] scored with Optiq Music`);
+      } catch (e) {
+        console.error(`[storyboard ${job.projectId}] scoring failed (continuing without a score):`, e.message);
       }
 
       // Narrate the ad with Optiq TTS (Gemini 3.1 Flash TTS): a main narration

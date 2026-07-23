@@ -145,11 +145,13 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* Clips — dead center of the screen */}
-        <div className="flex flex-1 items-center justify-center px-4 sm:px-6 pt-28 pb-24 overflow-y-auto">
+        {/* Clips — top-aligned + scrollable so the very first scene is always
+            reachable (vertical centering used to clip the top on overflow). On
+            mobile: ≤3 scenes stack one-up; 4+ show two per row so all fit. */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-28 pb-24">
           <div
-            className={`grid w-full gap-4 sm:gap-6 ${
-              totalScenes <= 3 ? "max-w-5xl grid-cols-1 sm:grid-cols-3" : "max-w-6xl grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
+            className={`mx-auto grid w-full gap-3 sm:gap-6 ${
+              totalScenes <= 3 ? "max-w-5xl grid-cols-1 sm:grid-cols-3" : "max-w-6xl grid-cols-2 md:grid-cols-3"
             }`}
           >
             {storyboard.scenes.map((scene, idx) => {
@@ -195,6 +197,15 @@ export default function ProjectWorkspace() {
   // ── SCRIPT / PROMPT-ENGINEERING FACE ──────────────────────────────────
   return (
     <div className="flex h-full flex-col bg-background text-neutral-200">
+      {/* Mobile: fixed floating jump-to-timeline button, always reachable no
+          matter how far the script deck is scrolled. Desktop uses the header button. */}
+      <button
+        onClick={() => setProductionMode("auto-merge")}
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-blue-600 px-4 py-3 text-xs font-bold text-white shadow-2xl shadow-blue-600/30 transition-transform active:scale-95 sm:hidden"
+      >
+        <Tv size={14} /> Timeline
+      </button>
+
       <div className="flex flex-1 flex-col overflow-y-auto px-4 sm:px-6 pb-6 pt-20 sm:pt-24 w-full max-w-6xl mx-auto">
         {/* Header Controls */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
@@ -526,7 +537,7 @@ export default function ProjectWorkspace() {
                   {status.status === "succeeded" && status.url && (
                     <div className="space-y-3">
                       <div className="relative aspect-video overflow-hidden rounded-xl bg-black border border-white/10 shadow-2xl">
-                        <video src={status.url} controls className="h-full w-full object-cover" />
+                        <video src={status.url} controls muted className="h-full w-full object-cover" />
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/5 px-2.5 py-0.5 rounded-full border border-emerald-500/15">
