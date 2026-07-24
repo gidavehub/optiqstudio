@@ -1857,6 +1857,101 @@ function compileRunCommand(cmd) {
   });
 }
 
+// ── Shared ad-audio composition ─────────────────────────────────────────────
+// Both exports (the storyboard projectCompile and the editor's renderJobV2) need
+// the SAME three audio files under a SILENT video: the Optiq Music bed + the two
+// TTS narration tracks. These helpers keep the two paths identical.
+
+// Returns the project's { musicUrl, voiceoverUrl, taglineUrl, taglineDuration },
+// generating + persisting any that are missing so every export has full audio.
+async function ensureProjectAudio(projectRef, projectId) {
+  let musicUrl = null, voiceoverUrl = null, taglineUrl = null, taglineDuration = null;
+  const psnap = await projectRef.get();
+  const pd = psnap.exists ? psnap.data() : {};
+  musicUrl = pd.musicUrl || null;
+  voiceoverUrl = pd.voiceoverUrl || null;
+  taglineUrl = pd.taglineUrl || null;
+  taglineDuration = Number(pd.taglineDuration) || null;
+
+  const patch = {};
+  if (!musicUrl) {
+    try {
+      const prompt = musicPromptFromSpec(pd.musicSpec) || DEFAULT_AD_MUSIC;
+      const wav = await lyriaGenerate(prompt);
+      musicUrl = await uploadBase64(wav, `projects/${projectId}/score.wav`, "audio/wav");
+      patch.musicUrl = musicUrl;
+      console.log(`[audio ${projectId}] generated Optiq Music`);
+    } catch (e) {
+      console.error(`[audio ${projectId}] music generation failed:`, e.message);
+    }
+  }
+  if (!voiceoverUrl && !taglineUrl) {
+    try {
+      const vo = await writeAdNarration({ concept: pd.concept, brandName: pd.brandName, scenes: pd.scenes });
+      const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
+      if (vo.narration) {
+        const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
+        voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${projectId}/voiceover.wav`, "audio/wav");
+        patch.voiceoverUrl = voiceoverUrl;
+      }
+      if (vo.tagline) {
+        const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
+        taglineUrl = await uploadBase64(tag.base64Wav, `projects/${projectId}/tagline.wav`, "audio/wav");
+        taglineDuration = tag.durationSec;
+        patch.taglineUrl = taglineUrl;
+        patch.taglineDuration = taglineDuration;
+      }
+      console.log(`[audio ${projectId}] generated narration (${vo.voiceKey})`);
+    } catch (e) {
+      console.error(`[audio ${projectId}] narration generation failed:`, e.message);
+    }
+  }
+  if (Object.keys(patch).length) await projectRef.set(patch, { merge: true }).catch(() => {});
+  return { musicUrl, voiceoverUrl, taglineUrl, taglineDuration };
+}
+
+// Lays the ad soundtrack over `inPath`, writing `outPath`: DROPS the video's own
+// audio ([0:a] at volume 0, also the duration anchor) and mixes the looped music
+// bed + narration (from the top) + tagline (delayed to the end) through a limiter.
+// Returns true if it composed, false if there was nothing to add.
+async function composeAdAudio({ inPath, outPath, workDir, audio, musicVolume = 0.6, totalDuration, tag, download, run }) {
+  const path = require("path");
+  const assets = [];
+  if (audio.musicUrl) { const p = path.join(workDir, "cmp_bgm.wav"); await download(audio.musicUrl, p); assets.push({ kind: "music", path: p }); }
+  if (audio.voiceoverUrl) { const p = path.join(workDir, "cmp_vo.wav"); await download(audio.voiceoverUrl, p); assets.push({ kind: "voiceover", path: p }); }
+  if (audio.taglineUrl) { const p = path.join(workDir, "cmp_tag.wav"); await download(audio.taglineUrl, p); assets.push({ kind: "tagline", path: p }); }
+  if (assets.length === 0) return false;
+
+  const inputArgs = [`-i "${inPath}"`];
+  const filters = [`[0:a]volume=0[base]`];
+  const mixLabels = ["[base]"];
+  let idx = 0;
+  for (const a of assets) {
+    idx++;
+    if (a.kind === "music") {
+      inputArgs.push(`-stream_loop -1 -i "${a.path}"`);
+      filters.push(`[${idx}:a]volume=${musicVolume}[music]`);
+      mixLabels.push("[music]");
+    } else if (a.kind === "voiceover") {
+      inputArgs.push(`-i "${a.path}"`);
+      filters.push(`[${idx}:a]volume=1.5[vo]`);
+      mixLabels.push("[vo]");
+    } else if (a.kind === "tagline") {
+      inputArgs.push(`-i "${a.path}"`);
+      const delayMs = Math.max(0, Math.round((totalDuration - (audio.taglineDuration || 4) - 0.3) * 1000));
+      filters.push(`[${idx}:a]adelay=${delayMs}|${delayMs},volume=1.6[tag]`);
+      mixLabels.push("[tag]");
+    }
+  }
+  const filterGraph =
+    `${filters.join(";")};${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[mixed];` +
+    `[mixed]alimiter=limit=0.95[aout]`;
+  console.log(`[${tag}] Composing ad audio: music@${musicVolume}${audio.voiceoverUrl ? " + narration" : ""}${audio.taglineUrl ? " + tagline" : ""}`);
+  const cmd = `ffmpeg -y ${inputArgs.join(" ")} -filter_complex "${filterGraph}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${outPath}"`;
+  await run(cmd);
+  return true;
+}
+
 exports.projectCompile = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "1GiB" },
   async (req, res) => {
@@ -2219,9 +2314,29 @@ exports.renderJobV2 = onRequest(
             `(${job.base.length} base segs, ${job.overlays.length} overlays, ${job.audio.length} audio)`);
           await renderRunFfmpeg(args, tag);
 
+          // Compose the ad soundtrack over the render: DROP the clips' own audio
+          // and lay down the Optiq Music bed + the two TTS narration tracks
+          // (self-healed from the project). Best-effort — on any failure we ship
+          // the render as-is rather than failing the export.
+          let uploadPath = outPath;
+          try {
+            const audio = await ensureProjectAudio(projectRef, projectId);
+            if (audio.musicUrl || audio.voiceoverUrl || audio.taglineUrl) {
+              const composedPath = path.join(workDir, "composed.mp4");
+              const ok = await composeAdAudio({
+                inPath: outPath, outPath: composedPath, workDir, audio,
+                musicVolume: 0.6, totalDuration: job.duration, tag,
+                download: compileDownloadFile, run: compileRunCommand,
+              });
+              if (ok) uploadPath = composedPath;
+            }
+          } catch (e) {
+            console.error(`[${tag}] ad-audio compose failed, shipping render as-is:`, e.message);
+          }
+
           const remotePath = `projects/${user.uid}/${projectId}/editor_render_${Date.now()}.mp4`;
           console.log(`[${tag}] Uploading to ${remotePath}`);
-          await admin.storage().bucket(STORAGE_BUCKET).upload(outPath, {
+          await admin.storage().bucket(STORAGE_BUCKET).upload(uploadPath, {
             destination: remotePath,
             metadata: {
               contentType: "video/mp4",
