@@ -537,7 +537,7 @@ export default function ProjectWorkspace() {
                   {status.status === "succeeded" && status.url && (
                     <div className="space-y-3">
                       <div className="relative aspect-video overflow-hidden rounded-xl bg-black border border-white/10 shadow-2xl">
-                        <video src={status.url} controls muted className="h-full w-full object-cover" />
+                        <video src={status.url} controls className="h-full w-full object-cover" />
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/5 px-2.5 py-0.5 rounded-full border border-emerald-500/15">

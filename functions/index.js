@@ -1965,61 +1965,10 @@ exports.projectCompile = onRequest(
 
       const projectRef = db.collection("projects").doc(projectId);
 
-      // Ads carry NO baked-in audio (clips are silent). The final soundtrack is
-      // composed here from the storyboard's baked Optiq Music score + the two
-      // Optiq narration tracks. Fall back to those baked assets when the client
-      // didn't pass its own, so every ad is scored + narrated by default.
-      let musicUrl = bodyMusicUrl;
-      let voiceoverUrl = null, taglineUrl = null, taglineDuration = null;
-      try {
-        const psnap = await projectRef.get();
-        const pd = psnap.exists ? psnap.data() : {};
-        if (!musicUrl) musicUrl = pd.musicUrl || null;
-        voiceoverUrl = pd.voiceoverUrl || null;
-        taglineUrl = pd.taglineUrl || null;
-        taglineDuration = Number(pd.taglineDuration) || null;
-
-        // Self-heal: if this ad has no baked score / narration (older projects, or
-        // one made before these features), generate them NOW at compile time and
-        // store them back — so every compile has music + narration, always.
-        const patch = {};
-        if (!musicUrl) {
-          try {
-            const prompt =
-              musicPromptFromSpec(pd.musicSpec) || DEFAULT_AD_MUSIC;
-            const wav = await lyriaGenerate(prompt);
-            musicUrl = await uploadBase64(wav, `projects/${projectId}/score.wav`, "audio/wav");
-            patch.musicUrl = musicUrl;
-            console.log(`[compile ${projectId}] generated Optiq Music on the fly`);
-          } catch (e) {
-            console.error(`[compile ${projectId}] on-the-fly music failed:`, e.message);
-          }
-        }
-        if (!voiceoverUrl && !taglineUrl) {
-          try {
-            const vo = await writeAdNarration({ concept: pd.concept, brandName: pd.brandName, scenes: pd.scenes });
-            const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
-            if (vo.narration) {
-              const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
-              voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${projectId}/voiceover.wav`, "audio/wav");
-              patch.voiceoverUrl = voiceoverUrl;
-            }
-            if (vo.tagline) {
-              const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
-              taglineUrl = await uploadBase64(tag.base64Wav, `projects/${projectId}/tagline.wav`, "audio/wav");
-              taglineDuration = tag.durationSec;
-              patch.taglineUrl = taglineUrl;
-              patch.taglineDuration = taglineDuration;
-            }
-            console.log(`[compile ${projectId}] generated narration on the fly (${vo.voiceKey})`);
-          } catch (e) {
-            console.error(`[compile ${projectId}] on-the-fly narration failed:`, e.message);
-          }
-        }
-        if (Object.keys(patch).length) await projectRef.set(patch, { merge: true }).catch(() => {});
-      } catch (e) {
-        console.error(`[compile ${projectId}] audio prep failed:`, e.message);
-      }
+      // Clips keep their OWN (natively generated) audio — the ad is NOT scored or
+      // narrated by the platform anymore. Background music is only mixed in when
+      // the client explicitly passes a musicUrl (e.g. a track the user chose).
+      const musicUrl = bodyMusicUrl;
 
       // Set compileStatus: "compiling" in Firestore
       await projectRef.set({
@@ -2049,7 +1998,6 @@ exports.projectCompile = onRequest(
           const filelistPath = path.join(workDir, "filelist.txt");
           const filelistContent = [];
 
-          let totalDuration = 0;
           for (let i = 0; i < timeline.length; i++) {
             const clip = timeline[i];
             const srcPath = path.join(workDir, `src_${i}.mp4`);
@@ -2061,14 +2009,10 @@ exports.projectCompile = onRequest(
             const trimStart = clip.trimStart || 0;
             const trimEnd = clip.trimEnd || 10;
             const duration = Math.max(trimEnd - trimStart, 0.5);
-            totalDuration += duration;
 
-            // Ads are SILENT footage: keep the video only and attach a fresh
-            // silent stereo track (anullsrc), discarding whatever audio the clip
-            // may carry. Every segment then has an identical audio stream, so the
-            // concat is clean and the post-mix has a duration anchor to sit on.
-            console.log(`[compile ${projectId}] Trimming + muting segment ${i} (${trimStart}s→${trimEnd}s, ${duration}s)`);
-            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -f lavfi -t ${duration} -i anullsrc=channel_layout=stereo:sample_rate=44100 -map 0:v -map 1:a -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 -shortest "${trimmedPath}"`;
+            // Keep the clip's OWN (natively generated) audio.
+            console.log(`[compile ${projectId}] Trimming segment ${i} (${trimStart}s→${trimEnd}s, ${duration}s)`);
+            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 "${trimmedPath}"`;
             await compileRunCommand(trimCmd);
 
             filelistContent.push(`file '${trimmedPath}'`);
@@ -2081,63 +2025,22 @@ exports.projectCompile = onRequest(
           const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${filelistPath}" -c copy "${mergedPath}"`;
           await compileRunCommand(concatCmd);
 
-          // Compose the soundtrack: looped Optiq Music bed + narration from the
-          // top + the closing tagline delayed to the very end. The silent clip
-          // audio ([0:a], volume 0) anchors the mix to the video's length; a
-          // limiter tames peaks. Best-effort — if the mix fails for any reason we
-          // ship the (silent) video rather than failing the whole compile.
+          // The clips keep their own native audio. Only if the client explicitly
+          // passed a background track do we lay it under that audio; otherwise the
+          // merged video ships as-is. Best-effort — on failure keep native audio.
           let finalPath = mergedPath;
-          try {
-            const audioAssets = [];
-            if (musicUrl) {
+          if (musicUrl) {
+            try {
               const bgmPath = path.join(workDir, "bgm.wav");
               await compileDownloadFile(musicUrl, bgmPath);
-              audioAssets.push({ kind: "music", path: bgmPath });
-            }
-            if (voiceoverUrl) {
-              const voPath = path.join(workDir, "vo.wav");
-              await compileDownloadFile(voiceoverUrl, voPath);
-              audioAssets.push({ kind: "voiceover", path: voPath });
-            }
-            if (taglineUrl) {
-              const tagPath = path.join(workDir, "tag.wav");
-              await compileDownloadFile(taglineUrl, tagPath);
-              audioAssets.push({ kind: "tagline", path: tagPath });
-            }
-
-            if (audioAssets.length > 0) {
               finalPath = path.join(workDir, "final.mp4");
-              const inputArgs = [`-i "${mergedPath}"`];
-              const filters = [`[0:a]volume=0[base]`];
-              const mixLabels = ["[base]"];
-              let idx = 0;
-              for (const a of audioAssets) {
-                idx++;
-                if (a.kind === "music") {
-                  inputArgs.push(`-stream_loop -1 -i "${a.path}"`);
-                  filters.push(`[${idx}:a]volume=${musicVolume}[music]`);
-                  mixLabels.push("[music]");
-                } else if (a.kind === "voiceover") {
-                  inputArgs.push(`-i "${a.path}"`);
-                  filters.push(`[${idx}:a]volume=1.5[vo]`);
-                  mixLabels.push("[vo]");
-                } else if (a.kind === "tagline") {
-                  inputArgs.push(`-i "${a.path}"`);
-                  const delayMs = Math.max(0, Math.round((totalDuration - (taglineDuration || 4) - 0.3) * 1000));
-                  filters.push(`[${idx}:a]adelay=${delayMs}|${delayMs},volume=1.6[tag]`);
-                  mixLabels.push("[tag]");
-                }
-              }
-              const filterGraph =
-                `${filters.join(";")};${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[mixed];` +
-                `[mixed]alimiter=limit=0.95[aout]`;
-              console.log(`[compile ${projectId}] Composing audio: music@${musicVolume}${voiceoverUrl ? " + narration" : ""}${taglineUrl ? " + tagline" : ""}`);
-              const mixCmd = `ffmpeg -y ${inputArgs.join(" ")} -filter_complex "${filterGraph}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${finalPath}"`;
+              console.log(`[compile ${projectId}] Mixing background music (volume: ${musicVolume})`);
+              const mixCmd = `ffmpeg -y -i "${mergedPath}" -stream_loop -1 -i "${bgmPath}" -filter_complex "[0:a]volume=1.0[a1];[1:a]volume=${musicVolume}[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac "${finalPath}"`;
               await compileRunCommand(mixCmd);
+            } catch (mixErr) {
+              console.error(`[compile ${projectId}] music mix failed, shipping native audio:`, mixErr.message);
+              finalPath = mergedPath;
             }
-          } catch (mixErr) {
-            console.error(`[compile ${projectId}] audio mix failed, shipping silent video:`, mixErr.message);
-            finalPath = mergedPath;
           }
 
           const remotePath = `projects/${user.uid}/${projectId}/final_video.mp4`;
@@ -2314,29 +2217,9 @@ exports.renderJobV2 = onRequest(
             `(${job.base.length} base segs, ${job.overlays.length} overlays, ${job.audio.length} audio)`);
           await renderRunFfmpeg(args, tag);
 
-          // Compose the ad soundtrack over the render: DROP the clips' own audio
-          // and lay down the Optiq Music bed + the two TTS narration tracks
-          // (self-healed from the project). Best-effort — on any failure we ship
-          // the render as-is rather than failing the export.
-          let uploadPath = outPath;
-          try {
-            const audio = await ensureProjectAudio(projectRef, projectId);
-            if (audio.musicUrl || audio.voiceoverUrl || audio.taglineUrl) {
-              const composedPath = path.join(workDir, "composed.mp4");
-              const ok = await composeAdAudio({
-                inPath: outPath, outPath: composedPath, workDir, audio,
-                musicVolume: 0.6, totalDuration: job.duration, tag,
-                download: compileDownloadFile, run: compileRunCommand,
-              });
-              if (ok) uploadPath = composedPath;
-            }
-          } catch (e) {
-            console.error(`[${tag}] ad-audio compose failed, shipping render as-is:`, e.message);
-          }
-
           const remotePath = `projects/${user.uid}/${projectId}/editor_render_${Date.now()}.mp4`;
           console.log(`[${tag}] Uploading to ${remotePath}`);
-          await admin.storage().bucket(STORAGE_BUCKET).upload(uploadPath, {
+          await admin.storage().bucket(STORAGE_BUCKET).upload(outPath, {
             destination: remotePath,
             metadata: {
               contentType: "video/mp4",

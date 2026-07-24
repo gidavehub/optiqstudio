@@ -609,10 +609,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             model: "omni",
             aspectRatio,
             durationSeconds: 10,
-            // Ads carry NO baked-in sound: no dialogue, no voiceover, no ambience
-            // in the footage. The ad's audio (Optiq Music score + optional TTS
-            // narration) is composed at compile time. So scene clips are silent.
-            generateAudio: false,
+            // Clips keep their own natively-generated audio (dialogue, ambience,
+            // any sound the prompt calls for) — the platform no longer composes
+            // separate music/TTS.
+            generateAudio: true,
             // Lets the server draw this scene from the ad's prepaid allowance
             // instead of charging again.
             projectId: activeProjectId,
