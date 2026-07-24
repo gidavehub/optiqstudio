@@ -262,6 +262,27 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // ─── NAVIGATION ───────────────────────────────────────────────────────────
   const goHome = useCallback(() => router.push("/dashboard"), [router]);
   const goCreate = useCallback(() => {
+    // "Create" always starts a BRAND-NEW project — never resume a previous
+    // (possibly stuck) generation. Without this reset, a stale activeProjectId
+    // left the /create route showing a past project's "writing your story…"
+    // stage with its fields autofilled, and a fresh generate duplicated it.
+    setActiveProjectId(null);
+    setRouteProjectId(null);
+    setStoryboard(null);
+    setGenerating(false);
+    setPipelineStage(null);
+    setPipelineProgress(null);
+    setVideoStatus({});
+    setTimeline([]);
+    setError(null);
+    setCompileStatus("idle");
+    setCompileVideoUrl("");
+    setCompileError("");
+    setPromptText("");
+    setBrandName("");
+    setProduct("");
+    setBrandMaterials([]);
+    setProductionMode(null);
     setWizardStep(1);
     router.push("/dashboard/create");
   }, [router]);

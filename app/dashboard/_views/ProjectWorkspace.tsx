@@ -306,8 +306,8 @@ export default function ProjectWorkspace() {
             <textarea
               value={storyboard.musicSpec}
               onChange={(e) => setStoryboard({ ...storyboard, musicSpec: e.target.value })}
-              rows={2}
-              className="w-full bg-background rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-blue-500/40 outline-none text-white font-mono"
+              rows={3}
+              className="w-full max-h-32 resize-none overflow-y-auto rounded-xl border border-white/5 bg-background p-3.5 font-mono text-xs leading-relaxed text-white outline-none focus:border-blue-500/40"
             />
           </div>
         )}

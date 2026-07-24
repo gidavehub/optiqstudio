@@ -1761,52 +1761,11 @@ exports.storyboardGenerate = onDocumentCreated(
         });
       }
 
-      // Score the ad: turn the locked soundSpec into a real background track
-      // with Optiq Music (Lyria), baked into the (prepaid) storyboard so it
-      // mixes under the nine clips at compile with no extra cost. Best-effort —
-      // a scoring failure never fails the storyboard — and skips locked silence.
-      // Deliberately keeps the current working stage (no setStage) so the client
-      // keeps showing the loading UI until scenes + score land together.
-      // Every ad gets a score — the footage is silent, so music is essential.
-      // Use the swarm's soundSpec for the vibe, or a cinematic default when it
-      // locked silence (which rule 11's silent footage now tends to produce).
-      let musicUrl = null;
-      const musicPrompt =
-        musicPromptFromSpec(storyboard.musicSpec) || DEFAULT_AD_MUSIC;
-      try {
-        const wavB64 = await lyriaGenerate(musicPrompt);
-        musicUrl = await uploadBase64(wavB64, `projects/${job.projectId}/score.wav`, "audio/wav");
-        console.log(`[storyboard ${job.projectId}] scored with Optiq Music`);
-      } catch (e) {
-        console.error(`[storyboard ${job.projectId}] scoring failed (continuing without a score):`, e.message);
-      }
-
-      // Narrate the ad with Optiq TTS (Gemini 3.1 Flash TTS): a main narration
-      // that plays under the whole ad + a closing tagline placed at the very end
-      // at compile. Baked into the (prepaid) storyboard. Best-effort — a failure
-      // never blocks the storyboard; the ad just ships with music only.
-      let voiceoverUrl = null, taglineUrl = null, taglineDuration = null, voiceoverVoice = null;
-      try {
-        const vo = await writeAdNarration({
-          concept: storyboard.concept,
-          brandName: job.brandName,
-          scenes: storyboard.scenes,
-        });
-        const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
-        voiceoverVoice = vo.voiceKey || "gambian-english";
-        if (vo.narration) {
-          const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
-          voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${job.projectId}/voiceover.wav`, "audio/wav");
-        }
-        if (vo.tagline) {
-          const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
-          taglineUrl = await uploadBase64(tag.base64Wav, `projects/${job.projectId}/tagline.wav`, "audio/wav");
-          taglineDuration = tag.durationSec;
-        }
-        console.log(`[storyboard ${job.projectId}] narrated (${voiceoverVoice})`);
-      } catch (e) {
-        console.error(`[storyboard ${job.projectId}] narration failed (continuing without a voiceover):`, e.message);
-      }
+      // NOTE: the ad's audio (Optiq Music score + the two TTS narration tracks)
+      // is NO LONGER baked here. Generating it on the storyboard's critical path
+      // delayed "ready" and risked timing the job out (leaving it stuck at a
+      // working stage). projectCompile now self-heals the audio at compile time,
+      // so the storyboard goes straight to "ready" the moment the scenes exist.
 
       await projectRef.update(stripUndefined({
         title: storyboard.title,
@@ -1818,11 +1777,6 @@ exports.storyboardGenerate = onDocumentCreated(
         storyArc: storyboard.storyArc ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
-        musicUrl,
-        voiceoverUrl,
-        taglineUrl,
-        taglineDuration,
-        voiceoverVoice,
         videoStatus,
         sceneImages,
         pipelineStage: "ready",
