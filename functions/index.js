@@ -971,7 +971,11 @@ exports.voiceGenerate = onRequest(
 // quota manager. Returns a base64-encoded WAV (~30s clip). Exported so the
 // storyboard flow can score an ad from its musicSpec with the same engine.
 const LYRIA_MODEL = "lyria-002";
-async function lyriaGenerate(prompt, negativePrompt = null) {
+// Rich, vibey default when a project has no usable music spec — genre-appropriate
+// for the brand ads and specific enough to avoid a bland, plain loop.
+const DEFAULT_AD_MUSIC =
+  "An upbeat, vibey, cinematic brand-advert instrumental with rich layered percussion, a memorable melodic hook on kora or guitar, warm bass, uplifting brass and evolving dynamics — energetic, emotional and modern. NOT a plain repetitive loop or a bare drum beat. No vocals, no lyrics.";
+async function lyriaGenerateOnce(prompt, negativePrompt = null) {
   const projectId = "davelabs-tools";
   const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/${LYRIA_MODEL}:predict`;
   const instance = { prompt };
@@ -993,6 +997,30 @@ async function lyriaGenerate(prompt, negativePrompt = null) {
   const b64 = json.predictions?.[0]?.bytesBase64Encoded;
   if (!b64) throw new Error("Optiq Music returned no audio");
   return b64; // a complete WAV file
+}
+
+// Lyria's safety filter intermittently blocks a prompt ("All responses were
+// blocked", HTTP 400) even for perfectly benign music. Retry the same prompt
+// once, then fall back to a plain, always-safe prompt so an ad is never left
+// without a score.
+async function lyriaGenerate(prompt, negativePrompt = null) {
+  const tries = [
+    prompt,
+    prompt,
+    "An uplifting, warm, cinematic instrumental background track for a brand advert, gentle percussion and melody, no vocals, no lyrics",
+  ];
+  let lastErr;
+  for (const p of tries) {
+    try {
+      return await lyriaGenerateOnce(p, negativePrompt);
+    } catch (e) {
+      lastErr = e;
+      const blocked = e?.httpStatus === 400 || /block|safety/i.test(String(e?.message || e));
+      if (!blocked) throw e;
+      console.warn(`[lyria] prompt blocked, retrying: ${String(e?.message || e).slice(0, 80)}`);
+    }
+  }
+  throw lastErr;
 }
 
 // Turns a storyboard's locked soundSpec into a Lyria prompt — or returns null
@@ -1744,8 +1772,7 @@ exports.storyboardGenerate = onDocumentCreated(
       // locked silence (which rule 11's silent footage now tends to produce).
       let musicUrl = null;
       const musicPrompt =
-        musicPromptFromSpec(storyboard.musicSpec) ||
-        "A rich, dynamic, cinematic instrumental score for a premium brand advert — warm, emotive and evolving, with layered instrumentation that builds and breathes. NOT a plain repetitive loop or a bare drum beat. No vocals, no lyrics.";
+        musicPromptFromSpec(storyboard.musicSpec) || DEFAULT_AD_MUSIC;
       try {
         const wavB64 = await lyriaGenerate(musicPrompt);
         musicUrl = await uploadBase64(wavB64, `projects/${job.projectId}/score.wav`, "audio/wav");
@@ -1897,15 +1924,52 @@ exports.projectCompile = onRequest(
       let voiceoverUrl = null, taglineUrl = null, taglineDuration = null;
       try {
         const psnap = await projectRef.get();
-        if (psnap.exists) {
-          const pd = psnap.data();
-          if (!musicUrl) musicUrl = pd.musicUrl || null;
-          voiceoverUrl = pd.voiceoverUrl || null;
-          taglineUrl = pd.taglineUrl || null;
-          taglineDuration = Number(pd.taglineDuration) || null;
+        const pd = psnap.exists ? psnap.data() : {};
+        if (!musicUrl) musicUrl = pd.musicUrl || null;
+        voiceoverUrl = pd.voiceoverUrl || null;
+        taglineUrl = pd.taglineUrl || null;
+        taglineDuration = Number(pd.taglineDuration) || null;
+
+        // Self-heal: if this ad has no baked score / narration (older projects, or
+        // one made before these features), generate them NOW at compile time and
+        // store them back — so every compile has music + narration, always.
+        const patch = {};
+        if (!musicUrl) {
+          try {
+            const prompt =
+              musicPromptFromSpec(pd.musicSpec) || DEFAULT_AD_MUSIC;
+            const wav = await lyriaGenerate(prompt);
+            musicUrl = await uploadBase64(wav, `projects/${projectId}/score.wav`, "audio/wav");
+            patch.musicUrl = musicUrl;
+            console.log(`[compile ${projectId}] generated Optiq Music on the fly`);
+          } catch (e) {
+            console.error(`[compile ${projectId}] on-the-fly music failed:`, e.message);
+          }
         }
+        if (!voiceoverUrl && !taglineUrl) {
+          try {
+            const vo = await writeAdNarration({ concept: pd.concept, brandName: pd.brandName, scenes: pd.scenes });
+            const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
+            if (vo.narration) {
+              const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
+              voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${projectId}/voiceover.wav`, "audio/wav");
+              patch.voiceoverUrl = voiceoverUrl;
+            }
+            if (vo.tagline) {
+              const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
+              taglineUrl = await uploadBase64(tag.base64Wav, `projects/${projectId}/tagline.wav`, "audio/wav");
+              taglineDuration = tag.durationSec;
+              patch.taglineUrl = taglineUrl;
+              patch.taglineDuration = taglineDuration;
+            }
+            console.log(`[compile ${projectId}] generated narration on the fly (${vo.voiceKey})`);
+          } catch (e) {
+            console.error(`[compile ${projectId}] on-the-fly narration failed:`, e.message);
+          }
+        }
+        if (Object.keys(patch).length) await projectRef.set(patch, { merge: true }).catch(() => {});
       } catch (e) {
-        console.error(`[compile ${projectId}] could not read baked audio:`, e.message);
+        console.error(`[compile ${projectId}] audio prep failed:`, e.message);
       }
 
       // Set compileStatus: "compiling" in Firestore
