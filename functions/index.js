@@ -67,6 +67,11 @@ const PLAN_CREDITS = 10000;
 const WELCOME_BONUS_GMD = 1000;
 const MIN_TOPUP_GMD = 50;
 const MAX_TOPUP_GMD = 500000;
+// ModemPay card payments require a minimum of ~GMD 74.43 (~$1). Below that only
+// the wallet (mobile money) method is offered so checkout doesn't dead-end.
+// Tokens: "card" and "wallet" (mobile money; ModemPay rejects "mobile_money").
+const CARD_MIN_GMD = 75;
+const paymentMethodsFor = (amountGmd) => (amountGmd >= CARD_MIN_GMD ? ["card", "wallet"] : ["wallet"]);
 
 /**
  * Verifies an x-modem-signature header (hex HMAC-SHA512 of the raw body).
@@ -535,6 +540,8 @@ exports.modemPayCheckout = onRequest(
           data: {
             amount: requested,
             currency: "GMD",
+            // Card + mobile money (card only above its minimum).
+            payment_methods: paymentMethodsFor(requested),
             title: `Optiq Studio wallet top-up — GMD ${requested.toLocaleString()}`,
             description: `Adds GMD ${requested.toLocaleString()} to your Optiq Studio wallet`,
             customer_email: email,
@@ -602,6 +609,8 @@ exports.modemPayCheckout = onRequest(
         data: {
           amount: amountGmd,
           currency: "GMD",
+          // Card + mobile money (card only above its minimum).
+          payment_methods: paymentMethodsFor(amountGmd),
           title,
           description: title,
           customer_email: email,
