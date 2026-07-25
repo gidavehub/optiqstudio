@@ -145,7 +145,7 @@ export default function StartProjectButton({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-t-2xl bg-white p-6 text-black sm:rounded-2xl"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-6 text-black sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

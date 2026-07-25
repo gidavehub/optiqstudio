@@ -322,7 +322,7 @@ export default function LandingPage() {
               </Link>
               <Link
                 href="/enterprise"
-                className="inline-flex items-center gap-1.5 rounded-md border border-white/50 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white hover:text-black transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors"
               >
                 Optiq Studio Enterprise <ChevronRight size={14} />
               </Link>
