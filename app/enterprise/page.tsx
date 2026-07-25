@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Check, ChevronRight, Mail, Phone } from "lucide-react";
 import StartProjectButton, {
-  CONTACT,
   ContactRows,
   WhatsAppIcon,
 } from "../../components/EnterpriseContact";
+import { CONTACT } from "../../components/enterprise-contact-data";
 
 // /enterprise — Optiq Studio Enterprise. Not a subscription: a done-with-you
 // service where the DaveLabs team produces cinematic, production-quality ads

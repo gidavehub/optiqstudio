@@ -8,14 +8,11 @@
 
 import { useEffect, useState } from "react";
 import { Mail, Phone, X } from "lucide-react";
+import { CONTACT } from "./enterprise-contact-data";
 
-export const CONTACT = {
-  emails: ["optiq@davelabs.co", "sales@davelabs.co"],
-  phoneDisplay: "+220 781 0880",
-  phoneHref: "tel:+2207810880",
-  whatsappHref: "https://wa.me/2207810880",
-  mailSubject: "?subject=Optiq%20Studio%20Enterprise%20project",
-};
+// Re-exported so existing imports of `CONTACT` from this module keep working for
+// other client components; Server Components must import it from the data module.
+export { CONTACT };
 
 /** WhatsApp's own glyph — lucide has no brand icon and recognition matters here. */
 export function WhatsAppIcon({ size = 20, className = "" }: { size?: number; className?: string }) {
