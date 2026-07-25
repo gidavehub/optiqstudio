@@ -68,9 +68,167 @@ const WELCOME_BONUS_GMD = 1000;
 const MIN_TOPUP_GMD = 50;
 const MAX_TOPUP_GMD = 500000;
 
+/**
+ * Verifies an x-modem-signature header (hex HMAC-SHA512 of the raw body).
+ *
+ * ModemPay signs with a DIFFERENT key depending on how the event was routed:
+ *   - global webhook registered in the dashboard → the webhook signing secret
+ *   - per-intent `callback_url` (what our checkout sets) → the MERCHANT SECRET
+ *     KEY, i.e. the same sk_live_… we authenticate the REST API with.
+ * (https://docs.modempay.com/documentation/payment-intents/callback_url)
+ *
+ * We set callback_url on every payment, so the merchant key is the one that
+ * actually matches. Trying both keeps the dashboard webhook working too.
+ */
+function verifyModemSignature(rawBody, signature, candidateSecrets) {
+  if (!signature) return null;
+  for (const [label, secret] of candidateSecrets) {
+    if (!secret) continue;
+    const computed = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
+    if (
+      computed.length === signature.length &&
+      crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature))
+    ) {
+      return label;
+    }
+  }
+  return null;
+}
+
+const SUCCESS_STATUSES = new Set(["completed", "successful", "success", "succeeded", "paid"]);
+
+/** Pulls a transaction from ModemPay — the authority on amount/metadata. */
+async function fetchModemTransaction(id, apiKey) {
+  if (!id || !apiKey) return null;
+  try {
+    const r = await fetch(`https://api.modempay.com/v1/transactions/${id}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => null);
+    return j?.data || j || null;
+  } catch (err) {
+    console.warn("ModemPay transaction lookup failed:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Works out WHICH account to credit and HOW MUCH, from a succeeded charge.
+ * Metadata is the intended path; the other two are safety nets so a paid
+ * charge is never silently dropped.
+ */
+async function resolveFulfillment(charge, apiKey) {
+  let meta = charge.metadata || {};
+  let resolvedBy = "metadata";
+
+  // 1. Metadata missing/stripped on the callback? Ask ModemPay directly.
+  if (!meta.uid) {
+    const txn = await fetchModemTransaction(charge.id, apiKey);
+    if (txn?.metadata?.uid) {
+      meta = { ...txn.metadata, ...meta, uid: txn.metadata.uid };
+      resolvedBy = "transaction-lookup";
+    }
+  }
+
+  // 2. Still nothing — fall back to the email the checkout was created with.
+  let uid = meta.uid || null;
+  const email = charge.customer_email || null;
+  if (!uid && email) {
+    const snap = await db.collection("users").where("email", "==", email).limit(2).get();
+    if (snap.size === 1) {
+      uid = snap.docs[0].id;
+      resolvedBy = "email-match";
+      console.warn(`Charge ${charge.id}: no uid in metadata, matched by email ${email}`);
+    } else if (snap.size > 1) {
+      console.error(`Charge ${charge.id}: email ${email} matches multiple users — not crediting`);
+    }
+  }
+
+  // Amount: metadata wins; otherwise the charge itself. The wallet IS GMD, so
+  // a GMD charge credits 1:1 — never infer an amount from another currency.
+  let credits = Number(meta.credits);
+  if (!Number.isFinite(credits) || credits <= 0) {
+    credits =
+      String(charge.currency).toUpperCase() === "GMD" ? Math.round(Number(charge.amount)) : 0;
+    if (credits > 0) resolvedBy += "+amount-fallback";
+  }
+
+  return { uid, meta, credits: Number.isFinite(credits) && credits > 0 ? credits : 0, resolvedBy };
+}
+
+/**
+ * Credits a successful charge exactly once.
+ *
+ * The record-and-credit happen in ONE transaction. (The previous version wrote
+ * the payments doc first and credited afterwards — if the credit step failed,
+ * the retry saw the doc, assumed "already fulfilled" and skipped it, so the
+ * money stayed on the ModemPay dashboard and never reached the wallet.)
+ */
+async function fulfillCharge(charge, apiKey, via) {
+  const { uid, meta, credits, resolvedBy } = await resolveFulfillment(charge, apiKey);
+  const paymentRef = db.collection("payments").doc(String(charge.id));
+
+  const outcome = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(paymentRef);
+    // Skip anything already handled. A doc written by the OLD code path has no
+    // `fulfilled` field but only ever existed because it was credited, so treat
+    // "field absent" as fulfilled too — only an explicit `fulfilled === false`
+    // (our uncredited/needs-review marker) is eligible for a retry.
+    if (snap.exists && snap.data()?.fulfilled !== false) return { status: "already-fulfilled" };
+
+    const record = {
+      uid: uid || null,
+      kind: meta.kind || "unknown",
+      credits,
+      amount: charge.amount,
+      currency: charge.currency,
+      reference: charge.transaction_reference || null,
+      email: charge.customer_email || null,
+      receivedAt: new Date().toISOString(),
+      resolvedBy,
+      via,
+    };
+
+    // Nothing to credit against — keep the record so it can be reconciled.
+    if (!uid || credits <= 0) {
+      tx.set(paymentRef, { ...record, fulfilled: false, needsReview: true }, { merge: true });
+      return { status: !uid ? "no-uid" : "no-amount" };
+    }
+
+    const userRef = db.collection("users").doc(uid);
+    const userUpdate = { credits: admin.firestore.FieldValue.increment(credits) };
+
+    // Legacy subscription checkouts (the model is pay-as-you-go now).
+    if (meta.kind === "subscription") {
+      const renews = new Date();
+      renews.setMonth(renews.getMonth() + 1);
+      userUpdate.plan = meta.planId || "pro-monthly";
+      userUpdate.planStatus = "active";
+      userUpdate.planRenewsAt = renews.toISOString();
+    }
+
+    tx.set(userRef, userUpdate, { merge: true });
+    tx.set(userRef.collection("ledger").doc(), {
+      delta: credits,
+      reason: meta.kind === "subscription" ? `subscription: ${meta.planId}` : `top-up ${charge.id}`,
+      at: new Date().toISOString(),
+    });
+    tx.set(paymentRef, { ...record, fulfilled: true, needsReview: false }, { merge: true });
+    return { status: "credited", uid, credits };
+  });
+
+  if (outcome.status === "credited") {
+    console.log(`Credited GMD ${credits} to ${uid} for charge ${charge.id} (${resolvedBy}, ${via})`);
+  } else if (outcome.status !== "already-fulfilled") {
+    console.error(`Charge ${charge.id} NOT credited (${outcome.status}) — flagged for review`);
+  }
+  return outcome;
+}
+
 /** ModemPay webhook: verifies x-modem-signature (HMAC-SHA512) and fulfills. */
 exports.modemWebhook = onRequest(
-  { region: "us-east4", secrets: [MODEM_WEBHOOK_SECRET] },
+  { region: "us-east4", secrets: [MODEM_WEBHOOK_SECRET, MODEMPAY_API_KEY] },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method not allowed");
@@ -79,92 +237,114 @@ exports.modemWebhook = onRequest(
 
     const rawBody = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body);
     const signature = req.get("x-modem-signature");
-    const secret = MODEM_WEBHOOK_SECRET.value().trim();
+    const apiKey = MODEMPAY_API_KEY.value().trim();
 
-    if (!signature || !secret) {
-      res.status(400).json({ error: "Missing signature or secret" });
-      return;
-    }
-    const computed = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
-    if (
-      computed.length !== signature.length ||
-      !crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature))
-    ) {
+    const signedWith = verifyModemSignature(rawBody, signature, [
+      ["merchant-key", apiKey],
+      ["webhook-secret", MODEM_WEBHOOK_SECRET.value().trim()],
+    ]);
+    if (!signedWith) {
+      console.error("ModemPay webhook rejected: signature matched neither the merchant key nor the webhook secret");
       res.status(400).json({ error: "Invalid signature" });
       return;
     }
 
     try {
       const event = JSON.parse(rawBody);
-      if (event.event === "charge.succeeded") {
-        const charge = event.payload;
-        const meta = charge.metadata || {};
-        const uid = meta.uid;
+      // Shape tolerance: event/type and payload/data both appear in the wild.
+      const name = event.event || event.type || "";
+      const charge = event.payload || event.data || {};
 
-        // Idempotent: each charge id fulfills exactly once.
-        const ref = db.collection("payments").doc(charge.id);
-        const isNew = await db.runTransaction(async (tx) => {
-          const snap = await tx.get(ref);
-          if (snap.exists) return false;
-          tx.set(ref, {
-            uid: uid || null,
-            kind: meta.kind || "unknown",
-            credits: Number(meta.credits) || 0,
-            amount: charge.amount,
-            currency: charge.currency,
-            reference: charge.transaction_reference || null,
-            email: charge.customer_email || null,
-            receivedAt: new Date().toISOString(),
-            via: "cloud-function",
-          });
-          return true;
-        });
-
-        if (isNew && uid) {
-          const userRef = db.collection("users").doc(uid);
-          if (meta.kind === "subscription") {
-            const renews = new Date();
-            renews.setMonth(renews.getMonth() + 1);
-            const credits = Number(meta.credits) || PLAN_CREDITS;
-            const planId = meta.planId || "pro-monthly";
-            let planName = "Optiq Pro";
-            if (planId === "studio-monthly") planName = "Optiq Studio";
-            if (planId === "enterprise-monthly") planName = "Optiq Enterprise";
-
-            await userRef.set(
-              {
-                plan: planId,
-                planStatus: "active",
-                planRenewsAt: renews.toISOString(),
-                credits: admin.firestore.FieldValue.increment(credits),
-              },
-              { merge: true }
-            );
-            await userRef.collection("ledger").add({
-              delta: credits,
-              reason: `subscription: ${planName}`,
-              at: new Date().toISOString(),
-            });
-          } else {
-            const credits = Number(meta.credits) || 0;
-            if (credits > 0) {
-              await userRef.set(
-                { credits: admin.firestore.FieldValue.increment(credits) },
-                { merge: true }
-              );
-              await userRef.collection("ledger").add({
-                delta: credits,
-                reason: `purchase ${charge.id}`,
-                at: new Date().toISOString(),
-              });
-            }
-          }
+      if (name === "charge.succeeded" && charge.id) {
+        const status = String(charge.status || "").toLowerCase();
+        if (status && !SUCCESS_STATUSES.has(status)) {
+          console.warn(`Ignoring ${name} for ${charge.id}: status "${charge.status}" is not a success`);
+        } else {
+          await fulfillCharge(charge, apiKey, `webhook:${signedWith}`);
         }
       }
+      // Everything else is acknowledged so ModemPay stops retrying.
       res.status(200).json({ received: true });
     } catch (err) {
       console.error("Webhook fulfillment error:", err);
       res.status(500).json({ error: "Fulfillment failed" });
+    }
+  }
+);
+
+/**
+ * Recovers payments that were taken but never credited.
+ *
+ * Scans the caller's recent ModemPay transactions and fulfills any successful
+ * one that belongs to them and has not been credited yet. Safe to call
+ * repeatedly — fulfillCharge is idempotent on the charge id, so an already
+ * credited payment is a no-op.
+ */
+exports.modemPayReconcile = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 5, timeoutSeconds: 120, secrets: [MODEMPAY_API_KEY] },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+
+      const authHeader = req.get("Authorization") || "";
+      if (!authHeader.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+      const decoded = await admin.auth().verifyIdToken(authHeader.split("Bearer ")[1]);
+      const uid = decoded.uid;
+      const email = (decoded.email || "").toLowerCase();
+
+      const apiKey = MODEMPAY_API_KEY.value().trim();
+      const listRes = await fetch("https://api.modempay.com/v1/transactions?limit=100", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      const listJson = await listRes.json().catch(() => ({}));
+      if (!listRes.ok) {
+        console.error("ModemPay transaction list failed:", listJson);
+        return res.status(502).json({ error: "Could not reach the payment provider" });
+      }
+
+      const transactions = Array.isArray(listJson?.data)
+        ? listJson.data
+        : Array.isArray(listJson?.data?.transactions)
+          ? listJson.data.transactions
+          : Array.isArray(listJson)
+            ? listJson
+            : [];
+
+      // Only the caller's own successful charges.
+      const mine = transactions.filter((t) => {
+        const status = String(t?.status || "").toLowerCase();
+        if (!SUCCESS_STATUSES.has(status)) return false;
+        if (t?.metadata?.uid) return t.metadata.uid === uid;
+        return !!email && String(t?.customer_email || "").toLowerCase() === email;
+      });
+
+      let credited = 0;
+      let totalGmd = 0;
+      for (const txn of mine) {
+        const charge = {
+          id: txn.id,
+          amount: txn.amount,
+          currency: txn.currency,
+          status: txn.status,
+          metadata: { ...(txn.metadata || {}), uid: txn?.metadata?.uid || uid },
+          customer_email: txn.customer_email || null,
+          transaction_reference: txn.reference || txn.transaction_reference || null,
+        };
+        const outcome = await fulfillCharge(charge, apiKey, "reconcile");
+        if (outcome.status === "credited") {
+          credited += 1;
+          totalGmd += outcome.credits;
+        }
+      }
+
+      return res.status(200).json({
+        scanned: mine.length,
+        credited,
+        creditedGmd: totalGmd,
+      });
+    } catch (err) {
+      console.error("modemPayReconcile error:", err);
+      return res.status(500).json({ error: err.message });
     }
   }
 );

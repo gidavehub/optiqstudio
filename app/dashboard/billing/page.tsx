@@ -6,7 +6,7 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2, Receipt, Wallet, ShieldCheck } from "lucide-react";
+import { Loader2, Receipt, Wallet, ShieldCheck, RefreshCw } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 
 interface Transaction {
@@ -43,6 +43,8 @@ function BillingInner() {
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [txLoading, setTxLoading] = useState(true);
+  const [recovering, setRecovering] = useState(false);
+  const [recoverMsg, setRecoverMsg] = useState<string | null>(null);
 
   const loadTransactions = React.useCallback(() => {
     apiFetch<{ items: Transaction[] }>("/api/transactions")
@@ -72,6 +74,30 @@ function BillingInner() {
       return () => timers.forEach(clearTimeout);
     }
   }, [status, refreshProfile, loadTransactions]);
+
+  // Safety net: re-checks ModemPay for paid-but-uncredited charges and claims
+  // them. Idempotent server-side, so pressing it twice cannot double-credit.
+  const recoverPayment = async () => {
+    setRecovering(true);
+    setRecoverMsg(null);
+    try {
+      const r = await apiFetch<{ credited: number; creditedGmd: number }>(
+        "/api/payments/reconcile",
+        { method: "POST", body: "{}" }
+      );
+      if (r.credited > 0) {
+        setRecoverMsg(`Recovered GMD ${r.creditedGmd.toLocaleString()} — balance updated.`);
+        await refreshProfile();
+        loadTransactions();
+      } else {
+        setRecoverMsg("No missing payments found. Everything you have paid for is on your balance.");
+      }
+    } catch (err) {
+      setRecoverMsg(err instanceof Error ? err.message : "Could not check payments.");
+    } finally {
+      setRecovering(false);
+    }
+  };
 
   const balance = profile?.credits ?? 0;
 
@@ -122,6 +148,24 @@ function BillingInner() {
           <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-neutral-500">
             <ShieldCheck size={11} /> Card or mobile money, secured by ModemPay
           </p>
+
+          <div className="mt-5 border-t border-white/5 pt-4">
+            <button
+              onClick={recoverPayment}
+              disabled={recovering}
+              className="flex w-full items-center justify-center gap-2 text-[11px] font-semibold text-neutral-400 transition-colors hover:text-white disabled:opacity-50"
+            >
+              {recovering ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RefreshCw size={12} />
+              )}
+              Paid but balance not updated? Recover it
+            </button>
+            {recoverMsg && (
+              <p className="mt-2.5 text-center text-[11px] text-neutral-300">{recoverMsg}</p>
+            )}
+          </div>
         </div>
 
         {/* ── WHAT THINGS COST ──────────────────────────────────────────── */}

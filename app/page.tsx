@@ -265,6 +265,13 @@ export default function LandingPage() {
                 {l}
               </Link>
             ))}
+            <Link
+              href="/enterprise"
+              className="block text-sm font-semibold"
+              onClick={() => setMobileOpen(false)}
+            >
+              Enterprise
+            </Link>
             {user ? (
               <Link href="/dashboard" className="block text-sm font-semibold" onClick={() => setMobileOpen(false)}>
                 Dashboard
@@ -303,12 +310,23 @@ export default function LandingPage() {
             <p className="mt-4 text-[15px] text-white/80 leading-relaxed max-w-md">
               Produce photorealistic cinematic content and high-converting vertical video ads powered by state-of-the-art generative AI.
             </p>
-            <Link
-              href={appHref}
-              className="mt-6 inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors"
-            >
-              Get Started <ChevronRight size={14} />
-            </Link>
+            {/* Two doors: make it yourself, or have our team make it. Enterprise
+                has to be reachable here — on mobile the nav collapses and this
+                is the only place it would otherwise appear. */}
+            <div className="mt-6 flex flex-wrap items-center gap-2.5">
+              <Link
+                href={appHref}
+                className="inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors"
+              >
+                Get Started <ChevronRight size={14} />
+              </Link>
+              <Link
+                href="/enterprise"
+                className="inline-flex items-center gap-1.5 rounded-md border border-white/50 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white hover:text-black transition-colors"
+              >
+                Optiq Studio Enterprise <ChevronRight size={14} />
+              </Link>
+            </div>
           </div>
 
           {/* Center-right index links */}

@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, Mail, Phone } from "lucide-react";
+import StartProjectButton, {
+  CONTACT,
+  ContactRows,
+  WhatsAppIcon,
+} from "../../components/EnterpriseContact";
 
 // /enterprise — Optiq Studio Enterprise. Not a subscription: a done-with-you
 // service where the DaveLabs team produces cinematic, production-quality ads
@@ -56,12 +61,9 @@ export default function EnterprisePage() {
             >
               <ArrowLeft size={13} /> Back to Optiq Studio
             </Link>
-            <a
-              href="mailto:optiq@davelabs.co?subject=Optiq%20Studio%20Enterprise%20project"
-              className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800"
-            >
+            <StartProjectButton className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800">
               Start a project
-            </a>
+            </StartProjectButton>
           </div>
         </nav>
       </header>
@@ -81,12 +83,9 @@ export default function EnterprisePage() {
               Choose the AI route or the full production route — either way, our team makes your cinematic ad, at a
               fraction of the time and cost.
             </p>
-            <a
-              href="mailto:optiq@davelabs.co?subject=Optiq%20Studio%20Enterprise%20project"
-              className="mt-7 inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black transition-colors hover:bg-neutral-200"
-            >
+            <StartProjectButton className="mt-7 inline-flex items-center gap-1.5 rounded-md bg-white px-5 py-2.5 text-[13px] font-medium text-black transition-colors hover:bg-neutral-200">
               Start a project <ChevronRight size={14} />
-            </a>
+            </StartProjectButton>
           </div>
         </div>
       </section>
@@ -185,36 +184,60 @@ export default function EnterprisePage() {
 
       {/* ── CTA band ────────────────────────────────────────────────── */}
       <section className="px-3 pb-3">
-        <div className="mx-auto flex max-w-[1440px] flex-col items-start justify-between gap-6 rounded-xl bg-black px-6 py-16 text-white sm:flex-row sm:items-center sm:px-16">
+        <div className="mx-auto grid max-w-[1440px] gap-10 rounded-xl bg-black px-6 py-16 text-white md:grid-cols-2 md:items-center sm:px-16">
           <div>
             <h2 className="display text-[26px] leading-[1.15] md:text-[34px]">Let&apos;s make your brand&apos;s film.</h2>
             <p className="mt-3 max-w-md text-[14px] leading-relaxed text-white/60">
               Tell us your brand and the story. We&apos;ll take it from there.
             </p>
-            <div className="mt-5 flex flex-col gap-1.5 text-[13px]">
-              <a href="mailto:optiq@davelabs.co" className="text-white/85 transition-colors hover:text-white">optiq@davelabs.co</a>
-              <a href="mailto:sales@davelabs.co" className="text-white/85 transition-colors hover:text-white">sales@davelabs.co</a>
-              <a href="https://wa.me/2207810880" className="text-white/85 transition-colors hover:text-white">+220 781 0880 &middot; call &amp; WhatsApp</a>
-            </div>
+            <StartProjectButton className="mt-6 inline-flex shrink-0 items-center gap-1.5 rounded-md bg-white px-6 py-3 text-[14px] font-bold text-black transition-colors hover:bg-neutral-200">
+              Start an enterprise project <ArrowUpRight size={15} />
+            </StartProjectButton>
           </div>
-          <a
-            href="mailto:optiq@davelabs.co?subject=Optiq%20Studio%20Enterprise%20project"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-white px-6 py-3 text-[14px] font-medium text-black transition-colors hover:bg-neutral-200"
-          >
-            Start an enterprise project <ArrowUpRight size={15} />
-          </a>
+          {/* The contact block is the whole point of this page — bold, tappable,
+              impossible to scroll past. */}
+          <div>
+            <p className="mb-3 font-mono text-[11px] font-bold tracking-[0.14em] text-white/60">REACH US DIRECTLY</p>
+            <ContactRows />
+          </div>
         </div>
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-10 sm:px-16">
-        <Link href="/" className="text-[13px] text-neutral-500 hover:text-black">
-          ← Optiq Studio
-        </Link>
-        <div className="flex items-center gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/media/davelabs-logo.png" alt="DaveLabs" className="h-4 w-auto opacity-70" />
-          <span className="font-mono text-[11px] tracking-[0.14em] text-neutral-500">A PRODUCT OF DAVELABS</span>
+      <footer className="mx-auto max-w-[1440px] px-6 py-10 sm:px-16">
+        <div className="flex flex-wrap items-center justify-center gap-3 border-b border-neutral-200 pb-8">
+          <a
+            href={CONTACT.whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "#25D366" }}
+          >
+            <WhatsAppIcon size={17} /> {CONTACT.phoneDisplay}
+          </a>
+          <a
+            href={CONTACT.phoneHref}
+            className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-neutral-800"
+          >
+            <Phone size={16} /> Call us
+          </a>
+          <a
+            href={`mailto:${CONTACT.emails[0]}${CONTACT.mailSubject}`}
+            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "#1a56db" }}
+          >
+            <Mail size={16} /> {CONTACT.emails[0]}
+          </a>
+        </div>
+        <div className="mt-8 flex items-center justify-between">
+          <Link href="/" className="text-[13px] text-neutral-500 hover:text-black">
+            ← Optiq Studio
+          </Link>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/media/davelabs-logo.png" alt="DaveLabs" className="h-4 w-auto opacity-70" />
+            <span className="font-mono text-[11px] tracking-[0.14em] text-neutral-500">A PRODUCT OF DAVELABS</span>
+          </div>
         </div>
       </footer>
     </div>
