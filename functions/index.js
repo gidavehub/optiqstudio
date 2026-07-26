@@ -71,7 +71,8 @@ const MAX_TOPUP_GMD = 500000;
 // the wallet (mobile money) method is offered so checkout doesn't dead-end.
 // Tokens: "card" and "wallet" (mobile money; ModemPay rejects "mobile_money").
 const CARD_MIN_GMD = 75;
-const paymentMethodsFor = (amountGmd) => (amountGmd >= CARD_MIN_GMD ? ["card", "wallet"] : ["wallet"]);
+// Mobile money (wallet) listed first so it shows before card at checkout.
+const paymentMethodsFor = (amountGmd) => (amountGmd >= CARD_MIN_GMD ? ["wallet", "card"] : ["wallet"]);
 
 /**
  * Verifies an x-modem-signature header (hex HMAC-SHA512 of the raw body).
