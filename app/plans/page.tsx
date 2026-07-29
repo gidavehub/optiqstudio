@@ -218,8 +218,14 @@ function PaywallInner() {
           style={{ transform: panel === 0 ? "translateX(0)" : "translateX(-50%)" }}
         >
           {/* ── PANEL 0 — WHAT IT COSTS ─────────────────────────────── */}
-          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:justify-center lg:px-12">
-            <div className="mx-auto w-full max-w-lg">
+          {/* Centring is done with `my-auto` on the inner column, NOT
+              `justify-center` on the scroller. In a scrollable flex column,
+              justify-center pushes overflow out of BOTH ends and the top of the
+              content becomes unreachable — the heading was being clipped away.
+              Auto margins collapse to 0 once the content is taller than the box,
+              so it centres on tall screens and scrolls cleanly on short ones. */}
+          <section className="paywall-scroll flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:px-12">
+            <div className="mx-auto flex w-full max-w-lg flex-col lg:my-auto">
               <h1 className="text-[26px] font-black leading-tight tracking-tight text-neutral-900 sm:text-3xl">
                 Pay only for what you make
               </h1>
@@ -285,32 +291,32 @@ function PaywallInner() {
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* CTA */}
-            <div className="mx-auto mt-6 w-full max-w-lg pb-2">
-              <button
-                onClick={() => setPanel(1)}
-                className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 py-4 text-[15px] font-bold text-white transition-transform hover:bg-neutral-800 active:scale-[0.98]"
-              >
-                Top up wallet <ArrowRight size={16} />
-              </button>
-              {/* Nobody is trapped here — the platform is explorable without paying. */}
-              <button
-                onClick={dismiss}
-                className="mt-2 w-full py-2.5 text-[13px] font-semibold text-neutral-500 hover:text-neutral-800"
-              >
-                Maybe later — just let me look around
-              </button>
+              {/* CTA */}
+              <div className="mt-6 pb-2">
+                <button
+                  onClick={() => setPanel(1)}
+                  className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 py-4 text-[15px] font-bold text-white transition-transform hover:bg-neutral-800 active:scale-[0.98]"
+                >
+                  Top up wallet <ArrowRight size={16} />
+                </button>
+                {/* Nobody is trapped here — the platform is explorable without paying. */}
+                <button
+                  onClick={dismiss}
+                  className="mt-2 w-full py-2.5 text-[13px] font-semibold text-neutral-500 hover:text-neutral-800"
+                >
+                  Maybe later — just let me look around
+                </button>
+              </div>
             </div>
           </section>
 
           {/* ── PANEL 1 — NAME YOUR AMOUNT ──────────────────────────── */}
-          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:justify-center lg:px-12">
-            <div className="mx-auto w-full max-w-lg">
+          <section className="paywall-scroll flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:px-12">
+            <div className="mx-auto flex w-full max-w-lg flex-col lg:my-auto">
               <button
                 onClick={() => setPanel(0)}
-                className="-ml-1 flex items-center gap-1.5 py-1 text-[13px] font-semibold text-neutral-500 hover:text-neutral-900"
+                className="-ml-1 flex w-fit items-center gap-1.5 py-1 text-[13px] font-semibold text-neutral-500 hover:text-neutral-900"
               >
                 <ArrowLeft size={15} /> Back
               </button>
@@ -382,24 +388,24 @@ function PaywallInner() {
                   {error}
                 </div>
               )}
-            </div>
 
-            <div className="mx-auto mt-6 w-full max-w-lg pb-2">
-              <button
-                onClick={checkout}
-                disabled={!amountValid || busy}
-                className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all ${
-                  amountValid && !busy
-                    ? "bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98]"
-                    : "cursor-not-allowed bg-neutral-200 text-neutral-400"
-                }`}
-              >
-                {busy && <Loader2 size={16} className="animate-spin" />}
-                {busy ? "Opening checkout…" : "Continue to checkout"}
-              </button>
-              <p className="mt-2.5 text-center text-[11px] text-neutral-400">
-                Card or mobile money, secured by ModemPay
-              </p>
+              <div className="mt-6 pb-2">
+                <button
+                  onClick={checkout}
+                  disabled={!amountValid || busy}
+                  className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all ${
+                    amountValid && !busy
+                      ? "bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98]"
+                      : "cursor-not-allowed bg-neutral-200 text-neutral-400"
+                  }`}
+                >
+                  {busy && <Loader2 size={16} className="animate-spin" />}
+                  {busy ? "Opening checkout…" : "Continue to checkout"}
+                </button>
+                <p className="mt-2.5 text-center text-[11px] text-neutral-400">
+                  Card or mobile money, secured by ModemPay
+                </p>
+              </div>
             </div>
           </section>
         </div>

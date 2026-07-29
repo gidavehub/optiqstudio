@@ -294,6 +294,37 @@ select:focus {
   animation: bounce-subtle 1.2s ease-in-out infinite;
 }
 
+/* Paywall panel scrollbar.
+   The pricing panel is taller than a short laptop viewport, so it scrolls — but
+   the default OS scrollbar cuts a grey channel straight down the white sheet.
+   This keeps it in the sheet's own palette: a thin neutral thumb on an invisible
+   track, darkening on hover. The transparent border + content-box clip is what
+   gives the thumb padding inside the gutter without needing a visible track. */
+.paywall-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #d4d4d4 transparent;
+}
+.paywall-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.paywall-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.paywall-scroll::-webkit-scrollbar-thumb {
+  background-color: #d4d4d4;
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+.paywall-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #a3a3a3;
+  background-clip: content-box;
+}
+/* Never let the horizontal bar appear — the panels only ever scroll vertically. */
+.paywall-scroll::-webkit-scrollbar:horizontal {
+  height: 0;
+}
+
 /* Solid placeholder for slots whose generated media hasn't landed yet */
 .media-fallback {
   background: #111625;
