@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { ImagePlus, Loader2, Mic, Plus, UploadCloud, Wand2, X } from "lucide-react";
+import { ImagePlus, Loader2, Mic, MicOff, Music, UploadCloud, Wand2, X } from "lucide-react";
 import AudioPlayerPreview from "./AudioPlayerPreview";
+import { useDictation } from "../../_shared/useDictation";
 import { AttachedAudio, AttachedImage, AttachedVideo } from "./types";
 
 interface BottomPromptConsoleProps {
@@ -21,7 +22,6 @@ interface BottomPromptConsoleProps {
   onAttachMediaFiles: (files: File[]) => void;
   onAttachAudioFile: (file: File) => void;
   onDropFiles: (files: File[]) => void;
-  onOpenAssetPicker: () => void;
 }
 
 export default function BottomPromptConsole({
@@ -40,11 +40,14 @@ export default function BottomPromptConsole({
   onAttachMediaFiles,
   onAttachAudioFile,
   onDropFiles,
-  onOpenAssetPicker,
 }: BottomPromptConsoleProps) {
   // Drag and drop state (local to this console)
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+
+  // The same live speech-to-text the storyboard wizard uses — words land in the
+  // box as they're spoken.
+  const dictation = useDictation((updater) => setPrompt(updater(prompt)));
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -123,14 +126,6 @@ export default function BottomPromptConsole({
         )}
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenAssetPicker}
-            className="p-1.5 text-neutral-400 hover:text-white transition-colors"
-            title="Open Asset Composer"
-          >
-            <Plus size={17} />
-          </button>
           <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
             <ImagePlus size={17} />
             <input
@@ -146,7 +141,7 @@ export default function BottomPromptConsole({
             />
           </label>
           <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach voice reference (audio)">
-            <Mic size={17} />
+            <Music size={17} />
             <input
               type="file"
               accept="audio/*"
@@ -158,16 +153,32 @@ export default function BottomPromptConsole({
               }}
             />
           </label>
+          {/* Live dictation — speak the prompt instead of typing it. */}
+          <button
+            type="button"
+            onClick={dictation.toggle}
+            title={dictation.recording ? "Stop dictation" : "Dictate your prompt"}
+            className={`rounded-full p-1.5 transition-colors ${
+              dictation.recording
+                ? "animate-pulse bg-red-500/15 text-red-400"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}
+          </button>
         </div>
         <textarea
           rows={1}
-          value={prompt}
+          value={dictation.recording && dictation.interim ? `${prompt} ${dictation.interim}`.trim() : prompt}
           onChange={(e) => {
             setPrompt(e.target.value);
             e.target.style.height = "auto";
             e.target.style.height = `${e.target.scrollHeight}px`;
           }}
-          placeholder="A slow dolly through a rain-soaked neon market at night…"
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording ? "Listening…" : "A slow dolly through a rain-soaked neon market at night…"
+          }
           className="flex-1 resize-none bg-transparent py-1 text-sm placeholder:text-neutral-600 max-h-32 overflow-y-auto focus:outline-none"
         />
         <button

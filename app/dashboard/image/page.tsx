@@ -9,34 +9,44 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import AssetPickerModal from "../../../components/AssetPickerModal";
 import SettingsRail from "./_components/SettingsRail";
 import StudioProjectsGrid from "../_shared/StudioProjectsGrid";
 import AspectRatioStrip from "../_shared/AspectRatioStrip";
 import { IMAGE_ASPECTS } from "../_shared/aspectOptions";
 import BottomPromptConsole from "./_components/BottomPromptConsole";
+import { useGenerationHistory } from "../_shared/useGenerationHistory";
+import { useReusePrompt } from "../_shared/useReusePrompt";
+import { takePromptHandoff } from "../_shared/promptHandoff";
 import { AttachedImage, GenerationItem } from "./_components/types";
 
 function ImageWorkspace() {
-  const { apiFetch, profile, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [prompt, setPrompt] = useState(searchParams.get("prompt") ?? "");
   const [aspectRatio, setAspectRatio] = useState("1:1");
-  const [history, setHistory] = useState<GenerationItem[]>([]);
   const [images, setImages] = useState<AttachedImage[]>([]);
 
   const [generating, setGenerating] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-  const generationCost = 100;
+  const reusePrompt = useReusePrompt();
+
+  // The server is the only thing that charges; this is purely what we quote.
+  const generationCost = pricing?.costs.image ?? 10;
   const userBalance = profile?.credits ?? 0;
+
+  const fetchImages = useCallback(
+    () => apiFetch<{ items: GenerationItem[] }>("/api/generations?type=image").then((d) => d.items || []),
+    [apiFetch]
+  );
+  const { history, freshIds, addOptimistic, resolveOptimistic, removeItem } =
+    useGenerationHistory<GenerationItem>({ fetcher: fetchImages });
 
   const attachImage = (file: File) => {
     const reader = new FileReader();
@@ -51,21 +61,24 @@ function ImageWorkspace() {
     reader.readAsDataURL(file);
   };
 
-  const loadHistory = useCallback(() => {
-    apiFetch<{ items: GenerationItem[] }>("/api/generations?type=image")
-      .then((d) => setHistory(d.items || []))
-      .catch(() => {});
-  }, [apiFetch]);
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
-
   // Click-away for the ⋮ popover menu.
   useEffect(() => {
     const close = () => setOpenedMenuId(null);
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
+  }, []);
+
+  // Picks up a "reuse prompt" sent from a detail page — text plus the reference
+  // images, which a query string can't carry. Reading sessionStorage is exactly
+  // the "pull once from an external system on mount" case; it can't move into a
+  // lazy initializer because sessionStorage doesn't exist during SSR and the two
+  // renders would disagree.
+  useEffect(() => {
+    const handoff = takePromptHandoff();
+    if (!handoff) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrompt(handoff.prompt);
+    setImages(handoff.images);
   }, []);
 
   const handleEnhance = async () => {
@@ -90,6 +103,15 @@ function ImageWorkspace() {
     setConfirmOpen(true);
   };
 
+  const handleReuse = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenedMenuId(null);
+    const reused = await reusePrompt(id);
+    if (!reused) return;
+    setPrompt(reused.prompt);
+    setImages(reused.images);
+  };
+
   // Drop an optimistic "generating" card instantly, then swap it for the real
   // still — matching the Video Studio flow one-for-one.
   const handleGenerate = async () => {
@@ -101,10 +123,13 @@ function ImageWorkspace() {
     const originalPrompt = prompt;
     const refs = images.map((img) => ({ base64: img.base64, mimeType: img.mimeType }));
 
-    setHistory((prev) => [
-      { id: tempId, status: "rendering", prompt: originalPrompt, imageUrl: "", createdAt: new Date().toISOString() },
-      ...prev,
-    ]);
+    addOptimistic({
+      id: tempId,
+      status: "rendering",
+      prompt: originalPrompt,
+      imageUrl: "",
+      createdAt: new Date().toISOString(),
+    } as GenerationItem);
     setPrompt("");
     setImages([]);
 
@@ -116,15 +141,15 @@ function ImageWorkspace() {
           body: JSON.stringify({ prompt: originalPrompt, aspectRatio, purpose: "image", referenceImages: refs }),
         }
       );
-      setHistory((prev) =>
-        prev.map((item) =>
-          item.id === tempId ? { ...item, id: res.id, status: "succeeded", imageUrl: res.url, cost: res.cost } : item
-        )
-      );
-      void refreshProfile();
+      resolveOptimistic(tempId, {
+        id: res.id,
+        status: "succeeded",
+        imageUrl: res.url,
+        cost: res.cost,
+      } as Partial<GenerationItem>);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image generation failed");
-      setHistory((prev) => prev.filter((item) => item.id !== tempId));
+      removeItem(tempId);
     } finally {
       setGenerating(false);
     }
@@ -136,12 +161,10 @@ function ImageWorkspace() {
     setOpenedMenuId(null);
     setDeletingIds((prev) => new Set(prev).add(id));
 
-    void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" })
-      .catch(() => {})
-      .finally(() => void refreshProfile());
+    void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" }).catch(() => {});
 
     setTimeout(() => {
-      setHistory((prev) => prev.filter((item) => item.id !== id));
+      removeItem(id);
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -177,10 +200,12 @@ function ImageWorkspace() {
             openedMenuId={openedMenuId}
             setOpenedMenuId={setOpenedMenuId}
             deletingIds={deletingIds}
+            freshIds={freshIds}
             onOpen={(item) => {
               if (!item.id.startsWith("temp_")) router.push(`/dashboard/image/${item.id}`);
             }}
             onDelete={(id, e) => deleteGeneration(id, e)}
+            onReuse={(id, e) => void handleReuse(id, e)}
             emptyTitle="No stills generated yet"
             emptyHint="Describe an image below and watch it appear on the wall."
           />
@@ -210,7 +235,6 @@ function ImageWorkspace() {
           images={images}
           attachImage={attachImage}
           removeImage={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
-          onOpenAssetPicker={() => setAssetPickerOpen(true)}
         />
       </main>
 
@@ -223,49 +247,6 @@ function ImageWorkspace() {
         title="Confirm Image Generation"
         description="High-fidelity image generation"
         actionLabel="Generate Image"
-      />
-
-      <AssetPickerModal
-        isOpen={assetPickerOpen}
-        onClose={() => setAssetPickerOpen(false)}
-        onSelectCharacter={(character) => {
-          setPrompt((prev) => {
-            const charPrompt = `[Character: ${character.name}${character.imageDescription ? ` - ${character.imageDescription}` : ""}]`;
-            return prev ? `${prev}\n${charPrompt}` : charPrompt;
-          });
-
-          if (character.imageUrl) {
-            setError(null);
-            fetch(character.imageUrl)
-              .then((res) => res.blob())
-              .then((blob) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  setImages((prev) => [
-                    ...prev,
-                    {
-                      id: Math.random().toString(36).substring(2, 9),
-                      base64: dataUrl.split(",")[1],
-                      mimeType: blob.type || "image/png",
-                      preview: dataUrl,
-                    },
-                  ]);
-                };
-                reader.readAsDataURL(blob);
-              })
-              .catch(() => {
-                setError("Failed to convert character portrait for consistency");
-              });
-          }
-        }}
-        onSelectTrait={(trait) => {
-          setPrompt((prev) => (prev ? `${prev}, ${trait}` : trait));
-        }}
-        onUploadFile={(file) => {
-          attachImage(file);
-        }}
-        allowedUploadTypes="image/*"
       />
     </div>
   );

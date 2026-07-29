@@ -43,14 +43,27 @@ export const CREDIT_PACKS = [
   { id: "pack-12000", credits: 12_000, priceUsd: 100, label: "Studio pack" },
 ] as const;
 
-/** Per-action pricing. Video is priced per generated second. */
+/**
+ * Per-action pricing for Direct Studio, in GMD. THIS IS THE SOURCE OF TRUTH —
+ * `functions/index.js` mirrors these numbers (it can't import from here) and
+ * `components/AuthProvider.tsx` mirrors them again for display.
+ *
+ * Shape of the model:
+ *   • Video  — per generated second. A 10s clip is 150.
+ *   • Image  — flat, per still.
+ *   • Voice  — per CHARACTER, with a floor so a two-word take isn't free.
+ *   • Music  — per generated second, same idea as video. Lyria returns ~30s.
+ */
 export const COSTS = {
   videoPerSecond: { omni: 15, "omni-fast": 15 } as Record<string, number>,
-  image: 50,
-  /** TTS per 100 characters (min charge 15). */
-  ttsPer100Chars: 10,
-  ttsMinimum: 15,
-  characterSheet: 150,
+  /** Flat price per generated still. */
+  image: 10,
+  /** Voice is billed per character of script. */
+  ttsPerCharacter: 0.05,
+  ttsMinimum: 5,
+  /** Music is billed per generated second (Lyria returns a ~30s clip → 60). */
+  musicPerSecond: 2,
+  musicDefaultSeconds: 30,
   promptEnhance: 0,
 };
 
@@ -58,8 +71,13 @@ export function videoCost(model: "omni" | "omni-fast", seconds: number): number 
   return (COSTS.videoPerSecond[model] ?? COSTS.videoPerSecond.omni) * seconds;
 }
 
+/** Per-character voice pricing, rounded up to the nearest whole dalasi. */
 export function ttsCost(text: string): number {
-  return Math.max(COSTS.ttsMinimum, Math.ceil(text.length / 100) * COSTS.ttsPer100Chars);
+  return Math.max(COSTS.ttsMinimum, Math.ceil(text.length * COSTS.ttsPerCharacter));
+}
+
+export function musicCost(seconds: number = COSTS.musicDefaultSeconds): number {
+  return Math.ceil(seconds * COSTS.musicPerSecond);
 }
 
 /** Talking-avatar (voice clone + lip sync), per generated second of video. */

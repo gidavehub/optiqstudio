@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -40,7 +41,9 @@ export interface Profile {
   planRenewsAt: string | null;
   email: string | null;
   name: string | null;
-  /** Signup gift in GMD, and whether the paywall has celebrated it yet. */
+  /** Whether this account has already been shown the paywall once. */
+  paywallSeen?: boolean;
+  /** Legacy signup-gift fields. No new account gets a bonus. */
   welcomeBonus?: number;
   welcomeBonusSeen?: boolean;
 }
@@ -51,10 +54,14 @@ export interface Pricing {
   packs: { id: string; credits: number; priceUsd: number; label: string }[];
   costs: {
     videoPerSecond: Record<string, number>;
+    /** Flat price per generated still, GMD. */
     image: number;
-    ttsPer100Chars: number;
+    /** Voice is billed per character of script. */
+    ttsPerCharacter: number;
     ttsMinimum: number;
-    characterSheet: number;
+    /** Music is billed per generated second. */
+    musicPerSecond: number;
+    musicDefaultSeconds: number;
   };
 }
 
@@ -90,12 +97,20 @@ const CREDIT_PACKS = [
   { id: "pack-12000", credits: 12_000, priceUsd: 100, label: "Studio pack" },
 ];
 
+// Direct Studio pricing, GMD. Mirrors lib/credits.ts COSTS and the fallback in
+// functions/index.js — those three must always agree.
+//
+// Deliberately NOT overridable from the RTDB `pricing` node any more. That node
+// still holds the numbers a much older cost model was written with (image 50,
+// TTS per-100-characters), and letting it win meant the app quoted one price and
+// the server charged another. Plans/packs still come from RTDB; costs are code.
 const COSTS = {
   videoPerSecond: { omni: 15, "omni-fast": 15 } as Record<string, number>,
-  image: 50,
-  ttsPer100Chars: 10,
-  ttsMinimum: 15,
-  characterSheet: 150,
+  image: 10,
+  ttsPerCharacter: 0.05,
+  ttsMinimum: 5,
+  musicPerSecond: 2,
+  musicDefaultSeconds: 30,
 };
 
 interface AuthContextValue {
@@ -125,6 +140,25 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // apiFetch MUST keep a stable identity for the life of the provider.
+  //
+  // It used to close over `profile`/`pricing` directly, so every wallet change
+  // (i.e. every generation, since generating spends credits) produced a brand
+  // new apiFetch. That rippled outward: each studio's `loadHistory` is a
+  // useCallback on [apiFetch] and its `useEffect` depends on loadHistory, so a
+  // balance change re-ran a full history reload — and the reload does
+  // `setHistory(serverItems)`, which wiped the optimistic "generating" card the
+  // user had just seen appear. That is the "it pops up, then vanishes until I
+  // refresh" bug. Reading these through refs keeps the callback stable.
+  const profileRef = useRef<Profile | null>(null);
+  const pricingRef = useRef<Pricing | null>(null);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+  useEffect(() => {
+    pricingRef.current = pricing;
+  }, [pricing]);
+
   const apiFetch = useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
       const current = auth.currentUser;
@@ -134,8 +168,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // Intercept /api/user profile fetch calls
       if (path === "/api/user") {
         return {
-          profile,
-          pricing,
+          profile: profileRef.current,
+          pricing: pricingRef.current,
         } as unknown as T;
       }
 
@@ -389,7 +423,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
       return data as T;
     },
-    [profile, pricing]
+    []
   );
 
   const refreshProfile = useCallback(async () => {
@@ -405,12 +439,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const pricingRef = ref(rtdb, "pricing");
         unsubRtdb = onValue(pricingRef, (snapshot) => {
           const val = snapshot.val();
-          if (val && val.plans && val.packs && val.costs) {
+          if (val && val.plans && val.packs) {
             setPricing({
               plan: val.plans.find((p: any) => p.id === "pro-monthly") || PLANS[0],
               plans: val.plans,
               packs: val.packs,
-              costs: val.costs,
+              // Costs come from code, never RTDB — see the note on COSTS.
+              costs: COSTS,
             });
           } else {
             setPricing({

@@ -227,6 +227,59 @@ select:focus {
   animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* A generation card landing on the wall. Overshoots very slightly so a new
+   render announces itself without anything else on the grid twitching. */
+@keyframes cardPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+    filter: blur(6px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.02) translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+.animate-card-pop {
+  animation: cardPop 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Page-to-page flip used by the mobile script editor deck. */
+@keyframes deckInNext {
+  from {
+    opacity: 0;
+    transform: perspective(1400px) translateX(28%) rotateY(-22deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1400px) translateX(0) rotateY(0) scale(1);
+  }
+}
+@keyframes deckInPrev {
+  from {
+    opacity: 0;
+    transform: perspective(1400px) translateX(-28%) rotateY(22deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(1400px) translateX(0) rotateY(0) scale(1);
+  }
+}
+.animate-deck-next {
+  animation: deckInNext 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-style: preserve-3d;
+}
+.animate-deck-prev {
+  animation: deckInPrev 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-style: preserve-3d;
+}
+
 /* Gentle hover bob on drop-zone icons */
 @keyframes bounce-subtle {
   0%,

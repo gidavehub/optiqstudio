@@ -5,7 +5,8 @@
 // studios' bottom consoles so the whole platform feels one-for-one.
 
 import React from "react";
-import { Loader2, Wand2 } from "lucide-react";
+import { Loader2, Mic, MicOff, Wand2 } from "lucide-react";
+import { useDictation } from "../../_shared/useDictation";
 
 interface AudioConsoleProps {
   value: string;
@@ -39,6 +40,9 @@ export default function AudioConsole({
   enhancing = false,
   children,
 }: AudioConsoleProps) {
+  // Live speech-to-text — dictate the script/brief instead of typing it.
+  const dictation = useDictation((updater) => setValue(updater(value)));
+
   return (
     <div className="relative z-40 border-t border-neutral-900 bg-background/90 p-4 backdrop-blur-md sm:p-5">
       {children}
@@ -46,16 +50,29 @@ export default function AudioConsole({
       <div className="flex w-full items-end gap-3 rounded-2xl border border-neutral-800 bg-surface p-3 shadow-inner transition-all duration-300">
         <textarea
           rows={1}
-          value={value}
+          value={dictation.recording && dictation.interim ? `${value} ${dictation.interim}`.trim() : value}
           maxLength={maxLength}
           onChange={(e) => {
             setValue(e.target.value);
             e.target.style.height = "auto";
             e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
           }}
-          placeholder={placeholder}
+          readOnly={dictation.recording}
+          placeholder={dictation.recording ? "Listening…" : placeholder}
           className="max-h-40 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-sm placeholder:text-neutral-600 focus:outline-none"
         />
+
+        <button
+          onClick={dictation.toggle}
+          title={dictation.recording ? "Stop dictation" : "Dictate"}
+          className={`shrink-0 rounded-full p-1.5 transition-colors ${
+            dictation.recording
+              ? "animate-pulse bg-red-500/15 text-red-400"
+              : "text-neutral-400 hover:text-white"
+          }`}
+        >
+          {dictation.recording ? <MicOff size={16} /> : <Mic size={16} />}
+        </button>
 
         {showEnhance && (
           <button

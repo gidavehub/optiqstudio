@@ -11,37 +11,41 @@ import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModa
 import VoiceRail from "../_components/VoiceRail";
 import AudioConsole from "../_components/AudioConsole";
 import AudioProjectsGrid from "../../_shared/AudioProjectsGrid";
+import { useGenerationHistory } from "../../_shared/useGenerationHistory";
+import { useReusePrompt } from "../../_shared/useReusePrompt";
 import { VOICE_PROFILES } from "../_components/voiceProfiles";
 import { AudioItem } from "../_components/types";
 
 const MAX_CHARS = 4000;
-const estimateCost = (len: number) => Math.max(15, Math.ceil(len / 100) * 10);
 
 export default function VoiceEngineStudio() {
-  const { apiFetch, profile, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing } = useAuth();
 
   const [selectedId, setSelectedId] = useState(VOICE_PROFILES[0].id);
   const [script, setScript] = useState("");
-  const [history, setHistory] = useState<AudioItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
+  const reusePrompt = useReusePrompt();
+
   const selected = VOICE_PROFILES.find((p) => p.id === selectedId) ?? VOICE_PROFILES[0];
-  const cost = estimateCost(script.length);
+
+  // Voice is billed per CHARACTER of script (with a floor), mirroring what
+  // functions/index.js actually charges.
+  const perChar = pricing?.costs.ttsPerCharacter ?? 0.05;
+  const minCost = pricing?.costs.ttsMinimum ?? 5;
+  const cost = Math.max(minCost, Math.ceil(script.length * perChar));
   const balance = profile?.credits ?? 0;
 
-  const loadHistory = useCallback(() => {
-    apiFetch<{ items: AudioItem[] }>("/api/generations?type=audio")
-      .then((d) => setHistory(d.items || []))
-      .catch(() => {});
-  }, [apiFetch]);
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  const fetchTakes = useCallback(
+    () => apiFetch<{ items: AudioItem[] }>("/api/generations?type=audio").then((d) => d.items || []),
+    [apiFetch]
+  );
+  const { history, freshIds, addOptimistic, resolveOptimistic, removeItem } =
+    useGenerationHistory<AudioItem>({ fetcher: fetchTakes });
 
   useEffect(() => {
     const close = () => setOpenedMenuId(null);
@@ -61,10 +65,13 @@ export default function VoiceEngineStudio() {
 
     const tempId = `temp_${Date.now()}`;
     const original = script;
-    setHistory((prev) => [
-      { id: tempId, status: "queued", prompt: original, audioUrl: null, createdAt: new Date().toISOString() },
-      ...prev,
-    ]);
+    addOptimistic({
+      id: tempId,
+      status: "queued",
+      prompt: original,
+      audioUrl: null,
+      createdAt: new Date().toISOString(),
+    } as AudioItem);
     setScript("");
 
     try {
@@ -72,18 +79,24 @@ export default function VoiceEngineStudio() {
         method: "POST",
         body: JSON.stringify({ text: original, voice: selected.voice }),
       });
-      setHistory((prev) =>
-        prev.map((item) =>
-          item.id === tempId ? { ...item, id: data.id, status: "succeeded", audioUrl: data.url } : item
-        )
-      );
-      void refreshProfile();
+      resolveOptimistic(tempId, {
+        id: data.id,
+        status: "succeeded",
+        audioUrl: data.url,
+      } as Partial<AudioItem>);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Voice synthesis failed");
-      setHistory((prev) => prev.filter((item) => item.id !== tempId));
+      removeItem(tempId);
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleReuse = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenedMenuId(null);
+    const reused = await reusePrompt(id);
+    if (reused) setScript(reused.prompt);
   };
 
   const deleteTake = (id: string, e: React.MouseEvent) => {
@@ -91,12 +104,10 @@ export default function VoiceEngineStudio() {
     setOpenedMenuId(null);
     setDeletingIds((prev) => new Set(prev).add(id));
     if (!id.startsWith("temp_")) {
-      void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" })
-        .catch(() => {})
-        .finally(() => void refreshProfile());
+      void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" }).catch(() => {});
     }
     setTimeout(() => {
-      setHistory((prev) => prev.filter((item) => item.id !== id));
+      removeItem(id);
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -132,7 +143,9 @@ export default function VoiceEngineStudio() {
             openedMenuId={openedMenuId}
             setOpenedMenuId={setOpenedMenuId}
             deletingIds={deletingIds}
+            freshIds={freshIds}
             onDelete={deleteTake}
+            onReuse={(id, e) => void handleReuse(id, e)}
             emptyTitle="No voiceover takes yet"
             emptyHint="Pick a speaker, write a script below, and your takes will appear here."
           />

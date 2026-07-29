@@ -32,7 +32,7 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
     links: [
       { label: "Video Studio", href: "/dashboard/video" },
       { label: "Optiq Video Engine", href: "/dashboard/video" },
-      { label: "Characters", href: "/dashboard/characters" },
+      { label: "Image Studio", href: "/dashboard/image" },
       { label: "Audio Studio", href: "/dashboard/audio" },
       { label: "Assets", href: "/dashboard/assets" },
       { label: "Prompt Enhancer", href: "/dashboard/video" },
@@ -49,7 +49,7 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
 ];
 
 const HERO_LINKS = [
-  { label: "OPTIQ STUDIO CHARACTERS", href: "/dashboard/characters" },
+  { label: "OPTIQ STUDIO STORYBOARD", href: "/dashboard/create" },
   { label: "CREATIVE ADS & CAMPAIGNS", href: "#worlds" },
   { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/audio" },
   { label: "OPTIQ STUDIO ENTERPRISE", href: "/enterprise" },
@@ -81,7 +81,7 @@ const WORLD_CARDS = [
     media: "/media/card-avatars.jpg",
     title: "Consistent Characters: Virtual Brand Faces",
     body: "Maintain precise brand alignment across campaigns with consistent digital actors and video spokespersons.",
-    href: "/dashboard/characters",
+    href: "/dashboard/create",
   },
 ];
 
@@ -108,7 +108,7 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
       { label: "Video Studio", href: "/dashboard/video" },
       { label: "Audio Studio", href: "/dashboard/audio" },
       { label: "Optiq Studio Enterprise", href: "/enterprise" },
-      { label: "Characters", href: "/dashboard/characters" },
+      { label: "Image Studio", href: "/dashboard/image" },
       { label: "Pricing", href: "/dashboard/billing" },
     ],
   },

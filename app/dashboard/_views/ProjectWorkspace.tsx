@@ -1,17 +1,32 @@
 "use client";
 
 // ProjectWorkspace — /dashboard/project/[id]. Two switchable faces:
-//   "auto-merge" → CapCut-style EditorStudio (compiling HUD while scenes render)
+//   "auto-merge" → CapCut-style EditorStudio (rendering HUD while scenes cook)
 //   "manual"     → script / prompt-engineering deck
 // The two-way switch lives in both faces (hard product requirement).
+//
+// The script face itself has two layouts: a two-column deck on desktop, and a
+// one-scene-per-page flip deck on phones (MobileScriptDeck) — a phone can't
+// usefully scroll nine scenes' worth of 2,000-word prompts.
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Video, Play, RefreshCw, Edit3, Wand2, Check, CheckCircle,
-  AlertCircle, Undo2, Tv, Copy, Music, Plus, X,
+  RefreshCw, Edit3, AlertCircle, Undo2, Tv, Play,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
+import { useAuth } from "../../../components/AuthProvider";
+import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import useIsMobile from "../_shared/useIsMobile";
 import EditorStudio from "./editor/EditorStudio";
+import DirectionPanel from "./script/DirectionPanel";
+import MobileScriptDeck from "./script/MobileScriptDeck";
+import SceneBeats from "./script/SceneBeats";
+import ScenePromptBlock from "./script/ScenePromptBlock";
+import SceneReferenceImages from "./script/SceneReferenceImages";
+import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
+
+/** Every storyboard scene renders as a 10-second clip. */
+const SCENE_SECONDS = 10;
 
 export default function ProjectWorkspace() {
   const {
@@ -25,8 +40,40 @@ export default function ProjectWorkspace() {
     addSceneImages, attachMaterialToScene, removeSceneImage,
     goHome, projects, activeProjectId,
   } = useEditorFlow();
+  const { profile, pricing } = useAuth();
+  const isMobile = useIsMobile();
 
   const project = projects.find((p) => p.id === activeProjectId) ?? null;
+
+  // ── Render pricing ─────────────────────────────────────────────────────
+  // Paying for the ad buys its scene renders up front, so the project carries a
+  // `prepaidRenders` allowance. While that lasts a render is free; once it's
+  // spent (i.e. any RE-render) the clip is charged like a Direct Studio one, and
+  // the user gets the same price-confirmation modal they get everywhere else.
+  const perSecond = pricing?.costs.videoPerSecond?.omni ?? 15;
+  const clipPrice = perSecond * SCENE_SECONDS;
+  const prepaidLeft = Number(project?.prepaidRenders) || 0;
+  const renderCost = (sceneIndex: number) => {
+    const status = videoStatus[sceneIndex]?.status;
+    // A scene that has never produced a clip draws on the allowance first.
+    const firstAttempt = status !== "succeeded";
+    return firstAttempt && prepaidLeft > 0 ? 0 : clipPrice;
+  };
+
+  const [pendingRender, setPendingRender] = useState<{ index: number; prompt: string; cost: number } | null>(null);
+  // Lets the user into the timeline with a partial set of clips when one or
+  // more scenes failed and retrying isn't what they want right now.
+  const [forceEditor, setForceEditor] = useState(false);
+
+  const requestRender = (sceneIndex: number, prompt: string) => {
+    const cost = renderCost(sceneIndex);
+    if (cost <= 0) {
+      // Already paid for as part of the ad — no need to ask again.
+      void generateVideoForScene(sceneIndex, prompt);
+      return;
+    }
+    setPendingRender({ index: sceneIndex, prompt, cost });
+  };
 
   // Live label for the cloud storyboard job's current stage.
   const STAGE_LABELS: Record<string, string> = {
@@ -46,35 +93,65 @@ export default function ProjectWorkspace() {
     }
   };
 
+  const sceneCount = storyboard?.scenes.length ?? 0;
+  const renderTally = useMemo(() => {
+    let done = 0;
+    let failed = 0;
+    for (let i = 0; i < sceneCount; i++) {
+      const s = videoStatus[i]?.status;
+      if (s === "succeeded") done++;
+      else if (s === "failed") failed++;
+    }
+    return { done, failed, pending: sceneCount - done - failed };
+  }, [sceneCount, videoStatus]);
+
+  const confirmModal = (
+    <ConfirmGenerationModal
+      isOpen={!!pendingRender}
+      onClose={() => setPendingRender(null)}
+      onConfirm={() => {
+        if (pendingRender) void generateVideoForScene(pendingRender.index, pendingRender.prompt);
+        setPendingRender(null);
+      }}
+      cost={pendingRender?.cost ?? 0}
+      balance={profile?.credits ?? 0}
+      title="Confirm Scene Render"
+      description={`Scene ${(pendingRender?.index ?? 0) + 1} — ${SCENE_SECONDS}s clip`}
+      actionLabel="Render Scene"
+    />
+  );
+
   // ── EMPTY / GENERATING / ERROR STATES ──────────────────────────────────
   if (!storyboard) {
     return (
       <div className="flex h-full flex-col bg-background text-neutral-200">
-        <div className="flex flex-1 flex-col items-center justify-center p-12 text-center h-full max-w-lg mx-auto">
+        <div className="mx-auto flex h-full max-w-lg flex-1 flex-col items-center justify-center p-12 text-center">
           {isCloudGenerating ? (
             <div className="space-y-6">
-              <div className="relative mx-auto h-44 w-72 sm:h-52 sm:w-96 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.7)]">
+              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-52 sm:w-96">
                 <div className="aurora" aria-hidden />
                 <div className="aurora-veil" aria-hidden />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-sm font-bold text-white tracking-tight text-center">{stageLabel}</h3>
+                <h3 className="text-center text-sm font-bold tracking-tight text-white">{stageLabel}</h3>
                 {pipelineStage === "building" && pipelineProgress ? (
-                  <p className="text-[11px] font-mono text-neutral-500 text-center">
+                  <p className="text-center font-mono text-[11px] text-neutral-500">
                     Scene {pipelineProgress.scenesDone} / {pipelineProgress.scenesTotal}
                   </p>
                 ) : (
-                  <p className="text-[11px] text-neutral-500 text-center max-w-xs mx-auto">
+                  <p className="mx-auto max-w-xs text-center text-[11px] text-neutral-500">
                     Running in the cloud — you can safely close this tab and come back; it&apos;ll pick up right here.
                   </p>
                 )}
               </div>
             </div>
           ) : error ? (
-            <div className="space-y-5 rounded-2xl border border-red-500/15 bg-red-950/20 p-8 max-w-md mx-auto">
-              <AlertCircle size={36} className="text-red-400 mx-auto animate-pulse" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-center">Generation Encountered an Issue</h3>
-              <p className="text-xs text-red-400/90 leading-relaxed text-center">
+            <div className="mx-auto max-w-md space-y-5 rounded-2xl border border-red-500/15 bg-red-950/20 p-8">
+              <AlertCircle size={36} className="mx-auto animate-pulse text-red-400" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase tracking-wider text-white">
+                Generation Encountered an Issue
+              </h3>
+              <p className="text-center text-xs leading-relaxed text-red-400/90">
                 {error || "Vertex AI rate limits or an internal timeout. Retrying is free — you were only charged once."}
               </p>
               <div className="flex justify-center pt-2">
@@ -83,7 +160,7 @@ export default function ProjectWorkspace() {
                     setError(null);
                     void retryStoryboard();
                   }}
-                  className="flex items-center gap-1.5 rounded-xl bg-white hover:bg-neutral-200 px-5.5 py-2.5 text-xs font-bold text-black transition-all"
+                  className="flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black transition-all hover:bg-neutral-200"
                 >
                   <RefreshCw size={12} /> Retry Storyboard Generation
                 </button>
@@ -91,14 +168,14 @@ export default function ProjectWorkspace() {
             </div>
           ) : projectsLoading ? (
             <div className="space-y-4">
-              <RefreshCw size={32} className="text-neutral-500 animate-spin mx-auto" />
-              <h3 className="text-sm font-bold text-neutral-300 uppercase font-mono text-center">Loading Project...</h3>
+              <RefreshCw size={32} className="mx-auto animate-spin text-neutral-500" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase text-neutral-300">Loading Project…</h3>
             </div>
           ) : (
             <div className="space-y-4">
-              <AlertCircle size={32} className="text-neutral-500 mx-auto" />
-              <h3 className="text-sm font-bold text-neutral-300 uppercase font-mono text-center">Project Empty</h3>
-              <p className="text-xs text-neutral-500 max-w-sm mx-auto text-center">
+              <AlertCircle size={32} className="mx-auto text-neutral-500" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase text-neutral-300">Project Empty</h3>
+              <p className="mx-auto max-w-sm text-center text-xs text-neutral-500">
                 No storyboard specification has been initialized for this project.
               </p>
             </div>
@@ -110,35 +187,38 @@ export default function ProjectWorkspace() {
 
   // ── AUTO-MERGE FACE ────────────────────────────────────────────────────
   if (productionMode === "auto-merge") {
-    const totalScenes = storyboard.scenes.length;
-    const completedCount = storyboard.scenes.filter((_, idx) => videoStatus[idx]?.status === "succeeded").length;
-    const isCompiling = completedCount < totalScenes;
-    const compilePercent = Math.round((completedCount / Math.max(totalScenes, 1)) * 100);
-
-    // Clips ready → the CapCut editor takes the full viewport.
-    if (!isCompiling) {
+    // Every scene rendered → the timeline editor takes the whole viewport. This
+    // is the landing point of "make the whole film": script → clips → timeline,
+    // with no stop in the script editor on the way.
+    if (forceEditor || (renderTally.done === sceneCount && sceneCount > 0)) {
       return <EditorStudio project={{ ...(project ?? {}), id: activeProjectId, title: storyboard.title, videoStatus }} />;
     }
 
-    // Still rendering scene segments → centered clip tiles with live aurora glow.
+    const percent = Math.round((renderTally.done / Math.max(sceneCount, 1)) * 100);
+    // A failed scene never becomes "succeeded", so without this the HUD would
+    // spin forever with no way forward. Once nothing is still in flight, offer
+    // both a retry and a way into the timeline with what did render.
+    const stalled = renderTally.pending === 0 && renderTally.failed > 0;
+
     return (
       <div className="flex h-full flex-col bg-background text-neutral-200">
         {/* Minimal chrome, top corners only */}
-        <div className="absolute top-16 sm:top-16 left-0 right-0 z-10 flex items-center justify-between gap-2 px-4 sm:px-6 py-4">
-          <h2 className="text-sm font-bold tracking-tight text-white/90 truncate max-w-[40%]">{storyboard.title}</h2>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="absolute left-0 right-0 top-16 z-10 flex items-center justify-between gap-2 px-4 py-4 sm:px-6">
+          <h2 className="max-w-[40%] truncate text-sm font-bold tracking-tight text-white/90">{storyboard.title}</h2>
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <span className="font-mono text-[11px] font-bold text-neutral-400">
-              {completedCount}<span className="text-neutral-600"> / {totalScenes}</span>
+              {renderTally.done}
+              <span className="text-neutral-600"> / {sceneCount}</span>
             </span>
             <button
               onClick={() => setProductionMode("manual")}
-              className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/5 px-3.5 py-2 text-xs font-semibold hover:bg-white/10 hover:text-blue-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-white/10 hover:text-blue-400"
             >
               <Edit3 size={12} /> Script Editor
             </button>
             <button
               onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/5 px-3.5 py-2 text-xs font-semibold hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-white/10"
             >
               <Undo2 size={12} /> Reset
             </button>
@@ -146,39 +226,52 @@ export default function ProjectWorkspace() {
         </div>
 
         {/* Clips — top-aligned + scrollable so the very first scene is always
-            reachable (vertical centering used to clip the top on overflow). On
-            mobile: ≤3 scenes stack one-up; 4+ show two per row so all fit. */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-28 pb-24">
+            reachable. On mobile: ≤3 scenes stack one-up; 4+ show two per row. */}
+        <div className="flex-1 overflow-y-auto px-4 pb-24 pt-28 sm:px-6">
           <div
             className={`mx-auto grid w-full gap-3 sm:gap-6 ${
-              totalScenes <= 3 ? "max-w-5xl grid-cols-1 sm:grid-cols-3" : "max-w-6xl grid-cols-2 md:grid-cols-3"
+              sceneCount <= 3 ? "max-w-5xl grid-cols-1 sm:grid-cols-3" : "max-w-6xl grid-cols-2 md:grid-cols-3"
             }`}
           >
             {storyboard.scenes.map((scene, idx) => {
               const stat = videoStatus[idx];
-              const isSceneReady = stat?.status === "succeeded";
+              const ready = stat?.status === "succeeded" && stat.url;
+              const failed = stat?.status === "failed";
               return (
                 <div
                   key={idx}
                   className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_16px_48px_rgba(0,0,0,0.7)]"
                 >
-                  {isSceneReady && stat.url ? (
+                  {ready ? (
                     <>
                       <video src={stat.url} autoPlay loop muted playsInline preload="auto" className="h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
-                        <Check size={11} strokeWidth={3} />
+                        <Play size={10} fill="black" className="translate-x-[1px]" />
                       </span>
                     </>
+                  ) : failed ? (
+                    <button
+                      onClick={() => requestRender(idx, stat?.customPrompt || scene.fullPrompt)}
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-950/30 p-3 text-center transition-colors hover:bg-red-950/50"
+                    >
+                      <AlertCircle size={20} className="text-red-400" />
+                      <span className="text-[10px] font-bold text-white">Scene {scene.sceneNumber} failed</span>
+                      <span className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-neutral-200">
+                        <RefreshCw size={10} /> Retry
+                      </span>
+                    </button>
                   ) : (
                     <>
                       <div className="aurora" aria-hidden />
                       <div className="aurora-veil" aria-hidden />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-display text-4xl sm:text-5xl text-white/90 drop-shadow-lg">{scene.sceneNumber}</span>
+                        <span className="font-display text-4xl text-white/90 drop-shadow-lg sm:text-5xl">
+                          {scene.sceneNumber}
+                        </span>
                       </div>
                     </>
                   )}
-                  <span className="absolute top-2 left-2 rounded-full bg-black/50 backdrop-blur px-2 py-0.5 text-[9px] font-mono font-bold text-white/80">
+                  <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 font-mono text-[9px] font-bold text-white/80 backdrop-blur">
                     Scene {scene.sceneNumber}
                   </span>
                 </div>
@@ -187,391 +280,171 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        <p className="absolute bottom-6 left-0 right-0 text-center text-[11px] font-mono text-neutral-500">
-          Crafting your scenes — {compilePercent}%
-        </p>
+        <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-2.5 px-4">
+          <p className="text-center font-mono text-[11px] text-neutral-500">
+            {stalled
+              ? `${renderTally.failed} scene${renderTally.failed === 1 ? "" : "s"} didn't render — retry above, or continue with what's ready`
+              : `Crafting your scenes — ${percent}%`}
+          </p>
+          {stalled && renderTally.done > 0 && (
+            <button
+              onClick={() => setForceEditor(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black transition-all hover:bg-neutral-200"
+            >
+              <Tv size={13} /> Open timeline anyway
+            </button>
+          )}
+        </div>
+
+        {confirmModal}
       </div>
     );
   }
 
-  // ── SCRIPT / PROMPT-ENGINEERING FACE ──────────────────────────────────
+  // ── SCRIPT FACE — MOBILE (page-by-page deck) ───────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        <MobileScriptDeck
+          storyboard={storyboard}
+          setStoryboard={setStoryboard}
+          videoStatus={videoStatus}
+          setVideoStatus={setVideoStatus}
+          sceneImages={sceneImages}
+          projectMaterials={projectMaterials}
+          addSceneImages={addSceneImages}
+          attachMaterialToScene={attachMaterialToScene}
+          removeSceneImage={removeSceneImage}
+          reviseScenePrompt={reviseScenePrompt}
+          copyToClipboard={copyToClipboard}
+          copiedIndex={copiedIndex}
+          renderCost={renderCost}
+          onRequestRender={requestRender}
+          onOpenTimeline={() => setProductionMode("auto-merge")}
+        />
+        {confirmModal}
+      </>
+    );
+  }
+
+  // ── SCRIPT FACE — DESKTOP ──────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col bg-background text-neutral-200">
-      {/* Mobile: fixed floating jump-to-timeline button, always reachable no
-          matter how far the script deck is scrolled. Desktop uses the header button. */}
-      <button
-        onClick={() => setProductionMode("auto-merge")}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-1.5 rounded-full border border-blue-400/40 bg-blue-600 px-4 py-3 text-xs font-bold text-white shadow-2xl shadow-blue-600/30 transition-transform active:scale-95 sm:hidden"
-      >
-        <Tv size={14} /> Timeline
-      </button>
-
-      <div className="flex flex-1 flex-col overflow-y-auto px-4 sm:px-6 pb-6 pt-20 sm:pt-24 w-full max-w-6xl mx-auto">
-        {/* Header Controls */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-5">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 pb-6 pt-20 sm:px-6 sm:pt-24">
+        {/* Header controls */}
+        <div className="flex flex-col gap-4 border-b border-white/5 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="text-[10px] font-bold text-blue-400 bg-[#0c152d] rounded px-2.5 py-0.5 uppercase border border-blue-500/30">
+            <span className="rounded-full border border-blue-500/30 bg-[#0c152d] px-2.5 py-0.5 text-[10px] font-bold uppercase text-blue-400">
               Script Engineering
             </span>
             <h2 className="mt-2 text-xl font-bold tracking-tight text-white md:text-2xl">{storyboard.title}</h2>
-            <p className="mt-1 text-xs text-neutral-500 leading-relaxed">{storyboard.concept}</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">{storyboard.concept}</p>
           </div>
           <div className="flex items-center gap-2 self-start">
+            <span className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 font-mono text-[11px] font-bold text-neutral-400">
+              {renderTally.done}
+              <span className="text-neutral-600"> / {sceneCount}</span> rendered
+            </span>
             <button
               onClick={() => setProductionMode("auto-merge")}
-              className="flex items-center gap-1.5 rounded-xl bg-[#0c152d] border border-blue-500/40 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-[#131d35] hover:border-blue-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-4 py-2 text-xs font-semibold text-blue-400 transition-colors hover:border-blue-400 hover:bg-[#131d35]"
             >
               <Tv size={12} /> Open Timeline Editor
             </button>
             <button
               onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-xl bg-white/5 border border-white/5 px-4 py-2 text-xs font-semibold hover:bg-white/10 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-xs font-semibold transition-colors hover:bg-white/10"
             >
               <Undo2 size={12} /> Reset Draft
             </button>
           </div>
         </div>
 
-        {/* Director settings / Locks Block */}
-        <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="rounded-xl border border-white/5 bg-surface/80 p-5 flex flex-col">
-            <span className="text-[11px] font-bold text-white tracking-wider uppercase">Locked Character Block (LCB)</span>
-            <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed mb-3">
-              Maintains face and physical geometry consistency verbatim across scenes.
-            </p>
-            <textarea
-              value={storyboard.characterLock.description}
-              onChange={(e) =>
-                setStoryboard({
-                  ...storyboard,
-                  characterLock: { ...storyboard.characterLock, description: e.target.value },
-                })
-              }
-              rows={4}
-              className="w-full bg-background rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-blue-500/40 outline-none text-white font-mono"
-            />
-            <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <span className="text-[9px] font-bold text-neutral-500 uppercase">Actor Subject</span>
-                <input
-                  value={storyboard.characterLock.name}
-                  onChange={(e) =>
-                    setStoryboard({
-                      ...storyboard,
-                      characterLock: { ...storyboard.characterLock, name: e.target.value },
-                    })
-                  }
-                  className="mt-1 w-full bg-background text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold focus:border-blue-500/40 outline-none"
-                />
-              </div>
-              <div>
-                <span className="text-[9px] font-bold text-neutral-500 uppercase">Locked Wardrobe</span>
-                <input
-                  value={storyboard.characterLock.wardrobe}
-                  onChange={(e) =>
-                    setStoryboard({
-                      ...storyboard,
-                      characterLock: { ...storyboard.characterLock, wardrobe: e.target.value },
-                    })
-                  }
-                  className="mt-1 w-full bg-background text-xs rounded-lg border border-white/5 px-3 py-1.5 text-white font-semibold focus:border-blue-500/40 outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-white/5 bg-surface/80 p-5 flex flex-col">
-            <span className="text-[11px] font-bold text-white tracking-wider uppercase">Visual Style Contract</span>
-            <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed mb-3">
-              Optical, lens, and grain parameters applied consistently to every output.
-            </p>
-            <textarea
-              value={storyboard.styleHeader}
-              onChange={(e) => setStoryboard({ ...storyboard, styleHeader: e.target.value })}
-              rows={6}
-              className="w-full flex-1 bg-background rounded-xl border border-white/5 p-3.5 text-xs leading-relaxed focus:border-blue-500/40 outline-none text-white font-mono"
-            />
-          </div>
+        {/* Film-wide locks */}
+        <div className="mt-6">
+          <DirectionPanel storyboard={storyboard} setStoryboard={setStoryboard} />
         </div>
 
-        {/* Locked Music Spec — repeated verbatim in every continuous scene */}
-        {storyboard.musicSpec !== undefined && storyboard.musicSpec !== null && (
-          <div className="mt-5 rounded-xl border border-white/5 bg-surface/80 p-5">
-            <span className="text-[11px] font-bold text-white tracking-wider uppercase flex items-center gap-2">
-              <Music size={12} className="text-blue-400" /> Locked Background Music Spec
-            </span>
-            <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed mb-3">
-              Carried verbatim through every continuous scene so the whole ad sounds like one track.
-            </p>
-            <textarea
-              value={storyboard.musicSpec}
-              onChange={(e) => setStoryboard({ ...storyboard, musicSpec: e.target.value })}
-              rows={3}
-              className="w-full max-h-32 resize-none overflow-y-auto rounded-xl border border-white/5 bg-background p-3.5 font-mono text-xs leading-relaxed text-white outline-none focus:border-blue-500/40"
-            />
-          </div>
-        )}
-
-        {/* Scene Cards Header */}
+        {/* Scene cards */}
         <div className="mt-10 flex items-center gap-3 border-b border-white/5 pb-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded bg-[#0c152d] border border-blue-500/30 text-blue-400">
+          <span className="flex h-6 w-6 items-center justify-center rounded border border-blue-500/30 bg-[#0c152d] text-blue-400">
             <Tv size={12} />
           </span>
-          <h3 className="text-base font-bold text-white tracking-tight">Scene Generation Panel</h3>
+          <h3 className="text-base font-bold tracking-tight text-white">Scene Generation Panel</h3>
         </div>
 
-        {/* GRID OF SCENE CARDS */}
         <div className="mt-5 flex flex-col gap-6">
           {storyboard.scenes.map((scene, idx) => {
-            const status = videoStatus[idx] || { status: "idle", revisionInput: "" };
+            const status = videoStatus[idx] || { status: "idle" as const, revisionInput: "" };
+            const patchStatus = (patch: Record<string, unknown>) =>
+              setVideoStatus((prev) => ({ ...prev, [idx]: { ...prev[idx], ...patch } }));
+
             return (
               <div
                 key={scene.sceneNumber}
-                className="rounded-2xl border border-white/5 bg-[#0a1124] p-4 sm:p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start hover:border-blue-500/30 transition-colors"
+                className="grid grid-cols-1 items-start gap-5 rounded-3xl border border-white/5 bg-[#0a1124] p-4 transition-colors hover:border-blue-500/30 sm:gap-6 sm:p-5 lg:grid-cols-12 lg:p-6"
               >
-                {/* Scene description columns */}
-                <div className="lg:col-span-7 space-y-4">
+                {/* Scene copy */}
+                <div className="space-y-4 lg:col-span-7">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-[#131d35] px-2 py-0.5 rounded-full border border-white/10">
-                      Scene {scene.sceneNumber} — 10s Clip
+                    <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#131d35] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      Scene {scene.sceneNumber} — {SCENE_SECONDS}s clip
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-3.5">
-                      <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Setting Environment</span>
-                      <p className="mt-1 text-xs text-neutral-300 leading-relaxed">{scene.setting}</p>
-                    </div>
+                  <SceneBeats
+                    scene={scene}
+                    revisionInput={status.revisionInput || ""}
+                    revising={!!status.revising}
+                    onRevisionInput={(v) => patchStatus({ revisionInput: v })}
+                    onRevise={() => void reviseScenePrompt(idx)}
+                  />
 
-                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-3.5">
-                      <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Diegetic Audio / Sound Spec</span>
-                      <p className="mt-1 text-xs text-neutral-300 leading-relaxed">{scene.sound}</p>
-                    </div>
-                  </div>
+                  <ScenePromptBlock
+                    value={status.customPrompt || scene.fullPrompt}
+                    editing={!!status.editingPrompt}
+                    onChange={(v) => patchStatus({ customPrompt: v })}
+                    onToggleEdit={() =>
+                      patchStatus({
+                        editingPrompt: !status.editingPrompt,
+                        customPrompt: status.customPrompt || scene.fullPrompt,
+                      })
+                    }
+                    onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, idx)}
+                    copied={copiedIndex === idx}
+                  />
 
-                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-3.5">
-                    <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Action Beats Sequence (Verbs)</span>
-                    <p className="mt-1 text-xs text-neutral-300 leading-relaxed">{scene.action}</p>
-                  </div>
-
-                  {scene.dialogue && (
-                    <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 p-3.5">
-                      <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wide">Dialogue/Speech Track</span>
-                      <p className="mt-1 text-xs italic text-neutral-200 leading-relaxed">&quot;{scene.dialogue}&quot;</p>
-                    </div>
-                  )}
-
-                  {/* Prompts Panel */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">Copy-Ready Compiled Prompt (Blocks 1-14)</span>
-                      <button
-                        onClick={() => copyToClipboard(status.customPrompt || scene.fullPrompt, idx)}
-                        className="flex items-center gap-1 text-xs text-neutral-500 hover:text-blue-400 transition-colors"
-                      >
-                        <Copy size={11} />
-                        {copiedIndex === idx ? "Copied" : "Copy Prompt"}
-                      </button>
-                    </div>
-
-                    {status.editingPrompt ? (
-                      <textarea
-                        value={status.customPrompt || scene.fullPrompt}
-                        onChange={(e) =>
-                          setVideoStatus((prev) => ({
-                            ...prev,
-                            [idx]: { ...prev[idx], customPrompt: e.target.value },
-                          }))
-                        }
-                        rows={5}
-                        className="w-full bg-background rounded-xl border border-blue-500/30 p-3 text-xs leading-relaxed outline-none text-white font-mono"
-                      />
-                    ) : (
-                      <div className="relative rounded-xl border border-white/5 bg-background p-3.5 font-mono text-[11px] text-neutral-400 max-h-32 overflow-y-auto leading-relaxed whitespace-pre-line">
-                        {status.customPrompt || scene.fullPrompt}
-                      </div>
+                  <SceneReferenceImages
+                    sceneIndex={idx}
+                    attached={sceneImages[idx] || []}
+                    available={projectMaterials.filter(
+                      (mat) =>
+                        mat.mimeType.startsWith("image/") &&
+                        !(sceneImages[idx] || []).some((img) => img.path === mat.path)
                     )}
-
-                    <button
-                      onClick={() =>
-                        setVideoStatus((prev) => ({
-                          ...prev,
-                          [idx]: {
-                            ...prev[idx],
-                            editingPrompt: !prev[idx]?.editingPrompt,
-                            customPrompt: prev[idx]?.customPrompt || scene.fullPrompt,
-                          },
-                        }))
-                      }
-                      className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-blue-400 transition-colors"
-                    >
-                      <Edit3 size={11} />
-                      {status.editingPrompt ? "Save Prompt Edit" : "Manually Edit Prompt Block"}
-                    </button>
-                  </div>
-
-                  {/* PER-SCENE REFERENCE IMAGES (product / character consistency) */}
-                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-3.5">
-                    <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wide">
-                      Reference Images — attached to this scene&apos;s render
-                    </span>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {(sceneImages[idx] || []).map((img, imgIdx) => (
-                        <div
-                          key={`${img.path}-${imgIdx}`}
-                          className="group relative h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-black"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img.url} alt={img.name} className="h-full w-full object-cover" />
-                          <button
-                            onClick={() => removeSceneImage(idx, imgIdx)}
-                            title="Remove from this scene"
-                            className="absolute top-0.5 right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-black/70 text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity"
-                          >
-                            <X size={10} />
-                          </button>
-                        </div>
-                      ))}
-                      <label
-                        title="Upload new reference image"
-                        className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/15 text-neutral-500 hover:border-blue-500/50 hover:text-blue-400 transition-colors"
-                      >
-                        <Plus size={15} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files?.length) void addSceneImages(idx, e.target.files);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                      {/* Quick-attach project materials not yet on this scene */}
-                      {projectMaterials
-                        .filter(
-                          (mat) =>
-                            mat.mimeType.startsWith("image/") &&
-                            !(sceneImages[idx] || []).some((img) => img.path === mat.path)
-                        )
-                        .map((mat) => (
-                          <button
-                            key={mat.path}
-                            onClick={() => attachMaterialToScene(idx, mat)}
-                            title={`Attach ${mat.name}`}
-                            className="relative h-14 w-14 overflow-hidden rounded-lg border border-white/5 opacity-40 hover:opacity-100 hover:border-blue-500/50 transition-all"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={mat.url} alt={mat.name} className="h-full w-full object-cover" />
-                            <span className="absolute inset-0 flex items-center justify-center bg-black/40">
-                              <Plus size={13} className="text-white" />
-                            </span>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-
-                  {/* REVISION ENGINE INPUT */}
-                  <div className="flex items-center gap-2 rounded-xl bg-background border border-white/5 px-3 py-1.5 focus-within:border-blue-500/40 transition-colors">
-                    <input
-                      value={status.revisionInput || ""}
-                      onChange={(e) =>
-                        setVideoStatus((prev) => ({
-                          ...prev,
-                          [idx]: { ...prev[idx], revisionInput: e.target.value },
-                        }))
-                      }
-                      placeholder="Request scene rewrite (e.g. change shirt color, add rain, pan left)..."
-                      disabled={status.revising}
-                      className="w-full bg-transparent text-xs outline-none text-white placeholder:text-neutral-700 disabled:opacity-50"
-                    />
-                    <button
-                      onClick={() => reviseScenePrompt(idx)}
-                      disabled={status.revising || !status.revisionInput?.trim()}
-                      className="shrink-0 flex items-center gap-1 rounded-lg bg-[#131d35] hover:bg-blue-600 disabled:bg-[#131d35] disabled:text-neutral-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-                    >
-                      {status.revising ? (
-                        <>
-                          <RefreshCw size={11} className="animate-spin" /> Rewriting...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 size={11} /> Rewrite Scene
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    onUpload={(files) => void addSceneImages(idx, files)}
+                    onAttach={(mat) => attachMaterialToScene(idx, mat)}
+                    onRemove={(imgIdx) => removeSceneImage(idx, imgIdx)}
+                  />
                 </div>
 
-                {/* Rendering player and controller column */}
-                <div className="lg:col-span-5 flex flex-col justify-center h-full">
-                  {status.status === "idle" && (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.01] px-6 py-14 text-center">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0e1630] text-neutral-500 mb-3 border border-white/10">
-                        <Video size={16} />
-                      </span>
-                      <h4 className="text-xs font-bold text-white">Video Draft Offline</h4>
-                      <p className="mt-1 text-[11px] text-neutral-500 max-w-xs leading-normal">
-                        Trigger the high-motion Optiq Video Engine to render this prompt block.
-                      </p>
-                      <button
-                        onClick={() => generateVideoForScene(idx, status.customPrompt || scene.fullPrompt)}
-                        className="mt-4.5 flex items-center gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 px-5 py-2 text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
-                      >
-                        <Play size={11} fill="white" /> Generate Scene Video
-                      </button>
-                    </div>
-                  )}
-
-                  {status.status === "rendering" && (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-blue-500/20 bg-[#0c152d]/40 px-6 py-14 text-center">
-                      <RefreshCw size={28} className="text-blue-400 animate-spin" />
-                      <h4 className="mt-3 text-xs font-bold text-white">Generating Clip...</h4>
-                      <p className="mt-2 text-[10px] text-neutral-500 leading-relaxed max-w-xs">
-                        The Optiq Video Engine is compiling files. This usually takes 1-3 minutes.
-                      </p>
-                    </div>
-                  )}
-
-                  {status.status === "succeeded" && status.url && (
-                    <div className="space-y-3">
-                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black border border-white/10 shadow-2xl">
-                        <video src={status.url} controls className="h-full w-full object-cover" />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/5 px-2.5 py-0.5 rounded-full border border-emerald-500/15">
-                          <CheckCircle size={11} /> Render Successful
-                        </span>
-                        <button
-                          onClick={() => generateVideoForScene(idx, status.customPrompt || scene.fullPrompt)}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 hover:text-blue-400 transition-colors"
-                        >
-                          <RefreshCw size={11} /> Re-render Video
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {status.status === "failed" && (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/10 bg-red-500/[0.005] px-6 py-10 text-center">
-                      <AlertCircle size={24} className="text-red-400" />
-                      <h4 className="mt-2.5 text-xs font-bold text-white">Generation Failed</h4>
-                      <p className="mt-1 text-[10px] text-red-400 max-w-xs leading-normal">{status.error || "GCP Operation timed out"}</p>
-                      <button
-                        onClick={() => generateVideoForScene(idx, status.customPrompt || scene.fullPrompt)}
-                        className="mt-3.5 flex items-center gap-1 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 px-3.5 py-1.5 text-xs font-semibold transition-colors"
-                      >
-                        <RefreshCw size={11} /> Retry Generation
-                      </button>
-                    </div>
-                  )}
+                {/* Render column */}
+                <div className="flex h-full flex-col justify-center lg:col-span-5">
+                  <SceneRenderPanel
+                    status={(status.status || "idle") as SceneRenderStatus}
+                    url={status.url}
+                    error={status.error}
+                    cost={renderCost(idx)}
+                    onRender={() => requestRender(idx, status.customPrompt || scene.fullPrompt)}
+                  />
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {confirmModal}
     </div>
   );
 }

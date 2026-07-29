@@ -9,12 +9,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import AssetPickerModal from "../../../components/AssetPickerModal";
 import SettingsRail from "./_components/SettingsRail";
 import StudioProjectsGrid from "../_shared/StudioProjectsGrid";
 import AspectRatioStrip from "../_shared/AspectRatioStrip";
 import { VIDEO_ASPECTS } from "../_shared/aspectOptions";
 import BottomPromptConsole from "./_components/BottomPromptConsole";
+import { useGenerationHistory } from "../_shared/useGenerationHistory";
+import { useReusePrompt } from "../_shared/useReusePrompt";
+import { takePromptHandoff } from "../_shared/promptHandoff";
 import {
   ASPECTS,
   DURATIONS,
@@ -25,7 +27,7 @@ import {
 } from "./_components/types";
 
 function VideoWorkspace() {
-  const { apiFetch, profile, pricing, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -45,15 +47,24 @@ function VideoWorkspace() {
   const [audioFile, setAudioFile] = useState<AttachedAudio | null>(null);
 
   // States
-  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [phase, setPhase] = useState<"idle" | "generating" | "done" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
+  const reusePrompt = useReusePrompt();
+
+  // The wall. `useGenerationHistory` merges server truth over local state
+  // instead of replacing it, so the optimistic card added below survives every
+  // refresh until Firestore actually knows about it.
+  const fetchVideos = useCallback(
+    () => apiFetch<{ items: HistoryItem[] }>("/api/generations?type=video").then((d) => d.items || []),
+    [apiFetch]
+  );
+  const { history, freshIds, load, addOptimistic, resolveOptimistic, removeItem, patchItem } =
+    useGenerationHistory<HistoryItem>({ fetcher: fetchVideos });
 
   // Computed / Dynamic pricing — priced per generated second from live pricing
   const perSecondCost = pricing?.costs.videoPerSecond[model] ?? 15;
@@ -63,15 +74,6 @@ function VideoWorkspace() {
     if (!prompt.trim() || phase === "generating") return;
     setConfirmOpen(true);
   };
-
-  // Load list of all projects and videos
-  const loadHistory = useCallback(() => {
-    apiFetch<{ items: HistoryItem[] }>("/api/generations?type=video")
-      .then((d) => {
-        setHistory(d.items);
-      })
-      .catch(() => {});
-  }, [apiFetch]);
 
   // Triggers polling for a single specific background rendering item
   const startSingleGenerationPolling = useCallback(
@@ -89,38 +91,29 @@ function VideoWorkspace() {
           if (status.status === "succeeded") {
             clearInterval(pollRefs.current[id]);
             delete pollRefs.current[id];
-            loadHistory();
-            void refreshProfile();
-            setHistory((prev) =>
-              prev.map((item) =>
-                item.id === id ? { ...item, status: "succeeded", videoUrl: status.videoUrl ?? null } : item
-              )
-            );
+            patchItem(id, { status: "succeeded", videoUrl: status.videoUrl ?? null });
+            void load();
           } else if (status.status === "failed") {
             clearInterval(pollRefs.current[id]);
             delete pollRefs.current[id];
-            loadHistory();
-            void refreshProfile();
-            setHistory((prev) =>
-              prev.map((item) => (item.id === id ? { ...item, status: "failed" } : item))
-            );
+            patchItem(id, { status: "failed" });
+            void load();
           }
         } catch {
           // Ignore status query glitches
         }
       }, 5000);
     },
-    [apiFetch, loadHistory, refreshProfile]
+    [apiFetch, load, patchItem]
   );
 
   useEffect(() => {
-    loadHistory();
     const activePolls = pollRefs.current;
     return () => {
       // Clean up all active generation polls on unmount
       Object.values(activePolls).forEach((interval) => clearInterval(interval));
     };
-  }, [loadHistory]);
+  }, []);
 
   // Click-away listener for popover menu
   useEffect(() => {
@@ -131,6 +124,19 @@ function VideoWorkspace() {
     return () => {
       window.removeEventListener("click", handleGlobalClick);
     };
+  }, []);
+
+  // Picks up a "reuse prompt" sent from the detail page — text plus the
+  // reference images, which a query string can't carry. Reading sessionStorage
+  // is exactly the "pull once from an external system on mount" case; it can't
+  // move into a lazy initializer because sessionStorage doesn't exist during SSR
+  // and the two renders would disagree.
+  useEffect(() => {
+    const handoff = takePromptHandoff();
+    if (!handoff) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrompt(handoff.prompt);
+    setImages(handoff.images);
   }, []);
 
   // Resume background polling on page load for any item in rendering state
@@ -226,6 +232,18 @@ function VideoWorkspace() {
     }
   };
 
+  // Pull a past generation's prompt AND its reference images back into the
+  // console so it can be re-run or tweaked.
+  const handleReuse = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenedMenuId(null);
+    const reused = await reusePrompt(id);
+    if (!reused) return;
+    setPrompt(reused.prompt);
+    setImages(reused.images);
+    setVideoFile(null);
+  };
+
   // Submit Prompt (Google Flow Style: Creates dynamic card container on the screen instantly)
   const generate = async () => {
     if (!prompt.trim() || phase === "generating") return;
@@ -235,15 +253,14 @@ function VideoWorkspace() {
 
     // Create a temporary local skeleton item to give instantaneous visual feedback
     const tempId = `temp_${Date.now()}`;
-    const tempItem: HistoryItem = {
+    addOptimistic({
       id: tempId,
       status: "rendering",
       prompt: prompt,
       videoUrl: null,
       createdAt: new Date().toISOString(),
-    };
+    } as HistoryItem);
 
-    setHistory((prev) => [tempItem, ...prev]);
     const originalPrompt = prompt;
     setPrompt(""); // Clear input bar immediately for next flow action
 
@@ -270,13 +287,10 @@ function VideoWorkspace() {
       setImages([]);
       setVideoFile(null);
       setAudioFile(null);
-      void refreshProfile();
       setPhase("idle");
 
       // Replace temp skeleton with the actual API item
-      setHistory((prev) =>
-        prev.map((item) => (item.id === tempId ? { ...item, id: start.id, status: "rendering" } : item))
-      );
+      resolveOptimistic(tempId, { id: start.id, status: "rendering" } as Partial<HistoryItem>);
 
       // Spin up polling thread for this item
       startSingleGenerationPolling(start.id);
@@ -284,8 +298,7 @@ function VideoWorkspace() {
       setError(err instanceof Error ? err.message : "Generation failed");
       setPhase("failed");
       // Remove temp skeleton
-      setHistory((prev) => prev.filter((item) => item.id !== tempId));
-      void refreshProfile();
+      removeItem(tempId);
     }
   };
 
@@ -300,13 +313,11 @@ function VideoWorkspace() {
     }
     setDeletingIds((prev) => new Set(prev).add(id));
 
-    void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" })
-      .catch(() => {})
-      .finally(() => void refreshProfile());
+    void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" }).catch(() => {});
 
     // Let the fade-out play out, then remove the card from the list.
     setTimeout(() => {
-      setHistory((prev) => prev.filter((item) => item.id !== id));
+      removeItem(id);
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -352,10 +363,12 @@ function VideoWorkspace() {
             openedMenuId={openedMenuId}
             setOpenedMenuId={setOpenedMenuId}
             deletingIds={deletingIds}
+            freshIds={freshIds}
             onOpen={(item) => {
               if (!item.id.startsWith("temp_")) router.push(`/dashboard/video/${item.id}`);
             }}
             onDelete={(id, e) => deleteProject(id, e)}
+            onReuse={(id, e) => void handleReuse(id, e)}
           />
         </div>
 
@@ -403,7 +416,6 @@ function VideoWorkspace() {
           onAttachMediaFiles={handleAttachMediaFiles}
           onAttachAudioFile={attachAudio}
           onDropFiles={handleDropFiles}
-          onOpenAssetPicker={() => setAssetPickerOpen(true)}
         />
       </main>
 
@@ -416,80 +428,6 @@ function VideoWorkspace() {
         title="Confirm Video Generation"
         description={`${duration}s video clip`}
         actionLabel="Generate Video"
-      />
-
-      {/* Asset Picker Modal */}
-      <AssetPickerModal
-        isOpen={assetPickerOpen}
-        onClose={() => setAssetPickerOpen(false)}
-        onSelectCharacter={(character) => {
-          setPrompt((prev) => {
-            const charPrompt = `[Character: ${character.name}${character.imageDescription ? ` - ${character.imageDescription}` : ""}]`;
-            return prev ? `${prev}\n${charPrompt}` : charPrompt;
-          });
-
-          if (character.imageUrl) {
-            setError(null);
-            fetch(character.imageUrl)
-              .then((res) => res.blob())
-              .then((blob) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  setImages((prev) => [
-                    ...prev,
-                    {
-                      id: Math.random().toString(36).substring(2, 9),
-                      base64: dataUrl.split(",")[1],
-                      mimeType: blob.type || "image/png",
-                      preview: dataUrl,
-                    },
-                  ]);
-                };
-                reader.readAsDataURL(blob);
-              })
-              .catch(() => {
-                setError("Failed to convert character portrait for consistency");
-              });
-          }
-
-          if (character.voiceUrl) {
-            setError(null);
-            fetch(character.voiceUrl)
-              .then((res) => res.blob())
-              .then((blob) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  setAudioFile({
-                    base64: dataUrl.split(",")[1],
-                    mimeType: blob.type || "audio/wav",
-                    preview: dataUrl,
-                    name: `${character.name}_voice.wav`,
-                  });
-                };
-                reader.readAsDataURL(blob);
-              })
-              .catch(() => {
-                setError("Failed to convert character voice for cloning reference");
-              });
-          }
-        }}
-        onSelectTrait={(trait) => {
-          setPrompt((prev) => (prev ? `${prev}, ${trait}` : trait));
-        }}
-        onUploadFile={(file) => {
-          if (file.type.startsWith("video/")) {
-            attachVideo(file);
-            setImages([]);
-          } else if (file.type.startsWith("image/")) {
-            attachImage(file);
-            setVideoFile(null);
-          } else if (file.type.startsWith("audio/")) {
-            attachAudio(file);
-          }
-        }}
-        allowedUploadTypes="image/*,video/*,audio/*"
       />
     </div>
   );

@@ -2,17 +2,22 @@
 
 // Confirms spending wallet balance on a generation.
 //
-// This used to offer a "Pay on the Spot" card form when the wallet was short.
-// That form collected card details in plain text, faked the authorization with
-// a few setTimeouts, and then simply incremented the balance — no money ever
-// moved. It has been removed. When funds are short we now send the user to the
-// real paywall, which starts on the pricing panel and steps into checkout.
+// This modal is a CONFIRMATION ONLY — it does not move money.
+//
+// It used to decrement `users/{uid}.credits` itself and write the billing row,
+// but every generation endpoint already charges through `chargeCredits()`
+// server-side. The result was a silent double charge on every single render:
+// an image cost 50 on the server plus 100 here, which is a large part of why
+// Direct Studio prices looked absurd. The server is now the only thing that
+// touches the wallet (and writes the receipt); this just asks "shall we?".
+//
+// (An earlier version also offered a "Pay on the Spot" card form that collected
+// card details in plain text and faked authorization with setTimeouts. Short
+// balances go to the real paywall instead.)
 
 import React from "react";
 import { useRouter } from "next/navigation";
 import { X, Zap, Wallet } from "lucide-react";
-import { doc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
-import { db, auth } from "../lib/firebase";
 
 interface ConfirmGenerationModalProps {
   isOpen: boolean;
@@ -43,38 +48,8 @@ export default function ConfirmGenerationModal({
   const remainingBalance = balance - cost;
   const shortfall = cost - balance;
 
-  const handleWalletConfirm = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    try {
-      const userRef = doc(db, "users", currentUser.uid);
-      await updateDoc(userRef, { credits: increment(-cost) });
-
-      const dateString = new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      const invoiceId = `INV-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
-
-      await addDoc(collection(db, "transactions"), {
-        uid: currentUser.uid,
-        invoiceId,
-        date: dateString,
-        description: `Deduction: Direct Studio Clip (${actionLabel})`,
-        method: "Wallet Balance",
-        status: "Succeeded",
-        amount: `-GMD ${cost.toFixed(2)}`,
-        createdAt: new Date().toISOString(),
-      });
-
-      onConfirm();
-      onClose();
-    } catch (err) {
-      console.error("Wallet deduction error:", err);
-    }
-  };
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -97,23 +72,26 @@ export default function ConfirmGenerationModal({
         <div className="mt-6 text-center">
           <p className="font-display text-5xl font-black leading-none tracking-tight text-white">
             <span className="mr-1.5 align-top text-xl font-bold text-neutral-500">GMD</span>
-            {cost.toLocaleString()}
+            {fmt(cost)}
           </p>
           <p className="mt-2 text-[11px] text-neutral-500">
             {hasEnoughBalance
-              ? `GMD ${remainingBalance.toLocaleString()} left after this`
-              : `GMD ${shortfall.toLocaleString()} short`}
+              ? `GMD ${fmt(remainingBalance)} left after this`
+              : `GMD ${fmt(shortfall)} short`}
           </p>
         </div>
 
         <div className="mt-7 grid gap-2.5">
           {hasEnoughBalance ? (
             <button
-              onClick={handleWalletConfirm}
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
               className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
             >
               <Zap size={15} />
-              Pay from wallet
+              {actionLabel}
             </button>
           ) : (
             <button

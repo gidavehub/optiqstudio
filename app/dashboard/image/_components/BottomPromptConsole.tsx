@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { ImagePlus, Loader2, Plus, UploadCloud, Wand2, X } from "lucide-react";
+import { ImagePlus, Loader2, Mic, MicOff, UploadCloud, Wand2, X } from "lucide-react";
+import { useDictation } from "../../_shared/useDictation";
 import { AttachedImage } from "./types";
 
 interface BottomPromptConsoleProps {
@@ -14,7 +15,6 @@ interface BottomPromptConsoleProps {
   images: AttachedImage[];
   attachImage: (file: File) => void;
   removeImage: (id: string) => void;
-  onOpenAssetPicker: () => void;
 }
 
 // Image Studio's prompt dock — same silhouette as Video's console, trimmed to
@@ -29,10 +29,12 @@ export default function BottomPromptConsole({
   images,
   attachImage,
   removeImage,
-  onOpenAssetPicker,
 }: BottomPromptConsoleProps) {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+
+  // Live speech-to-text, same pipeline as the storyboard wizard's mic.
+  const dictation = useDictation((updater) => setPrompt(updater(prompt)));
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -91,14 +93,6 @@ export default function BottomPromptConsole({
         )}
 
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onOpenAssetPicker}
-            className="p-1.5 text-neutral-400 transition-colors hover:text-white"
-            title="Open Asset Composer"
-          >
-            <Plus size={17} />
-          </button>
           <label className="cursor-pointer p-1.5 text-neutral-400 transition-colors hover:text-white" title="Attach reference image">
             <ImagePlus size={17} />
             <input
@@ -112,17 +106,34 @@ export default function BottomPromptConsole({
               }}
             />
           </label>
+          <button
+            type="button"
+            onClick={dictation.toggle}
+            title={dictation.recording ? "Stop dictation" : "Dictate your prompt"}
+            className={`rounded-full p-1.5 transition-colors ${
+              dictation.recording
+                ? "animate-pulse bg-red-500/15 text-red-400"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}
+          </button>
         </div>
 
         <textarea
           rows={1}
-          value={prompt}
+          value={dictation.recording && dictation.interim ? `${prompt} ${dictation.interim}`.trim() : prompt}
           onChange={(e) => {
             setPrompt(e.target.value);
             e.target.style.height = "auto";
             e.target.style.height = `${e.target.scrollHeight}px`;
           }}
-          placeholder="A bioluminescent jellyfish drifting through a deep-sea trench, cinematic, 8k…"
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording
+              ? "Listening…"
+              : "A bioluminescent jellyfish drifting through a deep-sea trench, cinematic, 8k…"
+          }
           className="max-h-32 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm placeholder:text-neutral-600 focus:outline-none"
         />
 

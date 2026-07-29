@@ -24,6 +24,37 @@ const { callVertexWithRetry } = require("./vertexQuota");
 admin.initializeApp();
 const db = admin.firestore();
 
+/**
+ * Direct Studio pricing, GMD. Mirrors lib/credits.ts COSTS and the COSTS
+ * constant in components/AuthProvider.tsx — the three must always agree, and
+ * this one is the only one that actually moves money.
+ *
+ *   • Video — per generated second (a 10s clip is 150).
+ *   • Image — flat per still.
+ *   • Voice — per CHARACTER of script, with a floor.
+ *   • Music — per generated second (Lyria returns ~30s → 60).
+ *
+ * NOTE: costs are intentionally NOT read from the RTDB `pricing` node any more.
+ * That node still carries a much older cost model (image 50, TTS per-100-chars)
+ * and letting it win meant the UI quoted one number while the server charged
+ * another. Plans/packs (legacy subscription paths) still come from RTDB.
+ */
+const COSTS = {
+  videoPerSecond: { omni: 15, "omni-fast": 15 },
+  image: 10,
+  ttsPerCharacter: 0.05,
+  ttsMinimum: 5,
+  musicPerSecond: 2,
+  musicDefaultSeconds: 30,
+};
+
+const imageCost = () => COSTS.image;
+const videoCost = (model, seconds) =>
+  (COSTS.videoPerSecond[model] ?? COSTS.videoPerSecond.omni) * seconds;
+const ttsCost = (text) =>
+  Math.max(COSTS.ttsMinimum, Math.ceil(String(text || "").length * COSTS.ttsPerCharacter));
+const musicCost = (seconds = COSTS.musicDefaultSeconds) => Math.ceil(seconds * COSTS.musicPerSecond);
+
 async function getPricing() {
   const fallback = {
     plans: [
@@ -36,20 +67,14 @@ async function getPricing() {
       { id: "pack-5000", credits: 5000, priceUsd: 50 },
       { id: "pack-12000", credits: 12000, priceUsd: 100 },
     ],
-    costs: {
-      videoPerSecond: { omni: 15, "omni-fast": 15 },
-      image: 50,
-      ttsPer100Chars: 10,
-      ttsMinimum: 15,
-      characterSheet: 150,
-    }
+    costs: COSTS,
   };
   try {
     const rtdb = admin.database();
     const snapshot = await rtdb.ref("pricing").once("value");
     const val = snapshot.val();
-    if (val && val.plans && val.packs && val.costs) {
-      return val;
+    if (val && val.plans && val.packs) {
+      return { ...val, costs: COSTS };
     }
   } catch (err) {
     console.warn("Failed to load pricing from RTDB, using fallback:", err);
@@ -63,8 +88,12 @@ const MODEMPAY_API_KEY = defineSecret("MODEMPAY_API_KEY");
 const PLAN_CREDITS = 10000;
 
 // The wallet is denominated in GMD (the `credits` field holds a GMD balance).
-// New accounts get this much free; top-ups are charged 1:1 in GMD.
-const WELCOME_BONUS_GMD = 1000;
+// Top-ups are charged 1:1 in GMD.
+//
+// There is NO signup bonus. New accounts start at zero and buy what they make;
+// they can still sign in and explore the whole platform (the paywall is
+// skippable), they just can't generate until the wallet has something in it.
+const WELCOME_BONUS_GMD = 0;
 const MIN_TOPUP_GMD = 50;
 const MAX_TOPUP_GMD = 500000;
 // ModemPay card payments require a minimum of ~GMD 74.43 (~$1). Below that only
@@ -713,13 +742,39 @@ async function requireAuth(req) {
   return decoded;
 }
 
+/**
+ * Writes the user-visible billing row for a wallet movement.
+ *
+ * The client used to do this (and the deduction) itself in
+ * ConfirmGenerationModal, which double-charged: the modal decremented the
+ * balance AND the function below decremented it again. The modal is now a pure
+ * confirmation, so the server owns both the money and the receipt.
+ * Best-effort — a missing receipt must never fail a paid-for generation.
+ */
+async function recordTransaction(uid, { description, amountGmd, method = "Wallet Balance" }) {
+  try {
+    await db.collection("transactions").add({
+      uid,
+      invoiceId: `INV-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      description,
+      method,
+      status: "Succeeded",
+      amount: `${amountGmd < 0 ? "-" : ""}GMD ${Math.abs(amountGmd).toFixed(2)}`,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn(`Could not write transaction row for ${uid}:`, err.message);
+  }
+}
+
 async function chargeCredits(uid, amount, reason) {
   if (amount <= 0) {
     const snap = await db.collection("users").doc(uid).get();
     return (snap.data()?.credits) || 0;
   }
   const ref = db.collection("users").doc(uid);
-  return db.runTransaction(async (tx) => {
+  const remaining = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const available = (snap.data()?.credits) || 0;
     if (available < amount) {
@@ -733,6 +788,8 @@ async function chargeCredits(uid, amount, reason) {
     });
     return available - amount;
   });
+  await recordTransaction(uid, { description: reason, amountGmd: -amount });
+  return remaining;
 }
 
 async function refundCredits(uid, amount, reason) {
@@ -958,9 +1015,8 @@ exports.imageGenerate = onRequest(
       const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const pricing = await getPricing();
-      const cost = purpose === "character" ? (pricing.costs?.characterSheet || 150) : (pricing.costs?.image || 50);
-      await chargeCredits(user.uid, cost, `${purpose} generation`);
+      const cost = imageCost();
+      await chargeCredits(user.uid, cost, "Image Studio still");
 
       let image;
       try {
@@ -1033,11 +1089,10 @@ exports.voiceGenerate = onRequest(
         return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
       }
 
-      const pricing = await getPricing();
-      const per100 = pricing.costs?.ttsPer100Chars || 10;
-      const ttsMin = pricing.costs?.ttsMinimum || 15;
+      // Voice is billed per character of script (see COSTS). A cloned voice
+      // carries the extra render on top of the same per-character base.
       const isClone = !!voiceBase64;
-      const cost = Math.max(isClone ? 30 : ttsMin, Math.ceil(text.length / 100) * per100);
+      const cost = isClone ? Math.max(30, ttsCost(text)) : ttsCost(text);
 
       if (isClone) {
         const submitUrl = process.env.MODAL_SUBMIT_URL || "https://davelabs01--optiq-avatar-submit.modal.run";
@@ -1306,11 +1361,11 @@ exports.musicGenerate = onRequest(
         return res.status(400).json({ error: "Prompt too long (2000 character max)" });
       }
 
-      const pricing = await getPricing();
-      const cost = pricing.costs?.music ?? 100;
+      // Lyria returns a single ~30s clip; billed per generated second.
+      const cost = musicCost();
 
       try {
-        await chargeCredits(user.uid, cost, "optiq music");
+        await chargeCredits(user.uid, cost, "Optiq Music track");
       } catch (e) {
         return res.status(402).json({ error: e.message || "Insufficient credits" });
       }
@@ -1364,9 +1419,7 @@ exports.videoGenerate = onRequest(
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
-      const pricing = await getPricing();
-      const perSecCost = (pricing.costs?.videoPerSecond?.[model]) ?? 15;
-      let cost = perSecCost * duration;
+      let cost = videoCost(model, duration);
 
       // An ad is ONE price. Paying for the storyboard buys its scene renders up
       // front, so a storyboard project carries a `prepaidRenders` allowance and
@@ -1395,7 +1448,9 @@ exports.videoGenerate = onRequest(
         cost = 0;
         console.log(`[video] scene render covered by prepaid allowance (project ${projectId})`);
       } else {
-        await chargeCredits(user.uid, cost, `video (${model}, ${duration}s)`);
+        // Nothing prepaid left (a re-render, or a plain Direct Studio clip):
+        // charge for it. The client shows the same confirm-price modal first.
+        await chargeCredits(user.uid, cost, `Video clip (${duration}s)`);
       }
 
       const doc = db.collection("generations").doc();
@@ -1589,7 +1644,7 @@ exports.apiGenerateImage = onRequest(
       const { prompt, referenceImages, aspectRatio, purpose = "image" } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-      const cost = purpose === "character" ? 150 : 50;
+      const cost = imageCost();
       await chargeCredits(developer.uid, cost, `API: ${purpose} generation`);
 
       let image;
@@ -1668,8 +1723,7 @@ exports.apiGenerateVideo = onRequest(
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
-      const perSecCost = model === "omni-fast" ? 15 : 30;
-      const cost = perSecCost * duration;
+      const cost = videoCost(model, duration);
 
       await chargeCredits(developer.uid, cost, `API: video (${model}, ${duration}s)`);
 
@@ -1749,7 +1803,7 @@ exports.apiGenerateTTS = onRequest(
         return res.status(400).json({ error: "Script too long (4000 character max per generation)" });
       }
 
-      const cost = Math.max(15, Math.ceil(text.length / 100) * 10);
+      const cost = ttsCost(text);
       await chargeCredits(developer.uid, cost, `API: voiceover (${voice})`);
 
       let audio;
@@ -2571,13 +2625,12 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
 
   try {
     await ref.set({
-      // Every new account starts with GMD 1,000 on the house — enough to feel
-      // the product before paying. `welcomeBonus` is what the paywall
-      // celebrates once; `welcomeBonusSeen` is set by the client afterwards.
+      // No free credits. An account starts empty and the user tops up when they
+      // want to generate something. `welcomeBonus: 0` also stops the paywall's
+      // celebration sheet from firing (it keys off a non-zero bonus).
       credits: WELCOME_BONUS_GMD,
-      welcomeBonus: WELCOME_BONUS_GMD,
-      welcomeBonusGrantedAt: new Date().toISOString(),
-      welcomeBonusSeen: false,
+      welcomeBonus: 0,
+      welcomeBonusSeen: true,
       plan: null,
       planStatus: "none",
       planRenewsAt: null,
@@ -2586,7 +2639,7 @@ exports.onUserCreated = functions.region("us-east4").auth.user().onCreate(async 
       createdAt: new Date().toISOString()
     }, { merge: true });
 
-    console.log(`Initialized user doc for UID: ${uid} with GMD ${WELCOME_BONUS_GMD} welcome bonus.`);
+    console.log(`Initialized user doc for UID: ${uid} with a zero balance (no signup bonus).`);
   } catch (error) {
     console.error(`Failed to initialize user doc for UID: ${uid}:`, error);
   }

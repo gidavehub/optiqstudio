@@ -18,10 +18,12 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loading && user && profile) {
       // There are no subscriptions any more, so plan status can't gate entry.
-      // Brand-new accounts land on the paywall once (to meet their welcome
-      // bonus and see what things cost); everyone else goes straight in.
-      const isNewAccount = (profile.welcomeBonus ?? 0) > 0 && !profile.welcomeBonusSeen;
-      router.replace(isNewAccount ? "/plans" : "/dashboard");
+      // An account that has never seen the paywall and has nothing in the wallet
+      // lands there ONCE, so it knows what things cost before trying to make
+      // something. It's fully skippable ("Maybe later") — exploring is free,
+      // only generating costs.
+      const needsPaywall = !profile.paywallSeen && (profile.credits ?? 0) <= 0;
+      router.replace(needsPaywall ? "/plans" : "/dashboard");
     }
   }, [loading, user, profile, router]);
 

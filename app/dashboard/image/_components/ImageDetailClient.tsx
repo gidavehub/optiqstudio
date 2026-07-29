@@ -8,20 +8,35 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
 import PromptCard from "../../_shared/PromptCard";
 import { useReferenceImages } from "../../_shared/useReferenceImages";
+import { useReusePrompt } from "../../_shared/useReusePrompt";
+import { stashPromptHandoff } from "../../_shared/promptHandoff";
 import { GenerationItem } from "./types";
 
 export default function ImageDetailClient({ id }: { id: string }) {
-  const { apiFetch, refreshProfile } = useAuth();
+  const { apiFetch } = useAuth();
   const router = useRouter();
 
   const [item, setItem] = useState<GenerationItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reusing, setReusing] = useState(false);
 
   const refUrls = useReferenceImages(item?.images);
+  const reusePrompt = useReusePrompt();
+
+  // Carries the prompt AND the reference images back to the studio — the old
+  // "remix" link took only the text, so the images that shaped the still were
+  // silently lost.
+  const reuse = async () => {
+    if (!item || reusing) return;
+    setReusing(true);
+    const reused = await reusePrompt(item.id);
+    if (reused) stashPromptHandoff(reused);
+    router.push("/dashboard/image");
+  };
 
   const load = useCallback(async () => {
     try {
@@ -42,7 +57,6 @@ export default function ImageDetailClient({ id }: { id: string }) {
     if (!item || !confirm("Permanently delete this image?")) return;
     try {
       await apiFetch(`/api/generations?id=${item.id}`, { method: "DELETE" });
-      void refreshProfile();
     } catch {
       /* optimistic */
     }
@@ -63,12 +77,15 @@ export default function ImageDetailClient({ id }: { id: string }) {
           </Link>
           {item && (
             <div className="flex items-center gap-2">
-              <Link
-                href={`/dashboard/image?prompt=${encodeURIComponent(item.prompt)}`}
-                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 hover:bg-[#131d35] transition-colors"
+              <button
+                onClick={() => void reuse()}
+                disabled={reusing}
+                title="Reuse this prompt and its reference images"
+                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-[#131d35] disabled:opacity-50"
               >
-                <RefreshCw size={11} /> Remix Prompt
-              </Link>
+                {reusing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                Reuse Prompt
+              </button>
               <button
                 onClick={deleteItem}
                 className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"

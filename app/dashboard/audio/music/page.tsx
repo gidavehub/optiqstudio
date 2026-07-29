@@ -10,10 +10,11 @@ import { useAuth } from "../../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
 import AudioConsole from "../_components/AudioConsole";
 import AudioProjectsGrid from "../../_shared/AudioProjectsGrid";
+import { useGenerationHistory } from "../../_shared/useGenerationHistory";
+import { useReusePrompt } from "../../_shared/useReusePrompt";
 import { AudioItem } from "../_components/types";
 
 const MAX_CHARS = 2000;
-const MUSIC_COST = 100;
 
 const MOODS = [
   "Afrobeat",
@@ -29,10 +30,9 @@ const MOODS = [
 ];
 
 export default function MusicStudio() {
-  const { apiFetch, profile, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing } = useAuth();
 
   const [prompt, setPrompt] = useState("");
-  const [history, setHistory] = useState<AudioItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,17 +40,19 @@ export default function MusicStudio() {
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
+  const reusePrompt = useReusePrompt();
   const balance = profile?.credits ?? 0;
 
-  const loadHistory = useCallback(() => {
-    apiFetch<{ items: AudioItem[] }>("/api/generations?type=music")
-      .then((d) => setHistory(d.items || []))
-      .catch(() => {});
-  }, [apiFetch]);
+  // Music is billed per generated second — Lyria returns a single ~30s clip.
+  const trackSeconds = pricing?.costs.musicDefaultSeconds ?? 30;
+  const musicCost = Math.ceil(trackSeconds * (pricing?.costs.musicPerSecond ?? 2));
 
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  const fetchTracks = useCallback(
+    () => apiFetch<{ items: AudioItem[] }>("/api/generations?type=music").then((d) => d.items || []),
+    [apiFetch]
+  );
+  const { history, freshIds, addOptimistic, resolveOptimistic, removeItem } =
+    useGenerationHistory<AudioItem>({ fetcher: fetchTracks });
 
   useEffect(() => {
     const close = () => setOpenedMenuId(null);
@@ -89,10 +91,13 @@ export default function MusicStudio() {
 
     const tempId = `temp_${Date.now()}`;
     const original = prompt;
-    setHistory((prev) => [
-      { id: tempId, status: "queued", prompt: original, audioUrl: null, createdAt: new Date().toISOString() },
-      ...prev,
-    ]);
+    addOptimistic({
+      id: tempId,
+      status: "queued",
+      prompt: original,
+      audioUrl: null,
+      createdAt: new Date().toISOString(),
+    } as AudioItem);
     setPrompt("");
 
     try {
@@ -100,18 +105,24 @@ export default function MusicStudio() {
         method: "POST",
         body: JSON.stringify({ prompt: original }),
       });
-      setHistory((prev) =>
-        prev.map((item) =>
-          item.id === tempId ? { ...item, id: data.id, status: "succeeded", audioUrl: data.url } : item
-        )
-      );
-      void refreshProfile();
+      resolveOptimistic(tempId, {
+        id: data.id,
+        status: "succeeded",
+        audioUrl: data.url,
+      } as Partial<AudioItem>);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Music generation failed");
-      setHistory((prev) => prev.filter((item) => item.id !== tempId));
+      removeItem(tempId);
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleReuse = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenedMenuId(null);
+    const reused = await reusePrompt(id);
+    if (reused) setPrompt(reused.prompt);
   };
 
   const deleteTrack = (id: string, e: React.MouseEvent) => {
@@ -119,12 +130,10 @@ export default function MusicStudio() {
     setOpenedMenuId(null);
     setDeletingIds((prev) => new Set(prev).add(id));
     if (!id.startsWith("temp_")) {
-      void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" })
-        .catch(() => {})
-        .finally(() => void refreshProfile());
+      void apiFetch(`/api/generations?id=${id}`, { method: "DELETE" }).catch(() => {});
     }
     setTimeout(() => {
-      setHistory((prev) => prev.filter((item) => item.id !== id));
+      removeItem(id);
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -183,7 +192,9 @@ export default function MusicStudio() {
             openedMenuId={openedMenuId}
             setOpenedMenuId={setOpenedMenuId}
             deletingIds={deletingIds}
+            freshIds={freshIds}
             onDelete={deleteTrack}
+            onReuse={(id, e) => void handleReuse(id, e)}
             emptyTitle="No tracks yet"
             emptyHint="Describe a mood or scene below and generate your first score."
           />
@@ -204,10 +215,10 @@ export default function MusicStudio() {
           placeholder="A warm, uplifting afrobeat bed with gentle percussion for a brand advert…"
           onGenerate={triggerGenerate}
           busy={busy}
-          generateLabel={`Compose · ${MUSIC_COST}`}
+          generateLabel={`Compose · ${musicCost}`}
           busyLabel="Composing…"
           maxLength={MAX_CHARS}
-          hint="~30s instrumental"
+          hint={`~${trackSeconds}s instrumental`}
           showEnhance
           onEnhance={() => void handleEnhance()}
           enhancing={enhancing}
@@ -231,10 +242,10 @@ export default function MusicStudio() {
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => void handleGenerate()}
-        cost={MUSIC_COST}
+        cost={musicCost}
         balance={balance}
         title="Confirm Optiq Music"
-        description="Original instrumental score (~30s)"
+        description={`Original instrumental score (~${trackSeconds}s)`}
         actionLabel="Compose Track"
       />
     </div>

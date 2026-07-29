@@ -6,7 +6,7 @@
 // download button — not a video tile.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, MoreVertical, Music, Pause, Play, Trash2 } from "lucide-react";
+import { Download, Loader2, MoreVertical, Music, Pause, Play, RotateCcw, Trash2 } from "lucide-react";
 
 export interface AudioGridItem {
   id: string;
@@ -22,7 +22,11 @@ interface AudioProjectsGridProps {
   openedMenuId: string | null;
   setOpenedMenuId: (id: string | null) => void;
   deletingIds: Set<string>;
+  /** Ids created this session — they play the landing animation once. */
+  freshIds?: Set<string>;
   onDelete: (id: string, e: React.MouseEvent) => void;
+  /** Loads this take's script/brief back into the console. */
+  onReuse?: (id: string, e: React.MouseEvent) => void;
   emptyTitle?: string;
   emptyHint?: string;
 }
@@ -48,19 +52,23 @@ function TrackCard({
   variant,
   isPlaying,
   progress,
+  isFresh,
   onToggle,
   openedMenuId,
   setOpenedMenuId,
   onDelete,
+  onReuse,
 }: {
   item: AudioGridItem;
   variant: "voice" | "music";
   isPlaying: boolean;
   progress: number;
+  isFresh?: boolean;
   onToggle: (e: React.MouseEvent) => void;
   openedMenuId: string | null;
   setOpenedMenuId: (id: string | null) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
+  onReuse?: (id: string, e: React.MouseEvent) => void;
 }) {
   const bars = useMemo(() => waveform(item.id), [item.id]);
   const [downloading, setDownloading] = useState(false);
@@ -101,30 +109,53 @@ function TrackCard({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-neutral-900 bg-[#0b0d12] p-4 transition-colors hover:border-neutral-800">
-      {/* Prompt + menu */}
+    <div
+      className={`flex flex-col gap-3 rounded-2xl border border-neutral-900 bg-[#0b0d12] p-4 transition-colors hover:border-neutral-800 ${
+        isFresh ? "animate-card-pop" : ""
+      }`}
+    >
+      {/* Prompt + actions */}
       <div className="flex items-start justify-between gap-2">
         <p className="line-clamp-2 text-[12px] leading-snug text-neutral-300">{item.prompt}</p>
-        <div className="relative shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenedMenuId(openedMenuId === item.id ? null : item.id);
-            }}
-            className="rounded-full p-1 text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-white"
-          >
-            <MoreVertical size={14} />
-          </button>
-          {openedMenuId === item.id && (
-            <div className="absolute right-0 z-50 mt-1 w-28 rounded-lg border border-neutral-800 bg-[#121314] py-1 shadow-xl">
-              <button
-                onClick={(e) => onDelete(item.id, e)}
-                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-red-400 transition-colors hover:bg-neutral-900 hover:text-red-300"
-              >
-                <Trash2 size={12} /> Delete
-              </button>
-            </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onReuse && !item.id.startsWith("temp_") && (
+            <button
+              onClick={(e) => onReuse(item.id, e)}
+              title="Reuse this prompt"
+              className="rounded-full p-1 text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-white"
+            >
+              <RotateCcw size={13} />
+            </button>
           )}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenedMenuId(openedMenuId === item.id ? null : item.id);
+              }}
+              className="rounded-full p-1 text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-white"
+            >
+              <MoreVertical size={14} />
+            </button>
+            {openedMenuId === item.id && (
+              <div className="absolute right-0 z-50 mt-1 w-32 rounded-lg border border-neutral-800 bg-[#121314] py-1 shadow-xl">
+                {onReuse && !item.id.startsWith("temp_") && (
+                  <button
+                    onClick={(e) => onReuse(item.id, e)}
+                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white"
+                  >
+                    <RotateCcw size={12} /> Reuse prompt
+                  </button>
+                )}
+                <button
+                  onClick={(e) => onDelete(item.id, e)}
+                  className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-red-400 transition-colors hover:bg-neutral-900 hover:text-red-300"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -178,7 +209,9 @@ export default function AudioProjectsGrid({
   openedMenuId,
   setOpenedMenuId,
   deletingIds,
+  freshIds,
   onDelete,
+  onReuse,
   emptyTitle = "Nothing generated yet",
   emptyHint = "Type below and your takes will appear here.",
 }: AudioProjectsGridProps) {
@@ -244,6 +277,7 @@ export default function AudioProjectsGrid({
           variant={variant}
           isPlaying={playingId === item.id}
           progress={playingId === item.id ? progress : 0}
+          isFresh={freshIds?.has(item.id)}
           onToggle={(e) => {
             e.stopPropagation();
             toggle(item);
@@ -251,6 +285,7 @@ export default function AudioProjectsGrid({
           openedMenuId={openedMenuId}
           setOpenedMenuId={setOpenedMenuId}
           onDelete={onDelete}
+          onReuse={onReuse}
         />
       ))}
     </div>

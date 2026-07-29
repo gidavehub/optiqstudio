@@ -26,17 +26,31 @@ const AD_RATES = [
   { label: "90-second ad", detail: "9 scenes", total: 1350 },
 ];
 
-/** Direct Studio rates, mirrored from the functions pricing table. */
-const ASSET_RATES = [
-  { label: "Video", detail: "per second", price: "GMD 15" },
-  { label: "Video", detail: "10-second clip", price: "GMD 150" },
-  { label: "Image", detail: "per generation", price: "GMD 50" },
-  { label: "Voice", detail: "per 100 characters", price: "GMD 10" },
-  { label: "Character sheet", detail: "per set", price: "GMD 150" },
-];
-
 function BillingInner() {
-  const { profile, apiFetch, refreshProfile } = useAuth();
+  const { profile, apiFetch, pricing, refreshProfile } = useAuth();
+
+  /** Direct Studio rates, read from the same table the functions charge. */
+  const ASSET_RATES = React.useMemo(() => {
+    const c = pricing?.costs;
+    const perSecond = c?.videoPerSecond?.omni ?? 15;
+    const musicSecs = c?.musicDefaultSeconds ?? 30;
+    return [
+      { label: "Video", detail: "per second", price: `GMD ${perSecond}` },
+      { label: "Video", detail: "10-second clip", price: `GMD ${perSecond * 10}` },
+      { label: "Image", detail: "per generation", price: `GMD ${c?.image ?? 10}` },
+      {
+        label: "Voice",
+        detail: "per 100 characters",
+        price: `GMD ${Math.round((c?.ttsPerCharacter ?? 0.05) * 100)}`,
+      },
+      {
+        label: "Music",
+        detail: `per ${musicSecs}s track`,
+        price: `GMD ${Math.ceil((c?.musicPerSecond ?? 2) * musicSecs)}`,
+      },
+    ];
+  }, [pricing]);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const status = searchParams.get("status");

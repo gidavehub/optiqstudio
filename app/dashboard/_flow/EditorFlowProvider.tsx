@@ -123,7 +123,10 @@ interface EditorFlowValue {
   handleMaterialsUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   removeBrandMaterial: (index: number) => void;
-  generateStoryboard: () => Promise<void>;
+  /** Pass the production mode explicitly — see the note on the implementation. */
+  generateStoryboard: (mode?: ProductionMode) => Promise<void>;
+  /** True once every scene of the current storyboard has rendered. */
+  allScenesRendered: (scenes: unknown[], statuses: VideoStatusMap) => boolean;
   generateVideoForScene: (sceneIndex: number, promptText: string) => Promise<void>;
   reviseScenePrompt: (sceneIndex: number) => Promise<void>;
   copyToClipboard: (text: string, index: number) => void;
@@ -757,7 +760,16 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // runs the whole Optiq Skills swarm and writes the scenes + live stage back
   // to the project doc, so generation survives a closed tab and resumes on
   // reopen. No HTTP wait, no client-side result write.
-  const generateStoryboard = useCallback(async () => {
+  //
+  // `mode` is passed EXPLICITLY rather than read off state. The paywall's two
+  // buttons call `setProductionMode(...)` and then `generateStoryboard()` in the
+  // same handler, so the callback still closed over the PREVIOUS mode (null) and
+  // wrote `productionMode: "manual"` onto the project. When the swarm finished,
+  // loadProjectState read that back and dropped the user in the script editor —
+  // which is exactly the "auto-generate only writes the script" bug. Whoever
+  // starts the run now states which mode they meant.
+  const generateStoryboard = useCallback(async (mode?: ProductionMode) => {
+    const runMode: ProductionMode = mode || productionMode || "manual";
     if (!promptText.trim()) {
       alert("Please describe your campaign or video pitch.");
       return;
@@ -767,6 +779,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
+    setProductionMode(runMode);
     setGenerating(true);
     setError(null);
     setStoryboard(null);
@@ -791,7 +804,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         styleHeader: "",
         characterLock: "",
         videoStatus: {},
-        productionMode: productionMode || "manual",
+        productionMode: runMode,
         pipelineStage: "queued",
         pipelineError: null,
         // An ad is one price: the spec payment covers every scene render, so
@@ -821,7 +834,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         brandName: brandName || "Client",
         product: product || "Product offering",
         aspectRatio,
-        productionMode: productionMode || "manual",
+        productionMode: runMode,
         materialPaths: uploadedMaterials,
         status: "queued",
         createdAt: new Date().toISOString(),
@@ -845,6 +858,13 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     router,
     uploadBrandMaterials,
   ]);
+
+  /** True once every scene of an auto-produced ad has rendered. */
+  const allScenesRendered = useCallback(
+    (scenes: unknown[], statuses: VideoStatusMap) =>
+      scenes.length > 0 && scenes.every((_, idx) => statuses[idx]?.status === "succeeded"),
+    []
+  );
 
   // Retry a failed cloud generation on the SAME project (free — the spec was
   // already paid for). Re-enqueues a fresh job from the project's stored brief.
@@ -1052,7 +1072,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     addSceneImages, attachMaterialToScene, removeSceneImage,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,
-    generateStoryboard, generateVideoForScene, reviseScenePrompt,
+    generateStoryboard, allScenesRendered, generateVideoForScene, reviseScenePrompt,
     copyToClipboard, handleCompileProject, deleteProject,
     goHome, goCreate, openProject, openProjectRoute,
   };

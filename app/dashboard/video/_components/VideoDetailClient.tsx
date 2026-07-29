@@ -9,21 +9,25 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, ImagePlus, Loader2, Mic, Trash2, Wand2, X,
+  ArrowLeft, ImagePlus, Loader2, Mic, RotateCcw, Trash2, Wand2, X,
 } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
 import PromptCard from "../../_shared/PromptCard";
 import { useReferenceImages } from "../../_shared/useReferenceImages";
+import { useReusePrompt } from "../../_shared/useReusePrompt";
+import { stashPromptHandoff } from "../../_shared/promptHandoff";
 import CustomVideoPlayer from "./CustomVideoPlayer";
 import AudioPlayerPreview from "./AudioPlayerPreview";
 import { AttachedAudio, AttachedImage, HistoryItem } from "./types";
 
-const EDIT_COST = 100;
+/** An Optiq edit renders a fresh 10s clip, so it costs exactly what one costs. */
+const EDIT_SECONDS = 10;
 
 export default function VideoDetailClient({ id }: { id: string }) {
-  const { apiFetch, profile, refreshProfile } = useAuth();
+  const { apiFetch, profile, pricing, refreshProfile } = useAuth();
   const router = useRouter();
+  const editCost = (pricing?.costs.videoPerSecond?.omni ?? 15) * EDIT_SECONDS;
 
   const [item, setItem] = useState<HistoryItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,8 +41,19 @@ export default function VideoDetailClient({ id }: { id: string }) {
   const [enhancing, setEnhancing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reusing, setReusing] = useState(false);
 
   const refUrls = useReferenceImages(item?.images);
+  const reusePrompt = useReusePrompt();
+
+  // Sends the prompt AND its reference images back to the studio console.
+  const reuse = async () => {
+    if (!item || reusing) return;
+    setReusing(true);
+    const reused = await reusePrompt(item.id);
+    if (reused) stashPromptHandoff(reused);
+    router.push("/dashboard/video");
+  };
 
   // ── Load + poll ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -171,12 +186,23 @@ export default function VideoDetailClient({ id }: { id: string }) {
             Video Studio
           </Link>
           {item && (
-            <button
-              onClick={deleteItem}
-              className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"
-            >
-              <Trash2 size={11} /> Delete
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void reuse()}
+                disabled={reusing}
+                title="Reuse this prompt and its reference images"
+                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-[#131d35] disabled:opacity-50"
+              >
+                {reusing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                Reuse Prompt
+              </button>
+              <button
+                onClick={deleteItem}
+                className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"
+              >
+                <Trash2 size={11} /> Delete
+              </button>
+            </div>
           )}
         </div>
 
@@ -321,10 +347,10 @@ export default function VideoDetailClient({ id }: { id: string }) {
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => void runOmniEdit()}
-        cost={EDIT_COST}
+        cost={editCost}
         balance={profile?.credits ?? 0}
         title="Confirm Video Modification"
-        description="Optiq video edit"
+        description={`Optiq video edit — new ${EDIT_SECONDS}s clip`}
         actionLabel="Optiq Edit"
       />
     </div>

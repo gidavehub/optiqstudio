@@ -3,14 +3,22 @@
 // The paywall. No subscriptions — Optiq is pay-as-you-go on a GMD wallet.
 //
 // Design intent:
-//   • The top third is a live mosaic of real Optiq output. The single most
-//     persuasive thing we own is the footage itself, so it leads — the same
-//     move the login screen makes, and the reason that screen works.
-//   • A white sheet rises over it. Everything transactional lives on plain
-//     white so the numbers read instantly against the cinema above.
+//   • The single most persuasive thing we own is the footage itself, so it
+//     leads — the same move the login screen makes, and the reason that screen
+//     works.
+//   • Everything transactional lives on plain white so the numbers read
+//     instantly against the cinema beside them.
 //   • Two panels slide horizontally: what things cost → name your amount.
 //     Never a new route, so the mosaic never reloads and the motion reads as
 //     one continuous surface.
+//
+// LAYOUT
+//   • Phones — the mosaic sits on top and a white sheet rises over it (portrait,
+//     the way a phone wants to be held).
+//   • Desktop — the same two pieces become a SPLIT SCREEN: mosaic on the left,
+//     the whole transactional flow on the right. The stacked version left a
+//     letterboxed strip of video above a very wide sheet, which wastes the one
+//     asset that does the selling.
 //
 // House rules: solid colours only (no gradients), Google Sans / Roboto only,
 // minimal copy.
@@ -18,7 +26,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { doc, updateDoc } from "firebase/firestore";
-import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, X } from "lucide-react";
 import { useAuth } from "../../components/AuthProvider";
 import { db } from "../../lib/firebase";
 
@@ -47,18 +55,50 @@ const AD_PRICING = [
 /** Cheapest complete ad — used to translate a top-up into something concrete. */
 const CHEAPEST_AD = 450;
 
-/** Everything else the wallet pays for, straight from the functions pricing. */
-const UNIT_PRICING = [
-  { label: "Video", detail: "per second", gmd: 15 },
-  { label: "Image", detail: "each", gmd: 50 },
-  { label: "Voice", detail: "per 100 chars", gmd: 10 },
-];
-
 const QUICK_AMOUNTS = [450, 900, 1350, 2500];
 const MIN_TOPUP = 50;
 
+/** The wall of real output. Shared by the mobile header and the desktop half. */
+function Showcase({ className = "" }: { className?: string }) {
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      <div className="absolute inset-0 grid grid-cols-3 gap-1.5 p-1.5 lg:grid-cols-2 lg:gap-2 lg:p-2">
+        {SHOWCASE.map((src) => (
+          <div key={src} className="relative overflow-hidden rounded-lg bg-neutral-950">
+            <video
+              src={src}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover opacity-45 saturate-[0.9]"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-black/45" />
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center px-6 text-center">
+        <div className="flex items-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="16" fill="white" />
+            <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+          </svg>
+          <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-white">
+            optiq studio
+          </span>
+        </div>
+        <p className="mt-2 hidden max-w-xs text-[12px] leading-relaxed text-white/60 lg:block">
+          Every frame above was made on Optiq.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PaywallInner() {
-  const { user, profile, loading, apiFetch } = useAuth();
+  const { user, profile, loading, apiFetch, pricing } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -68,12 +108,30 @@ function PaywallInner() {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bonusDismissed, setBonusDismissed] = useState(false);
 
   const amountRef = useRef<HTMLInputElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   const balance = profile?.credits ?? 0;
+
+  /** Direct Studio rates, straight off the same table the functions charge. */
+  const unitPricing = useMemo(() => {
+    const c = pricing?.costs;
+    return [
+      { label: "Video", detail: "per second", gmd: c?.videoPerSecond?.omni ?? 15 },
+      { label: "Image", detail: "each", gmd: c?.image ?? 10 },
+      {
+        label: "Voice",
+        detail: "per 100 characters",
+        gmd: Math.round((c?.ttsPerCharacter ?? 0.05) * 100),
+      },
+      {
+        label: "Music",
+        detail: `per ${c?.musicDefaultSeconds ?? 30}s track`,
+        gmd: Math.ceil((c?.musicPerSecond ?? 2) * (c?.musicDefaultSeconds ?? 30)),
+      },
+    ];
+  }, [pricing]);
 
   // The amount field must NOT autoFocus. Both panels live on one rail, so
   // focusing an off-screen input makes the browser scroll it into view — which
@@ -93,27 +151,24 @@ function PaywallInner() {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  // Derived rather than stored in state: the bonus is celebrated whenever the
-  // profile still says it is unseen and the user hasn't waved it away.
-  const celebrate =
-    !bonusDismissed && (profile?.welcomeBonus ?? 0) > 0 && !profile?.welcomeBonusSeen;
-
-  const dismissCelebration = async () => {
-    setBonusDismissed(true);
-    if (!user) return;
-    try {
-      await updateDoc(doc(db, "users", user.uid), { welcomeBonusSeen: true });
-    } catch {
-      /* cosmetic only — never block the user on this */
-    }
-  };
-
   const parsedAmount = useMemo(() => {
     const n = Number(amount.replace(/[^\d]/g, ""));
     return Number.isFinite(n) ? n : 0;
   }, [amount]);
 
   const amountValid = parsedAmount >= MIN_TOPUP;
+
+  // Leaving the paywall marks it seen, so a new account is only ever sent here
+  // once. Skipping is a first-class outcome: the platform stays explorable, the
+  // wallet just needs money before anything is generated.
+  const dismiss = () => {
+    if (user) {
+      void updateDoc(doc(db, "users", user.uid), { paywallSeen: true }).catch(() => {
+        /* cosmetic only — never block leaving the screen on this */
+      });
+    }
+    router.push("/dashboard");
+  };
 
   const checkout = async () => {
     if (!amountValid || busy) return;
@@ -140,49 +195,22 @@ function PaywallInner() {
   }
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden bg-black">
-      {/* ── PROOF: a live wall of what the platform makes ─────────────── */}
-      <div className="relative h-[34dvh] min-h-[200px] w-full shrink-0 overflow-hidden">
-        <div className="absolute inset-0 grid grid-cols-3 gap-1.5 p-1.5">
-          {SHOWCASE.map((src) => (
-            <div key={src} className="relative overflow-hidden rounded-lg bg-neutral-950">
-              <video
-                src={src}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-                className="absolute inset-0 h-full w-full object-cover opacity-45 saturate-[0.9]"
-              />
-            </div>
-          ))}
-        </div>
-        <div className="pointer-events-none absolute inset-0 bg-black/45" />
+    <main className="relative flex h-dvh flex-col overflow-hidden bg-black lg:flex-row">
+      {/* ── PROOF ──────────────────────────────────────────────────────── */}
+      {/* Phone: a band across the top. Desktop: the whole left half. */}
+      <Showcase className="h-[34dvh] min-h-[200px] w-full shrink-0 lg:h-full lg:min-h-0 lg:w-1/2" />
 
-        <button
-          onClick={() => router.push("/dashboard")}
-          aria-label="Close"
-          className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-transform active:scale-90 hover:bg-black/80"
-        >
-          <X size={16} />
-        </button>
+      <button
+        onClick={dismiss}
+        aria-label="Close"
+        className="absolute right-4 top-4 z-30 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md transition-transform hover:bg-black/80 active:scale-90"
+      >
+        <X size={16} />
+      </button>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center px-6 text-center">
-          <div className="flex items-center gap-2">
-            <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="16" cy="16" r="16" fill="white" />
-              <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
-            </svg>
-            <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-white">
-              optiq studio
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── THE SHEET ─────────────────────────────────────────────────── */}
-      <div className="relative -mt-5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-20px_60px_rgba(0,0,0,0.6)]">
+      {/* ── THE SHEET ──────────────────────────────────────────────────── */}
+      {/* Phone: rises over the mosaic. Desktop: the right half, flush. */}
+      <div className="relative -mt-5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-20px_60px_rgba(0,0,0,0.6)] lg:mt-0 lg:w-1/2 lg:rounded-none lg:shadow-none">
         {/* Two panels on one rail */}
         <div
           ref={railRef}
@@ -190,7 +218,7 @@ function PaywallInner() {
           style={{ transform: panel === 0 ? "translateX(0)" : "translateX(-50%)" }}
         >
           {/* ── PANEL 0 — WHAT IT COSTS ─────────────────────────────── */}
-          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8">
+          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:justify-center lg:px-12">
             <div className="mx-auto w-full max-w-lg">
               <h1 className="text-[26px] font-black leading-tight tracking-tight text-neutral-900 sm:text-3xl">
                 Pay only for what you make
@@ -247,7 +275,7 @@ function PaywallInner() {
                 Or piece by piece
               </p>
               <div className="mt-2.5 divide-y divide-neutral-100 rounded-2xl border border-neutral-200">
-                {UNIT_PRICING.map((u) => (
+                {unitPricing.map((u) => (
                   <div key={u.label} className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-[13px] font-semibold text-neutral-800">
                       {u.label}
@@ -263,21 +291,22 @@ function PaywallInner() {
             <div className="mx-auto mt-6 w-full max-w-lg pb-2">
               <button
                 onClick={() => setPanel(1)}
-                className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 py-4 text-[15px] font-bold text-white transition-transform active:scale-[0.98] hover:bg-neutral-800"
+                className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 py-4 text-[15px] font-bold text-white transition-transform hover:bg-neutral-800 active:scale-[0.98]"
               >
                 Top up wallet <ArrowRight size={16} />
               </button>
+              {/* Nobody is trapped here — the platform is explorable without paying. */}
               <button
-                onClick={() => router.push("/dashboard")}
+                onClick={dismiss}
                 className="mt-2 w-full py-2.5 text-[13px] font-semibold text-neutral-500 hover:text-neutral-800"
               >
-                Maybe later
+                Maybe later — just let me look around
               </button>
             </div>
           </section>
 
           {/* ── PANEL 1 — NAME YOUR AMOUNT ──────────────────────────── */}
-          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8">
+          <section className="flex h-full w-1/2 flex-col overflow-y-auto px-5 pb-5 pt-5 sm:px-8 lg:justify-center lg:px-12">
             <div className="mx-auto w-full max-w-lg">
               <button
                 onClick={() => setPanel(0)}
@@ -361,7 +390,7 @@ function PaywallInner() {
                 disabled={!amountValid || busy}
                 className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-bold transition-all ${
                   amountValid && !busy
-                    ? "bg-neutral-900 text-white active:scale-[0.98] hover:bg-neutral-800"
+                    ? "bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98]"
                     : "cursor-not-allowed bg-neutral-200 text-neutral-400"
                 }`}
               >
@@ -375,29 +404,6 @@ function PaywallInner() {
           </section>
         </div>
       </div>
-
-      {/* ── WELCOME BONUS ─────────────────────────────────────────────── */}
-      {celebrate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500">
-              <Check size={26} strokeWidth={3} className="text-white" />
-            </div>
-            <h2 className="mt-5 text-2xl font-black tracking-tight text-neutral-900">
-              GMD {(profile?.welcomeBonus ?? 1000).toLocaleString()} is on us
-            </h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-neutral-500">
-              Already in your wallet — enough for your first ad. Nothing to pay yet.
-            </p>
-            <button
-              onClick={dismissCelebration}
-              className="mt-6 w-full rounded-2xl bg-neutral-900 py-3.5 text-[15px] font-bold text-white transition-transform active:scale-[0.98] hover:bg-neutral-800"
-            >
-              Start creating
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

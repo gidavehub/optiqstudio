@@ -84,12 +84,16 @@ export default function StoryboardPaywallModal() {
         {/* ── STEP 2: PRODUCTION MODE ─────────────────────────────────── */}
         {paywallStep === "choose" ? (
           <div className="grid gap-3 pt-5 animate-in fade-in-50 slide-in-from-bottom-2 duration-300">
+            {/* The mode is handed to generateStoryboard directly. Relying on
+                setProductionMode landing first is a race the callback loses —
+                it kept writing "manual" onto auto-produced projects, which is
+                why "make the whole film" stopped at the script. */}
             <button
               onClick={async () => {
                 setProductionMode("auto-merge");
                 setStoryboardPayOpen(false);
                 setPaywallStep("pay");
-                await generateStoryboard();
+                await generateStoryboard("auto-merge");
               }}
               className="group flex items-center gap-4 rounded-2xl border border-blue-500 bg-[#0c152d] p-4 text-left transition-all hover:bg-[#101c3a] active:scale-[0.98]"
             >
@@ -98,7 +102,9 @@ export default function StoryboardPaywallModal() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-white">Make the whole film</span>
-                <span className="block text-[11px] text-neutral-400">Renders every scene for you</span>
+                <span className="block text-[11px] text-neutral-400">
+                  Writes the script, renders every scene, opens the timeline
+                </span>
               </span>
             </button>
 
@@ -107,7 +113,7 @@ export default function StoryboardPaywallModal() {
                 setProductionMode("manual");
                 setStoryboardPayOpen(false);
                 setPaywallStep("pay");
-                await generateStoryboard();
+                await generateStoryboard("manual");
               }}
               className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-all hover:border-white/25 hover:bg-white/[0.06] active:scale-[0.98]"
             >
