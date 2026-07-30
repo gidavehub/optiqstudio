@@ -30,10 +30,51 @@ const ASSETS = [
   { src: "Optiq Studio Horizon '26.jpeg", name: "optiq-horizon" },
   { src: "DaveLabs Silvery.jpg", name: "davelabs-silvery" },
   { src: "Dave.jpeg", name: "dave-keynote" },
+  // The founder portrait is a 9:16 phone shot, and article heroes render at
+  // the asset's own aspect up to 1290px wide — dropping it in raw would give
+  // a 2300px-tall hero. `pillarbox` composes a 16:9 master from it instead.
+  {
+    src: "Me.jpeg",
+    dir: "C:/Users/conne/OneDrive/Desktop",
+    name: "dave-portrait",
+    pillarbox: { cropHeight: 2200 },
+  },
 ];
 
 const WEBP_WIDTH = 2048;
 const OG_WIDTH = 1200;
+
+/**
+ * Fit a portrait source into a 16:9 frame without cropping it to a letterbox
+ * slice of itself. The subject is scaled to full height and centred; the gap
+ * either side is the same photograph, cover-filled and blurred hard, so the
+ * background reads as continuing rather than as two grey bars.
+ *
+ * `cropHeight` trims the source from the top first — it decides how much of
+ * the subject is in frame, and so how wide they sit in the result.
+ */
+async function pillarbox(input, { cropHeight }, height = 1143) {
+  const width = Math.round((height * 16) / 9);
+  const meta = await sharp(input).metadata();
+  const top = Math.min(cropHeight, meta.height);
+  const fgWidth = Math.round((meta.width / top) * height);
+
+  const backdrop = await sharp(input)
+    .resize(width, height, { fit: "cover", position: "top" })
+    .blur(60)
+    .modulate({ brightness: 1.04 })
+    .toBuffer();
+
+  const subject = await sharp(input)
+    .extract({ left: 0, top: 0, width: meta.width, height: top })
+    .resize(fgWidth, height)
+    .toBuffer();
+
+  return sharp(backdrop)
+    .composite([{ input: subject, left: Math.round((width - fgWidth) / 2), top: 0 }])
+    .jpeg({ quality: 95 })
+    .toBuffer();
+}
 
 async function main() {
   for (const dir of TARGETS) await mkdir(dir, { recursive: true });
@@ -41,9 +82,11 @@ async function main() {
   const manifest = {};
 
   for (const asset of ASSETS) {
-    const input = path.join(SRC, asset.src);
-    const image = sharp(input);
-    const meta = await image.metadata();
+    const file = path.join(asset.dir ?? SRC, asset.src);
+    // Composed assets go through sharp once up front; everything else is
+    // encoded straight from its master.
+    const input = asset.pillarbox ? await pillarbox(file, asset.pillarbox) : file;
+    const meta = await sharp(input).metadata();
 
     const webp = await sharp(input)
       .resize({ width: Math.min(WEBP_WIDTH, meta.width), withoutEnlargement: true })

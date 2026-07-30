@@ -10,7 +10,7 @@ export type HorizonAsset = {
   blurDataURL: string;
 };
 
-export const HORIZON: Record<"horizon-banner" | "horizon-july-30" | "amaka-horizon" | "optiq-horizon" | "davelabs-silvery" | "dave-keynote", HorizonAsset> = {
+export const HORIZON: Record<"horizon-banner" | "horizon-july-30" | "amaka-horizon" | "optiq-horizon" | "davelabs-silvery" | "dave-keynote" | "dave-portrait", HorizonAsset> = {
   "horizon-banner": {
     "src": "/horizon/horizon-banner.webp",
     "og": "/horizon/horizon-banner.jpg",
@@ -52,5 +52,12 @@ export const HORIZON: Record<"horizon-banner" | "horizon-july-30" | "amaka-horiz
     "width": 2048,
     "height": 1143,
     "blurDataURL": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAAAQAgCdASoQAAkAA4BaJYwCw7E1XxtX4wdQAP6iRxYg37lHTwEG2H2w3i+mdubgWH6ZXmfW00b56sWvVP28bslTnKWk3r4RzVsMTv0AAAA="
+  },
+  "dave-portrait": {
+    "src": "/horizon/dave-portrait.webp",
+    "og": "/horizon/dave-portrait.jpg",
+    "width": 2032,
+    "height": 1143,
+    "blurDataURL": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAQAgCdASoQAAkAA4BaJZgCdAEYEi6XbleAAP7dgPiz1lHZzPBK4wMg7EEu2+80m6KStdohvhVY7K0OeILMvy627JrY4uE7OW2T3y4I5sAAAA=="
   }
 };
