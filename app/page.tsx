@@ -6,50 +6,18 @@ import { ArrowUpRight, ChevronRight, X, Menu } from "lucide-react";
 import MediaSlot from "../components/MediaSlot";
 import { useAuth } from "../components/AuthProvider";
 import LiteYouTube from "../components/news/LiteYouTube";
-import ProgressiveBlur from "../components/news/ProgressiveBlur";
 import { VIDEOS } from "../lib/news/videos";
 
-/* Center nav: small uppercase links; PRODUCT opens a mega-menu. */
-const NAV_ITEMS = ["PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY", "API"];
-
-const MEGA_MENU: { heading: string; links: { label: string; href: string; external?: boolean }[] }[] = [
-  {
-    heading: "Product",
-    links: [
-      { label: "Our Tools", href: "/dashboard" },
-      { label: "Developer API", href: "/api-docs" },
-      { label: "Use Cases", href: "#worlds" },
-      { label: "Pricing", href: "/dashboard/billing" },
-    ],
-  },
-  {
-    heading: "Learn",
-    links: [
-      { label: "Blog", href: "/blog" },
-      { label: "Three steps to your first ad", href: "/blog/three-steps-to-your-first-ad" },
-      { label: "Inside the multi-agent system", href: "/blog/inside-the-multi-agent-system" },
-      { label: "Ways to Use Optiq Studio", href: "#worlds" },
-    ],
-  },
-  {
-    heading: "Featured Tools",
-    links: [
-      { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Optiq Video Engine", href: "/dashboard/video" },
-      { label: "Image Studio", href: "/dashboard/image" },
-      { label: "Audio Studio", href: "/dashboard/audio" },
-      { label: "Assets", href: "/dashboard/assets" },
-      { label: "Prompt Enhancer", href: "/dashboard/video" },
-    ],
-  },
-  {
-    heading: "Professionals",
-    links: [
-      { label: "Optiq Studio Enterprise", href: "/enterprise" },
-      { label: "For Education", href: "mailto:hello@optiq.studio" },
-      { label: "Data Security", href: "#" },
-    ],
-  },
+/* Center nav: small uppercase links. Every one of these goes somewhere real —
+   PRODUCT, RESOURCES, SOLUTIONS and COMPANY were headings for pages that don't
+   exist, so they and the mega-menu they opened are gone. */
+const navItems = (
+  studioHref: string
+): { label: string; href: string; external?: boolean }[] => [
+  { label: "STUDIO", href: studioHref },
+  { label: "BLOG", href: "/blog" },
+  { label: "API", href: "/api-docs" },
+  { label: "DAVELABS", href: "https://davelabs.co/news", external: true },
 ];
 
 const HERO_LINKS = [
@@ -149,12 +117,12 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
 
 export default function LandingPage() {
   const { user } = useAuth();
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const appHref = user ? "/dashboard" : "/login";
+  const links = navItems(appHref);
 
   return (
-    <div className="min-h-screen bg-white text-black" onMouseLeave={() => setMenuOpen(null)}>
+    <div className="min-h-screen bg-white text-black">
       {/* ── Nav: the landing page keeps its own. BlogHeader fronts /blog
           and /enterprise; this one is deliberately not that. ── */}
       <header className="sticky top-0 z-50 bg-white">
@@ -168,26 +136,17 @@ export default function LandingPage() {
           </Link>
 
           <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex">
-            {NAV_ITEMS.map((item) => {
-              if (item === "API") {
-                return (
-                  <Link
-                    key={item}
-                    href="/api-docs"
-                    className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
-                  >
-                    {item}
-                  </Link>
-                );
-              }
-              return (
-                <button
-                  key={item}
-                  onMouseEnter={() => setMenuOpen(item === "PRODUCT" ? "PRODUCT" : null)}
-                  className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
-                >
-                  {item}
-                </button>
+            {links.map((item) => {
+              const cls =
+                "font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors";
+              return item.external ? (
+                <a key={item.label} href={item.href} target="_blank" rel="noopener" className={cls}>
+                  {item.label}
+                </a>
+              ) : (
+                <Link key={item.label} href={item.href} className={cls}>
+                  {item.label}
+                </Link>
               );
             })}
           </div>
@@ -229,47 +188,31 @@ export default function LandingPage() {
           </button>
         </nav>
 
-        {/* Mega-menu */}
-        {menuOpen === "PRODUCT" && (
-          <div
-            className="absolute inset-x-0 top-14 z-50 border-b border-neutral-800 bg-black/95 text-white backdrop-blur"
-            onMouseLeave={() => setMenuOpen(null)}
-          >
-            <div className="mx-auto grid max-w-[1440px] grid-cols-2 gap-x-16 gap-y-10 px-16 py-12 md:grid-cols-4">
-              {MEGA_MENU.map((col) => (
-                <div key={col.heading}>
-                  <p className="mb-4 text-[12px] text-neutral-500">{col.heading}</p>
-                  <ul className="space-y-2.5">
-                    {col.links.map((l) => (
-                      <li key={l.label}>
-                        <Link
-                          href={l.href}
-                          className="inline-flex items-center gap-1 text-[14px] text-neutral-200 hover:text-white transition-colors"
-                        >
-                          {l.label}
-                          {l.external && <ArrowUpRight size={11} className="text-neutral-500" />}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {mobileOpen && (
           <div className="border-b border-neutral-200 bg-white px-6 py-4 space-y-3 lg:hidden">
-            {["Product", "Company", "API"].map((l) => (
-              <Link
-                key={l}
-                href={l === "API" ? "/api-docs" : "#worlds"}
-                className="block text-sm"
-                onClick={() => setMobileOpen(false)}
-              >
-                {l}
-              </Link>
-            ))}
+            {links.map((l) =>
+              l.external ? (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener"
+                  className="block text-sm"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {l.label}
+                </a>
+              ) : (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  className="block text-sm"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {l.label}
+                </Link>
+              )
+            )}
             <Link
               href="/enterprise"
               className="block text-sm font-semibold"
@@ -294,7 +237,6 @@ export default function LandingPage() {
           </div>
         )}
       </header>
-      <ProgressiveBlur />
 
       {/* ── Hero: inset rounded video card ─────────────────────────── */}
       <section className="px-3 pb-3">
