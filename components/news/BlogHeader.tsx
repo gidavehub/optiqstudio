@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 
+// "Make an ad" is the way into the studio, so a separate Studio link would just
+// be a second door to the same room.
 const LINKS = [
   { label: "Blog", href: "/blog" },
   { label: "Enterprise", href: "/enterprise" },
-  { label: "Studio", href: "/dashboard" },
   { label: "API", href: "/api-docs" },
 ];
 
@@ -23,7 +25,16 @@ function OptiqMark({ size = 22 }: { size?: number }) {
 
 export default function BlogHeader() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+
+  // This header also fronts the landing page now, which is where signed-out
+  // visitors actually arrive, so the way in has to be somewhere. One slot,
+  // either direction — no second call to action competing with "Make an ad".
+  const links = [
+    ...LINKS,
+    user ? { label: "Studio", href: "/dashboard" } : { label: "Log in", href: "/login" },
+  ];
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -47,7 +58,7 @@ export default function BlogHeader() {
           </Link>
 
           <div className="hidden items-center gap-8 lg:flex">
-            {LINKS.map((link) => {
+            {links.map((link) => {
               const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
                 <Link
@@ -107,7 +118,7 @@ export default function BlogHeader() {
             </button>
           </div>
           <div className="flex flex-col px-5 pt-6 sm:px-8">
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

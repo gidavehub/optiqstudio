@@ -43,8 +43,13 @@ export default function NewsIndex({ posts }: { posts: PostCard[] }) {
 
       <div className="mx-auto max-w-[1600px] px-5 pb-24 sm:px-8 lg:px-12">
         {lead ? (
-          <div className="grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
-            <FeaturedCard post={lead} />
+          <div className="grid items-start gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-20">
+            {/* The lead runs out well before the rail does. Pinning it once it
+                reaches the top keeps it in view while the rail scrolls past,
+                instead of leaving half the viewport empty. */}
+            <div className="lg:sticky lg:top-[92px] lg:self-start">
+              <FeaturedCard post={lead} />
+            </div>
 
             <div className="flex flex-col">
               {rest.map((post, i) => {

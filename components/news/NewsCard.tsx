@@ -48,7 +48,7 @@ export function FeaturedCard({ post }: { post: PostCard }) {
 }
 
 /**
- * The right-hand rail entry: text left, square thumbnail right. `tinted` puts
+ * The right-hand rail entry: text left, 16:9 thumbnail right. `tinted` puts
  * it on a filled card, which the index alternates in to break up the run.
  */
 export function RailCard({
@@ -70,7 +70,7 @@ export function RailCard({
           </h3>
           <Meta post={post} className="mt-4" />
         </div>
-        <div className="w-[92px] shrink-0 overflow-hidden rounded-xl bg-[#f1f3f4] sm:w-[132px]">
+        <div className="w-[124px] shrink-0 overflow-hidden rounded-xl bg-[#f1f3f4] sm:w-[180px]">
           <Image
             src={asset.src}
             alt=""
@@ -79,8 +79,8 @@ export function RailCard({
             priority={priority}
             placeholder="blur"
             blurDataURL={asset.blurDataURL}
-            sizes="132px"
-            className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            sizes="(max-width: 640px) 124px, 180px"
+            className="aspect-video w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         </div>
       </Link>
