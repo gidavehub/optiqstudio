@@ -69,7 +69,26 @@ export const metadata: Metadata = {
     description:
       "Create production-quality ads and videos that tell your brand's story and win attention. A product of DaveLabs.",
     images: ["/media/hero.jpg"],
+    site: "@DaveLabs_",
   },
+  alternates: {
+    canonical: "/",
+    types: {
+      "application/rss+xml": [{ url: "/blog/rss.xml", title: "Optiq Studio Blog" }],
+    },
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  category: "technology",
 };
 
 // Native-feeling on phones: fill the real viewport (including under the browser
@@ -91,6 +110,12 @@ export default function RootLayout({
       lang="en"
       className={`${googleSans.variable} ${roboto.variable} ${robotoMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* The blog's YouTube facades only fetch on click; resolving the hosts
+            up front is what makes that click feel instant. */}
+        <link rel="preconnect" href="https://i.ytimg.com" />
+        <link rel="dns-prefetch" href="https://www.youtube-nocookie.com" />
+      </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           {children}

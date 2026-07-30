@@ -22,9 +22,10 @@ const MEGA_MENU: { heading: string; links: { label: string; href: string; extern
   {
     heading: "Learn",
     links: [
-      { label: "Academy", href: "#", external: true },
-      { label: "Help Center", href: "#", external: true },
-      { label: "Ways to Use Optiq Studio", href: "#worlds", external: true },
+      { label: "Blog", href: "/blog" },
+      { label: "Three steps to your first ad", href: "/blog/three-steps-to-your-first-ad" },
+      { label: "Inside the multi-agent system", href: "/blog/inside-the-multi-agent-system" },
+      { label: "Ways to Use Optiq Studio", href: "#worlds" },
     ],
   },
   {

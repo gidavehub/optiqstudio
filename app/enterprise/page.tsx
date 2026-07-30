@@ -1,371 +1,468 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, Mail, Phone, Sparkles, Zap, Target, ShieldCheck, BarChart3, Layers } from "lucide-react";
-import StartProjectButton, {
-  ContactRows,
-  WhatsAppIcon,
-} from "../../components/EnterpriseContact";
-import { CONTACT } from "../../components/enterprise-contact-data";
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
+import StartProjectButton, { ContactRows } from "@/components/EnterpriseContact";
+import BlogFooter from "@/components/news/BlogFooter";
+import BlogHeader from "@/components/news/BlogHeader";
+import ProgressiveBlur from "@/components/news/ProgressiveBlur";
+import { HORIZON } from "@/lib/horizon-assets";
+import { jsonLdScript } from "@/lib/news/jsonld";
+import { SITE, url } from "@/lib/news/site";
 
-// /enterprise — Optiq Studio Enterprise & DaveLabs Horizon Summer '26 Page
-export const metadata = {
-  title: "Optiq Studio Enterprise — DaveLabs Horizon Summer '26",
-  description:
-    "Work directly with the DaveLabs team for custom done-with-you commercial ads or performance-driven Enterprise campaign cycles across 329+ mapped industries.",
+// /enterprise — the two Optiq Studio Enterprise tiers announced in Keynote 3
+// of DaveLabs Horizon Summer '26: Custom Video Production, and the outcome-paid
+// Enterprise Campaign Engine.
+
+const TITLE = "Optiq Studio Enterprise — custom production and outcome-paid campaigns";
+const DESCRIPTION =
+  "Two tiers. Custom Video Production from $100 per ad, made by the DaveLabs creative team. Or the Enterprise Campaign Engine — five organisations per cycle, paid on results, not deliverables.";
+
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    "Optiq Studio Enterprise",
+    "custom video production",
+    "enterprise video ads",
+    "performance marketing agency",
+    "pay on results marketing",
+    "campaign engine",
+    "video production The Gambia",
+    "West Africa marketing agency",
+  ],
+  alternates: { canonical: "/enterprise" },
+  openGraph: {
+    type: "website",
+    url: url("/enterprise"),
+    title: TITLE,
+    description: DESCRIPTION,
+    siteName: SITE.name,
+    locale: SITE.locale,
+    images: [
+      { url: url(HORIZON["optiq-horizon"].og), width: 1200, height: 670, alt: "Optiq Studio Enterprise" },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [url(HORIZON["optiq-horizon"].og)],
+    site: SITE.twitter,
+  },
 };
 
-const ENTERPRISE_TIERS = [
+const WRAP = "mx-auto max-w-[1600px] px-5 sm:px-8 lg:px-12";
+
+const TIER_ONE = [
+  "A working session to understand your business, audience and the story this campaign has to tell",
+  "Scriptwriting, storyboarding and full directorial oversight by our team",
+  "Custom sound design, music and voice, finished in professional tools",
+  "Colour-graded 4K finishing, reviewed with you until it is right",
+  "A fraction of the time and cost of a traditional production house",
+];
+
+const TIER_TWO = [
+  "Five organisations per campaign cycle — no more, so every campaign gets real attention",
+  "Paid on outcomes: return on investment, sales, customer lifetime value",
+  "Audience models drawn from 329+ mapped industries",
+  "A custom Intelligence Dashboard with real-time attribution",
+  "Creative produced on the same platform and by the same team behind Optiq Studio",
+];
+
+// Re-encoded from the 1.5MB JPEG masters to ~50-95kb webp, with an inline LQIP
+// so the cards don't pop in as you scroll past them.
+const VALUE_CARDS = [
   {
-    badge: "TIER 1 — CUSTOM PRODUCTION",
-    title: "Done-With-You Commercial Ads",
-    price: "$100 – $200",
-    localPrice: "D6,500 – D13,000 per video ad",
-    subtitle: "Hand-directed commercial films built for your brand",
-    description: "Our in-house DaveLabs creative team writes, storyboards, directs, and polishes high-end video ads specifically tailored for your business.",
-    features: [
-      "Full scriptwriting & storyboard direction",
-      "Custom soundscape, music & voiceover balancing",
-      "Color-graded 4K cinematic export",
-      "Delivered in a fraction of traditional agency time & cost",
-    ],
-    highlight: false,
-    cta: "Start a Custom Ad",
+    media: "/media/enterprise/enterprise-collab.webp",
+    blur: "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAQCdASoQAAkAA4BaJZACsAEWSS0gG8AA/slX6tc6IQen/SRAaF69kUgLspR1K8Wv3FxDgUt5soBaELPV+lmelzVu7AF77/UjcZPlzP1jtpy11kkWg7/UlzH3/S+ZrgA=",
+    title: "Done with you, not just by AI",
+    body: "We sit with you — in the room or on the call — to capture your brand, your mission and the story you want to tell. Then our directors shape it, frame by frame, with taste a prompt can't buy.",
   },
   {
-    badge: "TIER 2 — FLAGSHIP CAMPAIGN ENGINE",
-    title: "Enterprise Growth & Campaign Cycles",
-    price: "Custom Cycle",
-    localPrice: "Outcome-driven / Capped at 5 brands per cycle",
-    subtitle: "A performance-driven growth engine with guaranteed ROI",
-    description: "We partner with a select group of 5 organizations per cycle. We don't get paid until we deliver real business results, sales, and customer return.",
-    features: [
-      "AI models trained on 329+ West African & global industries",
-      "Full Intelligence Dashboard included (+Retargeting & Lead Scoring)",
-      "Multi-format creative slate (AI Video, Mini-Docs, Skits, Motion, Cinematic)",
-      "Dedicated DaveLabs campaign director & outcome targets",
-    ],
-    highlight: true,
-    cta: "Apply for Campaign Cycle",
+    media: "/media/enterprise/enterprise-campaign.webp",
+    blur: "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAAAQAgCdASoQAAkAA4BaJQBOj+ACgl3jil8AAP7drq0tJkpUEKLHpvQWtJ2G1FgJmWfH9kaicfpCRABrbqL7l0JLqjNYZyY5IPQyKzMUuBxVRFsLPT5MLgAA",
+    title: "Production-quality, cinematic output",
+    body: "Polished, emotionally resonant brand films people don't expect from AI — built with professional tools by a team that has produced this work by hand for years.",
+  },
+  {
+    media: "/media/enterprise/enterprise-craft.webp",
+    blur: "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADQAQCdASoQAAkAA4BaJQBOgBt0/rf+AAD+9Y9ZPBPe18REycJ+s8qmyPxFKmXoZLxmnbMtAG0873F45gXfYXZuipCdKTw0NUqft4huZpvs8lAA",
+    title: "A fraction of the time and cost",
+    body: "Because we're powered by our own platform, we deliver studio-grade campaigns far faster and cheaper than a traditional production house — without cutting the craft.",
   },
 ];
 
-const PLATFORM_STEPS = [
-  { n: "01", title: "Describe Your Product", body: "Type a short description of your business, product, or offer in plain terms." },
-  { n: "02", title: "Choose Your Style & Duration", body: "Select from our curated templates, pick your style, and set your video length." },
-  { n: "03", title: "Click Generate", body: "Optiq Studio's multi-agent AI system crafts, storyboards, and builds your studio-quality ad for less than $5." },
+const DASHBOARD = [
+  { title: "Source & platform attribution", body: "Every lead and sale traced back to the exact video, platform, placement and audience that produced it." },
+  { title: "Audience intelligence", body: "Who is actually converting — age, location, device, interest — so the next wave points at the people already saying yes." },
+  { title: "AI lead scoring", body: "Every interaction scored for intent. The model learns which behaviours precede a sale and ranks your warm audience." },
+  { title: "Retargeting engine", body: "The people who watched, clicked and nearly bought, automatically re-approached with the creative most likely to close them." },
+  { title: "Creative performance", body: "A live leaderboard of which formats and hooks earn the cheapest results, so budget flows to the winners mid-cycle." },
+  { title: "Privacy-first by design", body: "Everything aggregated and anonymised. We work in cohorts and signals, never personal records." },
 ];
 
-const MAPPED_INDUSTRIES = [
-  "Retail & Fashion", "Food & Drink", "Beauty & Personal Care", "Real Estate & Property",
-  "Hospitality & Tourism", "Health & Medical", "Financial Services", "Automotive",
-  "Education & Training", "Agriculture & Agribusiness", "Technology & Software", "Logistics & Transport"
+const CYCLE = [
+  { when: "Week 0", title: "Kickoff & creative lock", body: "We align on the story, lock the format mix and reach budget, build the script slate, and stand up the dashboard and tracking before a dalasi is spent." },
+  { when: "Weeks 1–4", title: "Production wave", body: "The heavy lift. Renders first to seed the feed, motion and mini-docs follow, any cinematic work goes into its shoot. Publishing begins as soon as the first cuts clear approval." },
+  { when: "Weeks 4–10", title: "Publish, read, reallocate", body: "Content ships on a steady cadence while the dashboard reads what's working. Mid-cycle we shift budget toward the winning creative and retarget the warm audience that didn't convert." },
+  { when: "Weeks 11–12", title: "Report & renew", body: "A full end-of-cycle report against the model — views, results, cost per outcome, what we'd do differently — and the plan for the next wave." },
+];
+
+const INDUSTRIES = [
+  "Food & Drink",
+  "Retail & Fashion",
+  "Beauty & Personal Care",
+  "Real Estate & Property",
+  "Automotive & Industrial",
+  "Hospitality & Tourism",
+  "Professional & Financial Services",
+  "Agriculture & Agribusiness",
 ];
 
 export default function EnterprisePage() {
+  const banner = HORIZON["horizon-banner"];
+  const founder = HORIZON["dave-keynote"];
+
   return (
-    <div className="min-h-screen bg-white text-black">
-      {/* ── Nav ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-neutral-100">
-        <nav className="mx-auto flex h-14 max-w-[1440px] items-center px-4 sm:px-6">
-          <Link href="/" className="flex select-none items-center gap-3 text-[22px] font-bold lowercase leading-none tracking-tight">
-            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-              <circle cx="16" cy="16" r="16" fill="white" stroke="#e5e5e5" strokeWidth={1} />
-              <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
-            </svg>
-            <span>optiq studio</span>
-          </Link>
-          <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/"
-              className="hidden items-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium text-neutral-600 hover:text-black sm:flex"
-            >
-              <ArrowLeft size={13} /> Back to Studio
-            </Link>
-            <StartProjectButton className="rounded-md bg-black px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800">
-              Talk to DaveLabs Team
-            </StartProjectButton>
-          </div>
-        </nav>
-      </header>
+    <div className="min-h-screen bg-white text-[#1f1f1f]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScript({
+          "@context": "https://schema.org",
+          "@type": "Service",
+          name: "Optiq Studio Enterprise",
+          serviceType: "Video production and performance marketing",
+          provider: { "@id": `${SITE.origin}/#organization` },
+          areaServed: ["GM", "SN", "NG", "GH", "Worldwide"],
+          description: DESCRIPTION,
+          url: url("/enterprise"),
+          offers: [
+            {
+              "@type": "Offer",
+              name: "Custom Video Production",
+              description: "A custom commercial produced by the DaveLabs creative team.",
+              priceSpecification: {
+                "@type": "PriceSpecification",
+                minPrice: 100,
+                maxPrice: 200,
+                priceCurrency: "USD",
+              },
+            },
+            {
+              "@type": "Offer",
+              name: "Enterprise Campaign Engine",
+              description:
+                "An outcome-paid campaign cycle. Five organisations per cycle; payment is contingent on delivered business results.",
+              availability: "https://schema.org/LimitedAvailability",
+            },
+          ],
+        })}
+      />
 
-      {/* ── Major Event Hero Banner ────────────────────────────────────── */}
-      <section className="px-3 pt-3 pb-6">
-        <div className="mx-auto max-w-[1440px] overflow-hidden rounded-2xl bg-neutral-900 text-white shadow-2xl">
-          {/* Official Horizon '26 Banner Graphic */}
-          <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-950">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/media/davelabs_horizon_banner.png"
-              alt="DaveLabs Horizon '26 Official Event Banner"
-              className="h-full w-full object-cover"
+      <BlogHeader />
+      <ProgressiveBlur />
+
+      <main className="pt-[68px]">
+        {/* ── Hero ───────────────────────────────────────────────── */}
+        <section className="px-3 pt-4 sm:px-5 lg:px-8">
+          <div className="relative overflow-hidden rounded-[24px] bg-[#f1f3f4] sm:rounded-[32px]">
+            <Image
+              src={banner.src}
+              alt="DaveLabs Horizon Summer '26"
+              width={banner.width}
+              height={banner.height}
+              priority
+              fetchPriority="high"
+              placeholder="blur"
+              blurDataURL={banner.blurDataURL}
+              sizes="(max-width: 1600px) 100vw, 1600px"
+              className="w-full"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/40 to-transparent" />
-            <div className="absolute top-6 left-6 rounded-full bg-white/10 backdrop-blur px-3.5 py-1 text-[11px] font-mono font-bold tracking-widest text-white border border-white/20">
-              MAJOR EVENT • HORIZON SUMMER ’26
-            </div>
           </div>
+        </section>
 
-          {/* Hero Content Band */}
-          <div className="px-6 py-10 sm:px-14 md:py-14">
-            <div className="flex items-center gap-2 text-amber-400 font-mono text-[12px] font-bold tracking-wider uppercase mb-3">
-              <Sparkles size={15} /> DaveLabs Flagship Announcement
-            </div>
-            <h1 className="display text-[38px] leading-[1.05] sm:text-[56px] md:text-[72px] text-white">
-              DaveLabs Horizon Summer ’26
-            </h1>
-            <p className="mt-4 max-w-3xl text-[16px] leading-relaxed text-neutral-300 sm:text-[18px]">
-              Democratizing high-end video ads across Africa and beyond. Choose self-service AI generation for <strong className="text-white">less than $5</strong> on Optiq Studio, or partner with the DaveLabs team for custom Enterprise campaigns.
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              <StartProjectButton className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-[14px] font-bold text-black transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                Book Enterprise Consultation <ChevronRight size={16} />
-              </StartProjectButton>
-              <a
-                href="https://amaka.app"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-5 py-3 text-[14px] font-medium text-white transition-colors hover:bg-white/10"
-              >
-                Visit Amaka AI (amaka.app) <ArrowUpRight size={15} />
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Enterprise Tiers Section ─────────────────────────────────── */}
-      <section className="mx-auto max-w-[1440px] px-6 py-16 sm:px-14">
-        <div className="text-center max-w-3xl mx-auto mb-14">
-          <p className="font-mono text-[12px] font-bold tracking-[0.16em] uppercase text-neutral-500 mb-2">
-            OPTIQ STUDIO ENTERPRISE SOLUTIONS
+        <section className={`${WRAP} py-12 md:py-16`}>
+          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+            Optiq Studio Enterprise · DaveLabs Horizon Summer &rsquo;26
           </p>
-          <h2 className="display text-[32px] leading-tight sm:text-[44px] text-neutral-900">
-            Two Ways to Scale Your Brand&apos;s Video Ads
-          </h2>
-          <p className="mt-3 text-[15px] text-neutral-600">
-            Whether you need a single studio-grade commercial or a full outcome-driven campaign engine, DaveLabs handles the heavy lifting.
+          <h1 className="mt-4 max-w-[1000px] text-[34px] font-normal leading-[1.07] tracking-[-0.03em] sm:text-[52px] lg:text-[62px]">
+            Want it done for you?
+          </h1>
+          <p className="mt-7 max-w-[700px] text-[18px] leading-[1.7] text-[#5f6368]">
+            Optiq Studio puts a whole production studio in your hands. Optiq Studio
+            Enterprise puts our team behind the camera for you — either a custom
+            commercial made by our creative directors, or a full campaign cycle we only
+            get paid for once it works.
           </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          {ENTERPRISE_TIERS.map((tier) => (
-            <div
-              key={tier.badge}
-              className={`relative flex flex-col justify-between rounded-2xl p-8 sm:p-10 transition-all ${
-                tier.highlight
-                  ? "bg-neutral-900 text-white shadow-xl ring-2 ring-amber-400/50"
-                  : "bg-neutral-50 border border-neutral-200 text-black"
-              }`}
+          <div className="mt-9 flex flex-wrap items-center gap-3">
+            <StartProjectButton className="inline-flex items-center gap-2 rounded-full bg-[#1f1f1f] px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-black">
+              Start an enterprise project <ChevronRight size={16} />
+            </StartProjectButton>
+            <Link
+              href="/blog/optiq-studio-enterprise"
+              className="inline-flex items-center gap-2 rounded-full border border-[#dadce0] px-6 py-3.5 text-[15px] font-medium text-[#1f1f1f] transition-colors hover:bg-[#f8f9fa]"
             >
-              <div>
-                <span
-                  className={`inline-block rounded-full px-3 py-1 font-mono text-[11px] font-bold tracking-wider ${
-                    tier.highlight
-                      ? "bg-amber-400 text-black"
-                      : "bg-neutral-200 text-neutral-800"
-                  }`}
-                >
-                  {tier.badge}
-                </span>
+              Read the announcement
+            </Link>
+          </div>
+        </section>
 
-                <h3 className="mt-5 text-[26px] font-bold leading-tight">{tier.title}</h3>
-                <p className={`mt-1 text-[13px] ${tier.highlight ? "text-neutral-400" : "text-neutral-500"}`}>
-                  {tier.subtitle}
-                </p>
+        {/* ── Statement ──────────────────────────────────────────── */}
+        <section className={`${WRAP} border-t border-[#e8eaed] py-16 md:py-24`}>
+          <h2 className="max-w-[1100px] text-[30px] font-normal leading-[1.12] tracking-[-0.026em] sm:text-[44px]">
+            Long before Optiq Studio was a platform, our team was making
+            production-quality ads by hand.
+          </h2>
+          <p className="mt-7 max-w-[680px] text-[17px] leading-[1.7] text-[#5f6368]">
+            Now you choose the route — the AI route, or the full production route with
+            our team and partners. Either way it&rsquo;s crafted by us: cinematic, and
+            unmistakably yours.
+          </p>
 
-                <div className="mt-6 border-y py-4 border-neutral-200/20">
-                  <div className="text-[36px] font-bold tracking-tight">{tier.price}</div>
-                  <div className={`text-[13px] font-medium ${tier.highlight ? "text-amber-300" : "text-neutral-600"}`}>
-                    {tier.localPrice}
-                  </div>
+          <div className="mt-14 grid grid-cols-1 gap-8 md:grid-cols-3">
+            {VALUE_CARDS.map((card) => (
+              <div key={card.title}>
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#f1f3f4]">
+                  <Image
+                    src={card.media}
+                    alt=""
+                    fill
+                    loading="lazy"
+                    placeholder="blur"
+                    blurDataURL={card.blur}
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    className="object-cover"
+                  />
                 </div>
+                <h3 className="mt-5 text-[20px] font-medium leading-snug">{card.title}</h3>
+                <p className="mt-2.5 text-[15px] leading-[1.7] text-[#5f6368]">{card.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-                <p className={`mt-5 text-[14px] leading-relaxed ${tier.highlight ? "text-neutral-300" : "text-neutral-600"}`}>
-                  {tier.description}
+        {/* ── The two tiers ──────────────────────────────────────── */}
+        <section className="border-t border-[#e8eaed] bg-[#f8f9fa] py-16 md:py-24">
+          <div className={WRAP}>
+            <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+              Two tiers
+            </p>
+            <h2 className="mt-5 max-w-[900px] text-[30px] font-normal leading-[1.12] tracking-[-0.026em] sm:text-[42px]">
+              One makes you a commercial. The other is accountable for the outcome.
+            </h2>
+
+            <div className="mt-12 grid gap-6 lg:grid-cols-2">
+              {/* Tier 1 */}
+              <div className="flex flex-col rounded-2xl border border-[#dadce0] bg-white p-8 sm:p-10">
+                <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-[#5f6368]">
+                  Tier one
                 </p>
-
-                <ul className="mt-6 space-y-3">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-3 text-[14px]">
-                      <Check
-                        size={17}
-                        className={`mt-0.5 shrink-0 ${tier.highlight ? "text-amber-400" : "text-black"}`}
-                      />
-                      <span className={tier.highlight ? "text-neutral-200" : "text-neutral-800"}>{f}</span>
+                <h3 className="mt-4 text-[26px] font-medium leading-tight tracking-[-0.02em] sm:text-[30px]">
+                  Custom Video Production
+                </h3>
+                <p className="mt-4 text-[16px] leading-[1.7] text-[#5f6368]">
+                  A done-with-you production. Our in-house creative team works directly
+                  with your business, from the first working session through to the
+                  colour-graded master.
+                </p>
+                <div className="mt-7 flex items-baseline gap-3 border-y border-[#e8eaed] py-6">
+                  <span className="text-[40px] font-normal leading-none tracking-[-0.03em]">
+                    $100–$200
+                  </span>
+                  <span className="text-[15px] text-[#5f6368]">per video ad</span>
+                </div>
+                <p className="mt-3 text-[13px] text-[#5f6368]">D6,500 – D13,000</p>
+                <ul className="mt-7 flex flex-1 flex-col gap-3.5">
+                  {TIER_ONE.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-[15px] leading-[1.6]">
+                      <Check size={16} className="mt-1 shrink-0" />
+                      {item}
                     </li>
                   ))}
                 </ul>
+                <StartProjectButton className="mt-9 inline-flex items-center justify-center gap-2 rounded-full bg-[#1f1f1f] px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-black">
+                  Commission a video <ChevronRight size={16} />
+                </StartProjectButton>
               </div>
 
-              <div className="mt-8 pt-4">
-                <StartProjectButton
-                  className={`w-full justify-center rounded-xl py-3.5 text-[14px] font-bold transition-all ${
-                    tier.highlight
-                      ? "bg-amber-400 text-black hover:bg-amber-300"
-                      : "bg-black text-white hover:bg-neutral-800"
-                  }`}
-                >
-                  {tier.cta}
+              {/* Tier 2 */}
+              <div className="flex flex-col rounded-2xl bg-[#1f1f1f] p-8 text-white sm:p-10">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-mono text-[12px] uppercase tracking-[0.14em] text-white/60">
+                    Tier two · Flagship
+                  </p>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.1em] text-white/80">
+                    5 per cycle
+                  </span>
+                </div>
+                <h3 className="mt-4 text-[26px] font-medium leading-tight tracking-[-0.02em] sm:text-[30px]">
+                  Enterprise Campaign Engine
+                </h3>
+                <p className="mt-4 text-[16px] leading-[1.7] text-white/70">
+                  Not a video generator. An outcome-driven growth engine — creative,
+                  media, attribution and retargeting run as one cycle by our team.
+                </p>
+                <div className="mt-7 border-y border-white/15 py-6">
+                  <span className="text-[28px] font-normal leading-tight tracking-[-0.024em] sm:text-[32px]">
+                    We don&rsquo;t get paid until we deliver results.
+                  </span>
+                </div>
+                <ul className="mt-7 flex flex-1 flex-col gap-3.5">
+                  {TIER_TWO.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-[15px] leading-[1.6] text-white/85">
+                      <Check size={16} className="mt-1 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <StartProjectButton className="mt-9 inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-medium text-[#1f1f1f] transition-colors hover:bg-[#f1f3f4]">
+                  Apply for a campaign cycle <ChevronRight size={16} />
                 </StartProjectButton>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Self-Service Platform Highlight ──────────────────────────── */}
-      <section className="bg-neutral-900 text-white py-16 px-6 sm:px-14">
-        <div className="mx-auto max-w-[1440px]">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-            <div>
-              <span className="font-mono text-[12px] font-bold uppercase tracking-widest text-amber-400">
-                SELF-SERVICE OPTIQ STUDIO PLATFORM
-              </span>
-              <h2 className="display mt-3 text-[32px] leading-tight sm:text-[44px]">
-                Studio-Quality Video Ads for Less Than $5
-              </h2>
-              <p className="mt-4 text-[15px] leading-relaxed text-neutral-300">
-                Small business owners no longer need thousands of dollars to create high-converting video ads. In just 3 easy steps, our smart AI multi-agent system handles storyboarding, cinematography, script reasoning, and music compilation.
-              </p>
-
-              <div className="mt-8 space-y-6">
-                {PLATFORM_STEPS.map((s) => (
-                  <div key={s.n} className="flex items-start gap-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 font-mono text-[14px] font-bold text-amber-300">
-                      {s.n}
-                    </span>
-                    <div>
-                      <h4 className="text-[17px] font-bold text-white">{s.title}</h4>
-                      <p className="mt-1 text-[13px] text-neutral-400">{s.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-neutral-950 p-8 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <span className="font-mono text-[12px] font-bold text-neutral-400">OPTIQ STUDIO PLATFORM</span>
-                <span className="rounded-full bg-emerald-500/20 px-3 py-1 font-mono text-[11px] font-bold text-emerald-400">
-                  LIVE ACCESS • amaka.app
-                </span>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-[12px] font-mono text-neutral-400">STEP 1 — PROMPT INPUT</div>
-                  <div className="mt-1 text-[14px] font-medium text-white">
-                    &quot;Create a high-energy commercial for a West African fashion brand, warm studio lighting...&quot;
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-[12px] font-mono text-neutral-400">STEP 2 — DURATION & TEMPLATE</div>
-                  <div className="mt-1 text-[14px] text-amber-300 font-bold">10s Cinematic Ad • Retail & Fashion</div>
-                </div>
-
-                <div className="rounded-xl bg-amber-400 p-4 text-center text-black font-bold text-[15px]">
-                  STEP 3 — GENERATE AD (Less than $5)
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Mapped Industries Grid ───────────────────────────────────── */}
-      <section className="mx-auto max-w-[1440px] px-6 py-16 sm:px-14">
-        <div className="text-center max-w-2xl mx-auto mb-10">
-          <p className="font-mono text-[12px] font-bold tracking-widest text-neutral-500 uppercase">
-            329+ INDUSTRIES MAPPED
+        {/* ── The cycle ──────────────────────────────────────────── */}
+        <section className={`${WRAP} border-t border-[#e8eaed] py-16 md:py-24`}>
+          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+            Enterprise growth campaign cycles
           </p>
-          <h2 className="display mt-2 text-[30px] sm:text-[38px] text-neutral-900">
-            Priced & Tailored for Your Market
+          <h2 className="mt-5 max-w-[900px] text-[30px] font-normal leading-[1.12] tracking-[-0.026em] sm:text-[42px]">
+            A three-month cycle. We publish continuously, learn continuously, and close
+            every cycle with a report that feeds the next.
           </h2>
-          <p className="mt-2 text-[14px] text-neutral-600">
-            Our AI models and Enterprise campaign engines are specifically calibrated for businesses across The Gambia and West Africa.
-          </p>
-        </div>
+          <div className="mt-12 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+            {CYCLE.map((phase) => (
+              <div key={phase.when} className="border-t border-[#dadce0] pt-5">
+                <p className="font-mono text-[13px] text-[#5f6368]">{phase.when}</p>
+                <h3 className="mt-2.5 text-[19px] font-medium leading-snug">{phase.title}</h3>
+                <p className="mt-2.5 text-[15px] leading-[1.65] text-[#5f6368]">{phase.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {MAPPED_INDUSTRIES.map((ind) => (
-            <div
-              key={ind}
-              className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-3.5 text-[13px] font-medium text-neutral-800 transition-colors hover:border-black hover:bg-white"
-            >
-              <Check size={15} className="shrink-0 text-amber-600" />
-              <span>{ind}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Direct Contact & CTA Band ───────────────────────────────── */}
-      <section className="px-3 pb-6">
-        <div className="mx-auto grid max-w-[1440px] gap-10 rounded-2xl bg-black px-6 py-16 text-white md:grid-cols-2 md:items-center sm:px-16">
-          <div>
-            <span className="font-mono text-[11px] font-bold tracking-widest text-amber-400 uppercase">
-              WORK WITH DAVELABS TEAM
-            </span>
-            <h2 className="display mt-2 text-[30px] leading-tight sm:text-[42px]">
-              Ready to scale your brand with video ads?
+        {/* ── Intelligence Dashboard ─────────────────────────────── */}
+        <section className="border-t border-[#e8eaed] bg-[#f8f9fa] py-16 md:py-24">
+          <div className={WRAP}>
+            <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+              The intelligence layer
+            </p>
+            <h2 className="mt-5 max-w-[900px] text-[30px] font-normal leading-[1.12] tracking-[-0.026em] sm:text-[42px]">
+              Every campaign ships with a dashboard. Know exactly which video earned
+              which customer.
             </h2>
-            <p className="mt-4 text-[14px] leading-relaxed text-neutral-300">
-              Reach out to our founders and creative directors directly. We reply fast and help you pick the exact right campaign tier.
-            </p>
-            <StartProjectButton className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-[15px] font-bold text-black transition-transform hover:scale-[1.02]">
-              Start an Enterprise Project <ArrowUpRight size={16} />
-            </StartProjectButton>
+            <div className="mt-12 grid gap-px overflow-hidden rounded-2xl bg-[#e8eaed] sm:grid-cols-2 lg:grid-cols-3">
+              {DASHBOARD.map((cap) => (
+                <div key={cap.title} className="bg-white px-7 py-9">
+                  <h3 className="text-[18px] font-medium leading-snug">{cap.title}</h3>
+                  <p className="mt-3 text-[15px] leading-[1.7] text-[#5f6368]">{cap.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
+        </section>
 
-          <div>
-            <p className="mb-4 font-mono text-[11px] font-bold tracking-widest text-neutral-400 uppercase">
-              DIRECT ENTERPRISE CONTACTS
-            </p>
-            <ContactRows />
+        {/* ── 329 industries ─────────────────────────────────────── */}
+        <section className={`${WRAP} border-t border-[#e8eaed] py-16 md:py-24`}>
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-20">
+            <div>
+              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+                329+ mapped industries
+              </p>
+              <h2 className="mt-5 text-[30px] font-normal leading-[1.12] tracking-[-0.026em] sm:text-[42px]">
+                We know who your customers are and what makes them buy.
+              </h2>
+              <p className="mt-6 max-w-[520px] text-[17px] leading-[1.7] text-[#5f6368]">
+                Our models are trained on demographic and behavioural data across 329+
+                industries in The Gambia, West Africa and comparable global markets. A
+                hotel ad sells a feeling months in advance. A mechanic&rsquo;s ad sells
+                trust in eight seconds.
+              </p>
+              <Link
+                href="/blog/329-industries"
+                className="mt-7 inline-flex items-center gap-2 text-[16px] font-medium text-[#1f1f1f] hover:underline"
+              >
+                Read the research <ArrowUpRight size={16} />
+              </Link>
+            </div>
+            <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl bg-[#e8eaed] sm:grid-cols-2">
+              {INDUSTRIES.map((industry) => (
+                <li key={industry} className="bg-[#f8f9fa] px-6 py-5 text-[15px] font-medium">
+                  {industry}
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="mx-auto max-w-[1440px] px-6 py-10 sm:px-16">
-        <div className="flex flex-wrap items-center justify-center gap-3 border-b border-neutral-200 pb-8">
-          <a
-            href={CONTACT.whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "#25D366" }}
-          >
-            <WhatsAppIcon size={17} /> {CONTACT.phoneDisplay}
-          </a>
-          <a
-            href={CONTACT.phoneHref}
-            className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-neutral-800"
-          >
-            <Phone size={16} /> Call Us
-          </a>
-          <a
-            href={`mailto:${CONTACT.emails[0]}${CONTACT.mailSubject}`}
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[14px] font-bold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "#1a56db" }}
-          >
-            <Mail size={16} /> {CONTACT.emails[0]}
-          </a>
-        </div>
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Link href="/" className="text-[13px] text-neutral-500 hover:text-black">
-            ← Back to Optiq Studio Dashboard
-          </Link>
-          <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/media/davelabs-logo.png" alt="DaveLabs" className="h-4 w-auto opacity-70" />
-            <span className="font-mono text-[11px] tracking-[0.14em] text-neutral-500">
-              © 2026 DAVELABS • ALL RIGHTS RESERVED
-            </span>
+        {/* ── Powered by DaveLabs ────────────────────────────────── */}
+        <section className="border-t border-[#e8eaed] py-16 md:py-24">
+          <div className={`${WRAP} grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-20`}>
+            <div className="overflow-hidden rounded-2xl bg-[#f1f3f4]">
+              <Image
+                src={founder.src}
+                alt="Godswill Iyke Dave presenting at DaveLabs Horizon Summer '26"
+                width={founder.width}
+                height={founder.height}
+                loading="lazy"
+                placeholder="blur"
+                blurDataURL={founder.blurDataURL}
+                sizes="(max-width: 1024px) 100vw, 45vw"
+                className="w-full"
+              />
+            </div>
+            <div>
+              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-[#5f6368]">
+                Powered by DaveLabs
+              </p>
+              <blockquote className="mt-5 text-[24px] font-normal leading-[1.28] tracking-[-0.02em] sm:text-[32px]">
+                &ldquo;We measure success by your return on investment, your sales, and
+                your customer lifetime value.&rdquo;
+              </blockquote>
+              <p className="mt-6 text-[15px] text-[#5f6368]">
+                Godswill Iyke Dave, Founder and CEO, DaveLabs — Keynote 3, DaveLabs
+                Horizon Summer &rsquo;26
+              </p>
+              <a
+                href="https://davelabs.co/news/watch-davelabs-horizon-summer-26"
+                target="_blank"
+                rel="noopener"
+                className="mt-7 inline-flex items-center gap-2 text-[16px] font-medium text-[#1f1f1f] hover:underline"
+              >
+                Watch the keynote <ArrowUpRight size={16} />
+              </a>
+            </div>
           </div>
-        </div>
-      </footer>
+        </section>
+
+        {/* ── CTA ────────────────────────────────────────────────── */}
+        <section className="px-3 pb-3 sm:px-5 lg:px-8">
+          <div className="mx-auto grid max-w-[1600px] gap-10 rounded-[24px] bg-[#1f1f1f] px-7 py-16 text-white sm:rounded-[32px] sm:px-14 md:grid-cols-2 md:items-center">
+            <div>
+              <h2 className="text-[28px] font-normal leading-[1.12] tracking-[-0.024em] sm:text-[40px]">
+                Let&rsquo;s make your brand&rsquo;s film.
+              </h2>
+              <p className="mt-5 max-w-[440px] text-[16px] leading-[1.7] text-white/70">
+                Tell us your brand and the story. We&rsquo;ll take it from there.
+              </p>
+              <StartProjectButton className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3.5 text-[15px] font-medium text-[#1f1f1f] transition-colors hover:bg-[#f1f3f4]">
+                Start an enterprise project <ArrowUpRight size={16} />
+              </StartProjectButton>
+            </div>
+            <div>
+              <p className="mb-4 font-mono text-[12px] font-medium uppercase tracking-[0.14em] text-white/60">
+                Reach us directly
+              </p>
+              <ContactRows />
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <BlogFooter />
     </div>
   );
 }
