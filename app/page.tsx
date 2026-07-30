@@ -1,14 +1,56 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight, X, Menu } from "lucide-react";
 import MediaSlot from "../components/MediaSlot";
 import { useAuth } from "../components/AuthProvider";
-import BlogHeader from "../components/news/BlogHeader";
 import LiteYouTube from "../components/news/LiteYouTube";
 import ProgressiveBlur from "../components/news/ProgressiveBlur";
 import { VIDEOS } from "../lib/news/videos";
+
+/* Center nav: small uppercase links; PRODUCT opens a mega-menu. */
+const NAV_ITEMS = ["PRODUCT", "RESOURCES", "SOLUTIONS", "COMPANY", "API"];
+
+const MEGA_MENU: { heading: string; links: { label: string; href: string; external?: boolean }[] }[] = [
+  {
+    heading: "Product",
+    links: [
+      { label: "Our Tools", href: "/dashboard" },
+      { label: "Developer API", href: "/api-docs" },
+      { label: "Use Cases", href: "#worlds" },
+      { label: "Pricing", href: "/dashboard/billing" },
+    ],
+  },
+  {
+    heading: "Learn",
+    links: [
+      { label: "Blog", href: "/blog" },
+      { label: "Three steps to your first ad", href: "/blog/three-steps-to-your-first-ad" },
+      { label: "Inside the multi-agent system", href: "/blog/inside-the-multi-agent-system" },
+      { label: "Ways to Use Optiq Studio", href: "#worlds" },
+    ],
+  },
+  {
+    heading: "Featured Tools",
+    links: [
+      { label: "Video Studio", href: "/dashboard/video" },
+      { label: "Optiq Video Engine", href: "/dashboard/video" },
+      { label: "Image Studio", href: "/dashboard/image" },
+      { label: "Audio Studio", href: "/dashboard/audio" },
+      { label: "Assets", href: "/dashboard/assets" },
+      { label: "Prompt Enhancer", href: "/dashboard/video" },
+    ],
+  },
+  {
+    heading: "Professionals",
+    links: [
+      { label: "Optiq Studio Enterprise", href: "/enterprise" },
+      { label: "For Education", href: "mailto:hello@optiq.studio" },
+      { label: "Data Security", href: "#" },
+    ],
+  },
+];
 
 const HERO_LINKS = [
   { label: "OPTIQ STUDIO STORYBOARD", href: "/dashboard/create" },
@@ -107,23 +149,156 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
 
 export default function LandingPage() {
   const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const appHref = user ? "/dashboard" : "/login";
 
   return (
-    <div className="min-h-screen bg-white text-black">
-      {/* ── Nav: the same header the blog and enterprise pages use ── */}
-      <BlogHeader />
-      {/* Clipped to the header's own height. Its 128px default is invisible on
-          the white blog pages, but here it would spill a white wash over the
-          top of the hero video — while still being needed, since the nav is
-          transparent and that video scrolls up behind it. */}
-      <ProgressiveBlur height={68} />
+    <div className="min-h-screen bg-white text-black" onMouseLeave={() => setMenuOpen(null)}>
+      {/* ── Nav: the landing page keeps its own. BlogHeader fronts /blog
+          and /enterprise; this one is deliberately not that. ── */}
+      <header className="sticky top-0 z-50 bg-white">
+        <nav className="relative mx-auto flex h-14 max-w-[1440px] items-center px-4">
+          <Link href="/" className="text-[26px] font-bold lowercase tracking-tight leading-none flex items-center gap-3 select-none">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 rounded-full">
+              <circle cx="16" cy="16" r="16" fill="white" stroke="#e5e5e5" strokeWidth={1} />
+              <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+            </svg>
+            <span>optiq studio</span>
+          </Link>
+
+          <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 lg:flex">
+            {NAV_ITEMS.map((item) => {
+              if (item === "API") {
+                return (
+                  <Link
+                    key={item}
+                    href="/api-docs"
+                    className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
+                  >
+                    {item}
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={item}
+                  onMouseEnter={() => setMenuOpen(item === "PRODUCT" ? "PRODUCT" : null)}
+                  className="font-mono text-[11px] font-medium tracking-[0.08em] text-black hover:text-neutral-500 transition-colors"
+                >
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="ml-auto hidden items-center gap-2 lg:flex">
+            <Link
+              href="/enterprise"
+              className="rounded-md bg-neutral-100 px-3.5 py-2 text-[13px] font-medium hover:bg-neutral-200 transition-colors"
+            >
+              Enterprise
+            </Link>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white hover:bg-neutral-800 transition-colors"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-md bg-neutral-100 px-3.5 py-2 text-[13px] font-medium hover:bg-neutral-200 transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  href={appHref}
+                  className="rounded-md bg-black px-3.5 py-2 text-[13px] font-medium text-white hover:bg-neutral-800 transition-colors"
+                >
+                  Make an ad
+                </Link>
+              </>
+            )}
+          </div>
+
+          <button className="ml-auto lg:hidden" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Menu">
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </nav>
+
+        {/* Mega-menu */}
+        {menuOpen === "PRODUCT" && (
+          <div
+            className="absolute inset-x-0 top-14 z-50 border-b border-neutral-800 bg-black/95 text-white backdrop-blur"
+            onMouseLeave={() => setMenuOpen(null)}
+          >
+            <div className="mx-auto grid max-w-[1440px] grid-cols-2 gap-x-16 gap-y-10 px-16 py-12 md:grid-cols-4">
+              {MEGA_MENU.map((col) => (
+                <div key={col.heading}>
+                  <p className="mb-4 text-[12px] text-neutral-500">{col.heading}</p>
+                  <ul className="space-y-2.5">
+                    {col.links.map((l) => (
+                      <li key={l.label}>
+                        <Link
+                          href={l.href}
+                          className="inline-flex items-center gap-1 text-[14px] text-neutral-200 hover:text-white transition-colors"
+                        >
+                          {l.label}
+                          {l.external && <ArrowUpRight size={11} className="text-neutral-500" />}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mobileOpen && (
+          <div className="border-b border-neutral-200 bg-white px-6 py-4 space-y-3 lg:hidden">
+            {["Product", "Company", "API"].map((l) => (
+              <Link
+                key={l}
+                href={l === "API" ? "/api-docs" : "#worlds"}
+                className="block text-sm"
+                onClick={() => setMobileOpen(false)}
+              >
+                {l}
+              </Link>
+            ))}
+            <Link
+              href="/enterprise"
+              className="block text-sm font-semibold"
+              onClick={() => setMobileOpen(false)}
+            >
+              Enterprise
+            </Link>
+            {user ? (
+              <Link href="/dashboard" className="block text-sm font-semibold" onClick={() => setMobileOpen(false)}>
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
+                  Login
+                </Link>
+                <Link href={appHref} className="block text-sm font-medium" onClick={() => setMobileOpen(false)}>
+                  Make an ad
+                </Link>
+              </>
+            )}
+          </div>
+        )}
+      </header>
+      <ProgressiveBlur />
 
       {/* ── Hero: inset rounded video card ─────────────────────────── */}
-      {/* The header is fixed, so the hero owns the gap under it. Subtracting
-          its height keeps header + hero at the 88vh the card was drawn for. */}
-      <section className="px-3 pb-3 pt-[68px]">
-        <div className="relative h-[calc(88vh-68px)] w-full overflow-hidden rounded-xl bg-black">
+      <section className="px-3 pb-3">
+        <div className="relative h-[88vh] w-full overflow-hidden rounded-xl bg-black">
           <MediaSlot
             src="/media/template-2.mp4"
             className="absolute inset-0 h-full w-full"
