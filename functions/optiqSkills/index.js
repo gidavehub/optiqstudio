@@ -146,6 +146,37 @@ function knowledgeFor(skillName) {
   return files.map((f) => loadDoc(f)).join("\n\n---\n\n");
 }
 
+// ─── DOCTRINE MODULES, BY NAME ──────────────────────────────────────────────
+// The storyline agent (see ./agent.js) reads doctrine on demand rather than
+// carrying the whole manual in its system prompt — the user can ask "why does
+// every prompt have to say Black?" and the agent quotes the actual module.
+const DOCTRINE_MODULES = {
+  doctrine: { file: "01-doctrine.md", title: "The doctrine — moments not mood, the seven laws, banned vocabulary" },
+  "prompt-architecture": { file: "02-prompt-architecture.md", title: "The canonical 14-block prompt order and the length doctrine" },
+  "character-consistency": { file: "03-character-consistency.md", title: "Locked Character Blocks, wardrobe locks, how a face survives nine clips" },
+  "environment-engine": { file: "04-environment-engine.md", title: "The specificity ladder — how a place stops being generic Africa" },
+  "craft-modules": { file: "05-craft-modules.md", title: "Camera, lighting, colour and sound craft" },
+  "cut-logic": { file: "06-cut-logic.md", title: "When a 10s scene is one shot and when it carries hard cuts" },
+  "voice-dialogue": { file: "07-voice-dialogue.md", title: "Dialogue, language tags and voiceover" },
+  "brand-product-text": { file: "08-brand-product-text.md", title: "Product anchors, packaging, on-screen text and logos" },
+  safety: { file: "09-safety.md", title: "Safety — minors, classifiers, prohibited framings" },
+  "failure-catalog": { file: "10-failure-catalog.md", title: "Known generation failures and their structural fixes" },
+  "agent-procedure": { file: "11-agent-procedure.md", title: "How the swarm works end to end" },
+  exemplar: { file: "exemplar-scene.md", title: "A gold-standard scene prompt at full density" },
+};
+
+function doctrineIndexText() {
+  return Object.entries(DOCTRINE_MODULES)
+    .map(([id, m]) => `- "${id}" — ${m.title}`)
+    .join("\n");
+}
+
+function doctrineModule(id) {
+  const mod = DOCTRINE_MODULES[id];
+  if (!mod) return null;
+  return loadDoc(mod.file);
+}
+
 function exemplarScenePrompt() {
   return loadDoc("exemplar-scene.md");
 }
@@ -160,6 +191,9 @@ module.exports = {
   storyLibraryIndexText,
   referenceFilmBriefs,
   knowledgeFor,
+  DOCTRINE_MODULES,
+  doctrineIndexText,
+  doctrineModule,
   exemplarScenePrompt,
   countWords,
 };

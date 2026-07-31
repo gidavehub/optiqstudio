@@ -22,8 +22,11 @@ export default function FloatingChrome() {
 
   if (!user) return null;
 
+  // Only the project route ITSELF can be the timeline editor. Matching on a
+  // `startsWith` used to swallow the pills on /project/[id]/agent too, whose
+  // header sits under them and has no brand of its own.
   const inTimelineEditor =
-    pathname?.startsWith("/dashboard/project/") && productionMode === "auto-merge";
+    /^\/dashboard\/project\/[^/]+$/.test(pathname || "") && productionMode === "auto-merge";
   if (inTimelineEditor) return null;
 
   const initial = (user.displayName || user.email || "?").charAt(0).toUpperCase();

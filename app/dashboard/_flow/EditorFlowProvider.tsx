@@ -110,6 +110,9 @@ interface EditorFlowValue {
   pipelineProgress: { scenesDone: number; scenesTotal: number } | null;
   retryStoryboard: () => Promise<void>;
 
+  /** True while a storyline-agent turn is rewriting this project server-side. */
+  agentRunning: boolean;
+
   // Per-scene reference images (product/character consistency)
   sceneImages: SceneImagesMap;
   projectMaterials: SceneImage[];
@@ -143,6 +146,12 @@ interface EditorFlowValue {
 // Stages the server-side storyboard job (functions/storyboardGenerate) streams
 // into the project doc while it works. "ready" / "failed" are terminal.
 const PIPELINE_WORKING_STAGES = ["queued", "analyzing", "storylining", "casting", "building"];
+
+// The storyline-agent function can't run longer than its own 540s ceiling, so a
+// project still flagged "running" past this lost its turn to a crash or a
+// timeout. Treating that as finished is what stops one dead turn from disabling
+// the editor's autosave for good.
+const AGENT_TURN_CEILING_MS = 10 * 60 * 1000;
 
 const EditorFlowContext = createContext<EditorFlowValue | null>(null);
 
@@ -206,6 +215,23 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [pipelineStage, setPipelineStage] = useState<string | null>(null);
   const [pipelineProgress, setPipelineProgress] = useState<{ scenesDone: number; scenesTotal: number } | null>(null);
 
+  // The storyline agent (functions/storylineAgent) rewrites scenes server-side
+  // from /dashboard/project/[id]/agent. `scriptRevision` is a server-owned
+  // counter it bumps on every write; whenever it moves past what we've applied,
+  // the editor adopts the doc's script. `agentStatus` is the other half of the
+  // deal — while a turn runs the debounced autosave below stands down, so a
+  // save queued moments earlier can't land on top of the agent's work.
+  const appliedRevisionRef = useRef(0);
+
+  // Derived, never stored: a boolean in state would be frozen at whatever the
+  // last snapshot said, and a project whose turn crashed sends no further
+  // snapshots — so a stale "running" would never clear. Recomputing on render
+  // means the ceiling is re-checked every time it actually matters.
+  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const agentRunning =
+    activeProject?.agentStatus === "running" &&
+    Date.now() - Date.parse(activeProject.agentStartedAt || "") < AGENT_TURN_CEILING_MS;
+
   // Per-scene reference images. Mirrored in a ref so generation callbacks fired
   // right after a state update (or from stale closures) always see the latest.
   const [sceneImages, setSceneImages] = useState<SceneImagesMap>({});
@@ -226,6 +252,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
 
     setPipelineStage(proj.pipelineStage || null);
     setPipelineProgress(proj.pipelineProgress || null);
+    appliedRevisionRef.current = Number(proj.scriptRevision) || 0;
 
     if (stillGenerating) {
       setStoryboard(null);
@@ -331,9 +358,43 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     return () => unsubscribe();
   }, [user]);
 
+  // ─── ADOPT A SCRIPT THE SERVER REWROTE ────────────────────────────────────
+  // Narrower than loadProjectState on purpose: the storyline agent only ever
+  // touches the script and the film-wide locks, so an in-flight render, the
+  // timeline and the production mode are all left exactly as they are. The one
+  // thing it does carry over from videoStatus is `customPrompt` — the script
+  // editor renders `customPrompt || fullPrompt`, so a stale override would hide
+  // the agent's rewrite behind the text it just replaced.
+  const adoptServerScript = useCallback((proj: any) => {
+    setStoryboard({
+      title: proj.title,
+      concept: proj.concept,
+      styleHeader: proj.styleHeader || "",
+      characterLock: proj.characterLock || { name: "", description: "", wardrobe: "" },
+      scenes: proj.scenes || [],
+      isStory: proj.isStory,
+      storyArc: proj.storyArc,
+      musicSpec: proj.musicSpec,
+      ambienceSpec: proj.ambienceSpec,
+    });
+    setVideoStatus((prev) => {
+      const serverStatus = proj.videoStatus || {};
+      const next = { ...prev };
+      (proj.scenes || []).forEach((_: unknown, idx: number) => {
+        const custom = serverStatus[idx]?.customPrompt;
+        if (custom !== undefined) next[idx] = { ...next[idx], customPrompt: custom };
+      });
+      return next;
+    });
+  }, []);
+
   // ─── AUTO-SYNC STATE TO FIRESTORE ON STATE MUTATIONS ──────────────────────
   useEffect(() => {
     if (!user || !activeProjectId || !storyboard) return;
+    // While the agent is mid-turn the server owns the script. Writing here
+    // would be the same class of bug as echoing compileStatus back: our
+    // debounced copy is older than what the agent just wrote.
+    if (agentRunning) return;
 
     const cleanUndefined = (obj: any): any => {
       if (obj === null || typeof obj !== "object") return obj;
@@ -396,6 +457,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     aspectRatio,
     sceneImages,
     projectMaterials,
+    agentRunning,
   ]);
 
   // ─── RESUME/ACTIVATE PROJECT FROM /project/[id] ROUTE ─────────────────────
@@ -427,6 +489,15 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     setPipelineStage(match.pipelineStage || null);
     setPipelineProgress(match.pipelineProgress || null);
 
+    // A storyline-agent turn rewrote the script. Adopt it — this is what makes
+    // an edit made in the chat show up in the script editor immediately, with
+    // no reload and no polling.
+    const revision = Number(match.scriptRevision) || 0;
+    if (storyboard && revision !== appliedRevisionRef.current) {
+      appliedRevisionRef.current = revision;
+      adoptServerScript(match);
+    }
+
     if (match.pipelineStage === "ready") {
       const loadedCount = storyboard?.scenes.length ?? 0;
       const docCount = match.scenes?.length ?? 0;
@@ -440,7 +511,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     } else if (PIPELINE_WORKING_STAGES.includes(match.pipelineStage)) {
       setGenerating(true);
     }
-  }, [projects, activeProjectId, storyboard, loadProjectState]);
+  }, [projects, activeProjectId, storyboard, loadProjectState, adoptServerScript]);
 
   // ─── INITIALIZE TIMELINE FROM COMPLETED VIDEOS ──────────────────────────
   useEffect(() => {
@@ -1068,6 +1139,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     storyboard, setStoryboard,
     videoStatus, setVideoStatus,
     pipelineStage, pipelineProgress, retryStoryboard,
+    agentRunning,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     startSpeechRecognition, stopSpeechRecognition,

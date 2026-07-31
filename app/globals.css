@@ -250,34 +250,82 @@ select:focus {
   animation: cardPop 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Page-to-page flip used by the mobile script editor deck. */
-@keyframes deckInNext {
-  from {
+/* ── The deck page-turn ───────────────────────────────────────────────────
+   Used by the mobile script editor's one-scene-per-page deck, and by the
+   storyline agent route so arriving there reads as another page of the same
+   film rather than a different app.
+
+   This is hinged, not slid. The incoming page swings about its spine — the
+   left edge going forward, the right edge going back — from deep in Z, and
+   passes through a brightness sweep on the way so it catches the light like
+   paper turning. Only transform, opacity and filter animate, so it stays on
+   the compositor.
+
+   fill-mode is `backwards`, never `both`, and that is load-bearing: a
+   transform or filter left sitting on the element after the animation ends
+   would make it a containing block for every `position: fixed` descendant
+   underneath it, for the rest of the page's life. */
+@keyframes deckTurnNext {
+  0% {
     opacity: 0;
-    transform: perspective(1400px) translateX(28%) rotateY(-22deg) scale(0.92);
+    transform: perspective(1600px) translate3d(26%, 0, -260px) rotateY(-46deg) scale(0.94);
+    filter: brightness(0.4);
   }
-  to {
+  45% {
     opacity: 1;
-    transform: perspective(1400px) translateX(0) rotateY(0) scale(1);
+    filter: brightness(1.1);
+  }
+  80% {
+    transform: perspective(1600px) translate3d(0, 0, 0) rotateY(2.5deg) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1600px) translate3d(0, 0, 0) rotateY(0) scale(1);
+    filter: brightness(1);
   }
 }
-@keyframes deckInPrev {
-  from {
+@keyframes deckTurnPrev {
+  0% {
     opacity: 0;
-    transform: perspective(1400px) translateX(-28%) rotateY(22deg) scale(0.92);
+    transform: perspective(1600px) translate3d(-26%, 0, -260px) rotateY(46deg) scale(0.94);
+    filter: brightness(0.4);
   }
-  to {
+  45% {
     opacity: 1;
-    transform: perspective(1400px) translateX(0) rotateY(0) scale(1);
+    filter: brightness(1.1);
   }
+  80% {
+    transform: perspective(1600px) translate3d(0, 0, 0) rotateY(-2.5deg) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1600px) translate3d(0, 0, 0) rotateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+.animate-deck-next,
+.animate-deck-prev {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
 }
 .animate-deck-next {
-  animation: deckInNext 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
-  transform-style: preserve-3d;
+  transform-origin: left center;
+  animation: deckTurnNext 0.58s cubic-bezier(0.22, 1, 0.28, 1) backwards;
 }
 .animate-deck-prev {
-  animation: deckInPrev 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
-  transform-style: preserve-3d;
+  transform-origin: right center;
+  animation: deckTurnPrev 0.58s cubic-bezier(0.22, 1, 0.28, 1) backwards;
+}
+
+/* A turning page on a device that asked for less motion is just a fade. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-deck-next,
+  .animate-deck-prev {
+    animation: rise 0.3s ease-out backwards;
+    transform-origin: center;
+  }
 }
 
 /* Gentle hover bob on drop-zone icons */

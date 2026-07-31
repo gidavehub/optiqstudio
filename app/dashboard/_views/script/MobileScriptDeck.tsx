@@ -12,7 +12,7 @@
 // are the scenes, video first.
 
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Sliders, Tv } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Sliders, Tv } from "lucide-react";
 import { Scene, SceneImage, Storyboard, VideoStatusMap } from "../../_flow/types";
 import DirectionPanel from "./DirectionPanel";
 import SceneBeats from "./SceneBeats";
@@ -37,6 +37,10 @@ interface MobileScriptDeckProps {
   renderCost: (sceneIndex: number) => number;
   onRequestRender: (sceneIndex: number, prompt: string) => void;
   onOpenTimeline: () => void;
+  /** Opens the storyline agent — the deck's film-wide page. */
+  onOpenAgent: () => void;
+  /** True while an agent turn is rewriting this film server-side. */
+  agentRunning: boolean;
 }
 
 export default function MobileScriptDeck({
@@ -55,6 +59,8 @@ export default function MobileScriptDeck({
   renderCost,
   onRequestRender,
   onOpenTimeline,
+  onOpenAgent,
+  agentRunning,
 }: MobileScriptDeckProps) {
   // Page 0 is Direction; scene i lives on page i + 1.
   const pageCount = storyboard.scenes.length + 1;
@@ -92,12 +98,25 @@ export default function MobileScriptDeck({
             </span>
             <h2 className="truncate text-sm font-bold tracking-tight text-white">{storyboard.title}</h2>
           </div>
-          <button
-            onClick={onOpenTimeline}
-            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-3 py-2 text-[11px] font-bold text-blue-400 transition-colors active:scale-95"
-          >
-            <Tv size={12} /> Timeline
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={onOpenAgent}
+              aria-label="Storyline agent"
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition-colors active:scale-95 ${
+                agentRunning
+                  ? "animate-pulse border-blue-400 bg-[#131d35] text-blue-300"
+                  : "border-white/5 bg-white/5 text-neutral-300"
+              }`}
+            >
+              <Bot size={12} />
+            </button>
+            <button
+              onClick={onOpenTimeline}
+              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-3 py-2 text-[11px] font-bold text-blue-400 transition-colors active:scale-95"
+            >
+              <Tv size={12} /> Timeline
+            </button>
+          </div>
         </div>
 
         {/* Progress dots — tap one to jump straight there */}
@@ -140,6 +159,27 @@ export default function MobileScriptDeck({
                   {storyboard.concept}
                 </p>
               </div>
+
+              {/* The whole-storyline page. The fields below edit one lock at a
+                  time; this is where you change the film itself. */}
+              <button
+                onClick={onOpenAgent}
+                className="flex w-full items-center gap-3 rounded-2xl border border-blue-500/30 bg-[#0c152d] p-4 text-left transition-colors active:scale-[0.99]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-500/30 bg-[#131d35] text-blue-400">
+                  <Bot size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold tracking-tight text-white">
+                    {agentRunning ? "Agent is working…" : "Work the whole storyline"}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-400">
+                    Talk it through — rewrite scenes, retune the arc, keep every lock intact.
+                  </span>
+                </span>
+                <ChevronRight size={15} className="shrink-0 text-blue-400" />
+              </button>
+
               <DirectionPanel storyboard={storyboard} setStoryboard={setStoryboard} stacked />
             </div>
           ) : scene && status ? (

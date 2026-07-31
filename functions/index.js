@@ -2076,6 +2076,163 @@ exports.storyRevise = onRequest(
   }
 );
 
+// ─── THE STORYLINE AGENT ─────────────────────────────────────────────────────
+// The chat at /dashboard/project/[id]/agent. Same shape as the storyboard job:
+// the client writes its message plus an empty assistant bubble into
+// projects/{id}/agentChat, drops a job in `agentJobs`, and this trigger fills the
+// bubble in — streaming the work log and the prose into it as they happen. So a
+// three-minute film-wide rewrite survives a closed tab, and reopening the chat
+// shows exactly where the agent is.
+//
+// Must run in us-central1 (nam5 Firestore Eventarc), like storyboardGenerate.
+// Idempotent: the job is claimed queued -> running in a transaction so an
+// at-least-once duplicate delivery can't run the same turn twice.
+
+const { runStorylineAgent } = require("./optiqSkills/agent");
+
+// How much of the thread the agent carries into a turn. Reads of the film go
+// through tools, so this only has to hold the conversation.
+const AGENT_HISTORY_LIMIT = 20;
+
+exports.storylineAgent = onDocumentCreated(
+  { document: "agentJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 10 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const job = snap.data();
+    if (!job || !job.projectId || !job.replyTo) return;
+
+    const jobRef = snap.ref;
+    const projectRef = db.collection("projects").doc(job.projectId);
+    const replyRef = projectRef.collection("agentChat").doc(job.replyTo);
+
+    const claimed = await db.runTransaction(async (tx) => {
+      const d = await tx.get(jobRef);
+      if (d.exists && (d.data().status || "queued") === "queued") {
+        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
+        return true;
+      }
+      return false;
+    });
+    if (!claimed) {
+      console.log(`[agent ${job.projectId}] job not in 'queued' state, skipping`);
+      return;
+    }
+
+    const fail = async (message) => {
+      await replyRef
+        .set({ status: "failed", error: message, updatedAt: new Date().toISOString() }, { merge: true })
+        .catch(() => {});
+      await projectRef.update({ agentStatus: null }).catch(() => {});
+      await jobRef.update({ status: "failed", error: message }).catch(() => {});
+    };
+
+    try {
+      const projectSnap = await projectRef.get();
+      if (!projectSnap.exists) return fail("That project no longer exists.");
+      const project = { id: projectSnap.id, ...projectSnap.data() };
+      if (project.uid !== job.uid) return fail("You don't have access to that project.");
+      if (!project.scenes || project.scenes.length === 0) {
+        return fail("This project has no script yet — generate the storyboard first, then come back and we'll work on it.");
+      }
+
+      // The thread so far, oldest first, minus the bubble we're about to fill.
+      const historySnap = await projectRef.collection("agentChat").orderBy("createdAt", "desc").limit(AGENT_HISTORY_LIMIT).get();
+      const history = historySnap.docs
+        .filter((d) => d.id !== job.replyTo && (d.data().text || "").trim())
+        .map((d) => ({ role: d.data().role === "assistant" ? "assistant" : "user", text: d.data().text }))
+        .reverse();
+      // The message being answered is passed separately, so drop its echo.
+      if (history[history.length - 1]?.text === job.text) history.pop();
+
+      // Tells the client to suspend its debounced project autosave. Without
+      // this, a save queued before the turn started could land after the agent
+      // wrote a scene and quietly restore the old prompt.
+      // agentStartedAt is the client's escape hatch: a turn that dies without
+      // running its catch (an OOM, the 540s ceiling) would otherwise leave
+      // agentStatus pinned to "running" forever, and the editor would never
+      // autosave again. The client ignores a "running" flag older than the
+      // function's own ceiling.
+      await projectRef.update({
+        agentStatus: "running",
+        agentStartedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await replyRef.set({ status: "working", updatedAt: new Date().toISOString() }, { merge: true });
+
+      // Firestore writes are cheap but not free, and the work log can tick
+      // several times a second during a film-wide pass. Coalesce to ~1/s — but
+      // on a TRAILING timer, not by dropping the update. A plain throttle would
+      // discard the write that flips a step to "done", and if the next model
+      // call then ran for a minute the chat would sit there spinning on work
+      // that had already finished.
+      let lastPublish = 0;
+      let pending = null;
+      let flushTimer = null;
+      const flush = async () => {
+        flushTimer = null;
+        if (!pending) return;
+        lastPublish = Date.now();
+        const body = pending;
+        pending = null;
+        await replyRef.set({ ...body, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      };
+      const publish = async (patch) => {
+        pending = { ...(pending || {}), ...patch };
+        if (flushTimer) return;
+        const wait = Math.max(0, 900 - (Date.now() - lastPublish));
+        if (wait === 0) return flush();
+        flushTimer = setTimeout(() => void flush(), wait);
+      };
+
+      const result = await runStorylineAgent({
+        vertexFetch,
+        project,
+        saveProject: async (patch) => {
+          // stripUndefined rebuilds plain objects, so the increment sentinel is
+          // added AFTER it — running it through would flatten the transform
+          // into a meaningless `{}`.
+          await projectRef.update({
+            ...stripUndefined(patch),
+            // Server-owned counter. The client adopts the project's scenes
+            // whenever this moves, which is how an agent edit shows up live in
+            // the script editor without the client polling for it.
+            scriptRevision: admin.firestore.FieldValue.increment(1),
+            updatedAt: new Date().toISOString(),
+          });
+        },
+        history,
+        message: job.text,
+        onSteps: (steps) => publish({ steps }),
+        onText: (text) => publish({ text }),
+      });
+
+      // Drop any scheduled partial write — the full turn is about to land, and
+      // a timer that fired after the handler returned would never run anyway.
+      if (flushTimer) clearTimeout(flushTimer);
+      pending = null;
+
+      await replyRef.set(
+        {
+          role: "assistant",
+          text: result.text,
+          steps: result.steps,
+          touchedFilm: result.touchedFilm,
+          status: "done",
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      await projectRef.update({ agentStatus: null, updatedAt: new Date().toISOString() });
+      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+      console.log(`[agent ${job.projectId}] turn done (${result.steps.length} tool calls, touchedFilm=${result.touchedFilm})`);
+    } catch (err) {
+      console.error(`[agent ${job.projectId}] turn failed:`, err);
+      await fail(err.message || "The agent hit an error mid-turn.");
+    }
+  }
+);
+
 // Helper for projectCompile to download files using native fetch
 async function compileDownloadFile(url, destPath) {
   const response = await fetch(url);

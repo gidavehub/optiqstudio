@@ -10,8 +10,9 @@
 // usefully scroll nine scenes' worth of 2,000-word prompts.
 
 import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  RefreshCw, Edit3, AlertCircle, Undo2, Tv, Play,
+  RefreshCw, Edit3, AlertCircle, Undo2, Tv, Play, Bot,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { useAuth } from "../../../components/AuthProvider";
@@ -38,10 +39,13 @@ export default function ProjectWorkspace() {
     generateVideoForScene, reviseScenePrompt,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
-    goHome, projects, activeProjectId,
+    goHome, projects, activeProjectId, agentRunning,
   } = useEditorFlow();
   const { profile, pricing } = useAuth();
   const isMobile = useIsMobile();
+  const router = useRouter();
+
+  const openAgent = () => router.push(`/dashboard/project/${activeProjectId}/agent`);
 
   const project = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -119,6 +123,24 @@ export default function ProjectWorkspace() {
       description={`Scene ${(pendingRender?.index ?? 0) + 1} — ${SCENE_SECONDS}s clip`}
       actionLabel="Render Scene"
     />
+  );
+
+  // The way into the storyline agent, carried by every face of the workspace.
+  // Pulses while a turn is running server-side, so a rewrite kicked off from
+  // the chat is visible even from the timeline.
+  const agentButton = (
+    <button
+      onClick={openAgent}
+      title="Work on the whole storyline with the agent"
+      className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors active:scale-95 ${
+        agentRunning
+          ? "animate-pulse border-blue-400 bg-[#131d35] text-blue-300"
+          : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-blue-400"
+      }`}
+    >
+      <Bot size={13} />
+      <span className="hidden sm:inline">{agentRunning ? "Agent working…" : "Agent"}</span>
+    </button>
   );
 
   // ── EMPTY / GENERATING / ERROR STATES ──────────────────────────────────
@@ -210,6 +232,7 @@ export default function ProjectWorkspace() {
               {renderTally.done}
               <span className="text-neutral-600"> / {sceneCount}</span>
             </span>
+            {agentButton}
             <button
               onClick={() => setProductionMode("manual")}
               className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-white/10 hover:text-blue-400"
@@ -321,6 +344,8 @@ export default function ProjectWorkspace() {
           renderCost={renderCost}
           onRequestRender={requestRender}
           onOpenTimeline={() => setProductionMode("auto-merge")}
+          onOpenAgent={openAgent}
+          agentRunning={agentRunning}
         />
         {confirmModal}
       </>
@@ -345,6 +370,7 @@ export default function ProjectWorkspace() {
               {renderTally.done}
               <span className="text-neutral-600"> / {sceneCount}</span> rendered
             </span>
+            {agentButton}
             <button
               onClick={() => setProductionMode("auto-merge")}
               className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-4 py-2 text-xs font-semibold text-blue-400 transition-colors hover:border-blue-400 hover:bg-[#131d35]"
