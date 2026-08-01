@@ -72,25 +72,25 @@ export default function StudioProjectsGrid({
           <div
             key={item.id}
             onClick={() => !isDeleting && onOpen(item)}
-            className={`group relative flex aspect-video cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-neutral-900 bg-[#09090a]/60 shadow-sm transition-all duration-300 hover:border-neutral-800 hover:bg-[#0c0c0e] ${
+            className={`group relative flex aspect-video cursor-pointer flex-col justify-between overflow-hidden rounded-3xl border border-line bg-[#09090a]/60 shadow-sm transition-all duration-300 hover:border-line hover:bg-background ${
               isDeleting ? "scale-[0.94] opacity-0 blur-[2px] pointer-events-none" : "scale-100 opacity-100"
             } ${isFresh && !isDeleting ? "animate-card-pop" : ""}`}
           >
             <div className="relative flex h-full w-full flex-1 items-center justify-center overflow-hidden">
               {isRendering ? (
-                <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[#070708] p-4">
+                <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-background p-4">
                   <div className="absolute -inset-[20px] opacity-40">
-                    <div className="absolute left-1/4 top-1/4 h-32 w-32 animate-pulse rounded-full bg-neutral-600/15 blur-2xl" style={{ animationDuration: "4s" }} />
-                    <div className="absolute bottom-1/4 right-1/4 h-36 w-36 animate-pulse rounded-full bg-neutral-600/20 blur-2xl" style={{ animationDuration: "6s" }} />
-                    <div className="absolute right-1/3 top-1/2 h-28 w-28 animate-pulse rounded-full bg-neutral-500/10 blur-2xl" style={{ animationDuration: "3s" }} />
+                    <div className="absolute left-1/4 top-1/4 h-32 w-32 animate-pulse rounded-full bg-surface-3 blur-2xl" style={{ animationDuration: "4s" }} />
+                    <div className="absolute bottom-1/4 right-1/4 h-36 w-36 animate-pulse rounded-full bg-surface-3 blur-2xl" style={{ animationDuration: "6s" }} />
+                    <div className="absolute right-1/3 top-1/2 h-28 w-28 animate-pulse rounded-full bg-surface-2 blur-2xl" style={{ animationDuration: "3s" }} />
                   </div>
                   <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-2xl" />
                   <div className="relative z-20 flex max-w-[85%] flex-col items-center text-center">
-                    <Loader2 size={22} className="mb-3 animate-spin text-white/80" />
-                    <span className="mb-2 font-mono text-[10px] uppercase tracking-widest text-neutral-400">
+                    <Loader2 size={22} className="mb-3 animate-spin text-ink-2" />
+                    <span className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink-3">
                       {mediaType === "video" ? "Generating shot" : "Generating still"}
                     </span>
-                    <p className="line-clamp-3 px-2 font-sans text-xs font-medium leading-relaxed text-neutral-200 drop-shadow">
+                    <p className="line-clamp-3 px-2 font-sans text-xs font-medium leading-relaxed text-foreground drop-shadow">
                       {item.prompt}
                     </p>
                   </div>
@@ -114,11 +114,11 @@ export default function StudioProjectsGrid({
                   <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-5 text-center opacity-0 backdrop-blur-md transition-opacity duration-300 bg-black/65 group-hover:opacity-100">
                     {/* Only footage gets a play affordance — a still has nothing to play. */}
                     {mediaType === "video" && (
-                      <div className="mb-3 scale-90 rounded-full border border-white/20 bg-white/10 p-2 transition-all duration-300 group-hover:scale-100">
-                        <Play size={16} fill="white" className="translate-x-[1px] text-white" />
+                      <div className="mb-3 scale-90 rounded-full border border-line-2 bg-surface-2 p-2 transition-all duration-300 group-hover:scale-100">
+                        <Play size={16} fill="white" className="translate-x-[1px] text-foreground" />
                       </div>
                     )}
-                    <p className="line-clamp-3 max-w-[90%] px-1 font-sans text-xs font-medium leading-relaxed text-neutral-100">
+                    <p className="line-clamp-3 max-w-[90%] px-1 font-sans text-xs font-medium leading-relaxed text-foreground">
                       {item.prompt}
                     </p>
                   </div>
@@ -131,7 +131,7 @@ export default function StudioProjectsGrid({
                   <button
                     onClick={(e) => onReuse(item.id, e)}
                     title="Reuse this prompt and its reference images"
-                    className="rounded-full border border-neutral-800 bg-black/60 p-1.5 text-neutral-400 backdrop-blur-sm transition-colors hover:bg-neutral-900 hover:text-white"
+                    className="rounded-full border border-line bg-black/60 p-1.5 text-ink-3 backdrop-blur-sm transition-colors hover:bg-surface hover:text-white"
                   >
                     <RotateCcw size={13} />
                   </button>
@@ -142,16 +142,16 @@ export default function StudioProjectsGrid({
                       e.stopPropagation();
                       setOpenedMenuId(openedMenuId === item.id ? null : item.id);
                     }}
-                    className="rounded-full border border-neutral-800 bg-black/60 p-1.5 text-neutral-400 backdrop-blur-sm transition-colors hover:bg-neutral-900 hover:text-white"
+                    className="rounded-full border border-line bg-black/60 p-1.5 text-ink-3 backdrop-blur-sm transition-colors hover:bg-surface hover:text-white"
                   >
                     <MoreVertical size={13} />
                   </button>
                   {openedMenuId === item.id && (
-                    <div className="absolute right-0 z-50 mt-1 w-32 rounded-lg border border-neutral-800 bg-[#121314] py-1 shadow-xl">
+                    <div className="absolute right-0 z-50 mt-1 w-32 rounded-xl border border-line bg-surface py-1 shadow-xl">
                       {onReuse && !item.id.startsWith("temp_") && (
                         <button
                           onClick={(e) => onReuse(item.id, e)}
-                          className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white"
+                          className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-ink-2 transition-colors hover:bg-surface hover:text-foreground"
                         >
                           <RotateCcw size={12} />
                           Reuse prompt
@@ -159,7 +159,7 @@ export default function StudioProjectsGrid({
                       )}
                       <button
                         onClick={(e) => onDelete(item.id, e)}
-                        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-red-400 transition-colors hover:bg-neutral-900 hover:text-red-300"
+                        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-danger transition-colors hover:bg-surface hover:text-danger"
                       >
                         <Trash2 size={12} />
                         Delete
@@ -174,10 +174,10 @@ export default function StudioProjectsGrid({
       })}
 
       {items.length === 0 && (
-        <div className="col-span-full flex flex-col items-center py-24 text-center text-neutral-600 sm:py-28">
-          <ImageIcon size={34} className="mb-4 text-neutral-700" />
-          <h3 className="text-sm font-semibold text-neutral-400">{emptyTitle}</h3>
-          <p className="mt-1 max-w-xs text-xs leading-normal text-neutral-600">{emptyHint}</p>
+        <div className="col-span-full flex flex-col items-center py-24 text-center text-faint sm:py-28">
+          <ImageIcon size={34} className="mb-4 text-faint" />
+          <h3 className="text-sm font-semibold text-ink-3">{emptyTitle}</h3>
+          <p className="mt-1 max-w-xs text-xs leading-normal text-faint">{emptyHint}</p>
         </div>
       )}
     </div>

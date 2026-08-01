@@ -51,7 +51,7 @@ export default function AssetsPage() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-6xl px-8 py-10">
       <h1 className="text-[26px] font-semibold tracking-tight">Assets</h1>
-      <p className="mt-1 text-[13px] text-neutral-500">
+      <p className="mt-1 text-[13px] text-muted">
         Everything you&apos;ve generated, stored in your library.
       </p>
 
@@ -62,8 +62,8 @@ export default function AssetsPage() {
             onClick={() => setFilter(f)}
             className={`rounded-full px-3.5 py-1.5 text-xs transition-colors ${
               filter === f
-                ? "bg-white text-black font-medium"
-                : "bg-white/5 text-neutral-400 hover:text-white"
+                ? "bg-foreground text-background font-medium"
+                : "bg-surface text-ink-3 hover:text-foreground"
             }`}
           >
             {f}
@@ -72,7 +72,7 @@ export default function AssetsPage() {
       </div>
 
       {items.length === 0 ? (
-        <div className="mt-24 text-center text-neutral-600">
+        <div className="mt-24 text-center text-faint">
           <FolderOpen size={26} className="mx-auto" />
           <p className="mt-3 text-sm">
             {loaded ? "Nothing here yet — generate something." : "Loading…"}
@@ -85,9 +85,9 @@ export default function AssetsPage() {
             return (
               <div
                 key={item.id}
-                className="group overflow-hidden rounded-xl border border-line bg-surface"
+                className="group overflow-hidden rounded-2xl border border-line bg-surface"
               >
-                <div className="relative aspect-video bg-black">
+                <div className="relative aspect-video bg-background">
                   {item.videoUrl ? (
                     <video
                       src={item.videoUrl}
@@ -102,7 +102,7 @@ export default function AssetsPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.imageUrl} alt={item.prompt} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-neutral-600">
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-faint">
                       <Mic size={18} />
                       {item.audioUrl && <audio src={item.audioUrl} controls className="w-11/12" />}
                     </div>
@@ -112,14 +112,14 @@ export default function AssetsPage() {
                       <a
                         href={url}
                         download
-                        className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 hover:bg-neutral-900 border border-white/5 text-white"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 hover:bg-surface border border-line text-white"
                         title="Download"
                       >
                         <Download size={13} />
                       </a>
                       <button
                         onClick={(e) => handleDelete(item.id, e)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 hover:bg-red-950 border border-white/5 text-neutral-400 hover:text-white"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 hover:bg-red-950 border border-line text-ink-3 hover:text-white"
                         title="Delete"
                       >
                         <Trash2 size={13} />
@@ -128,10 +128,10 @@ export default function AssetsPage() {
                   )}
                 </div>
                 <div className="px-3 py-2.5">
-                  <p className="truncate text-[12px] text-neutral-400" title={item.prompt}>
+                  <p className="truncate text-[12px] text-ink-3" title={item.prompt}>
                     {item.prompt}
                   </p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-wider text-neutral-600">
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wider text-faint">
                     {item.type} · {new Date(item.createdAt).toLocaleDateString()}
                   </p>
                 </div>

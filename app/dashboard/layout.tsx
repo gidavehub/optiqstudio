@@ -19,15 +19,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-black">
-        <Loader2 className="animate-spin text-neutral-500" size={22} />
+      <div className="optiq-app flex h-screen items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-muted" size={22} />
       </div>
     );
   }
 
   return (
+    // `optiq-app` is the theme scope: it redefines --background/--surface/--line
+    // and the rest of the palette to their light values for everything below.
+    // The marketing site sits outside it and stays dark. See app/globals.css.
+    //
     // h-dvh (not h-screen) so mobile browser chrome doesn't crop the layout
-    <div className="flex h-dvh flex-col bg-black text-white relative overflow-hidden">
+    <div className="optiq-app flex h-dvh flex-col bg-background text-foreground relative overflow-hidden">
       {/* Main Full-Screen Layout Wrapper */}
       <div className="flex min-h-0 flex-1 relative overflow-hidden">
         <div className="min-w-0 flex-1 overflow-y-auto transition-all duration-300">

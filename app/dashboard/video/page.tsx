@@ -327,7 +327,7 @@ function VideoWorkspace() {
   };
 
   return (
-    <div className="flex h-full flex-col sm:flex-row overflow-hidden bg-black text-white">
+    <div className="flex h-full flex-col sm:flex-row overflow-hidden bg-background text-foreground">
       {/* Settings & Financial Comparison Rail */}
       <SettingsRail
         aspect={aspect}
@@ -338,16 +338,16 @@ function VideoWorkspace() {
       />
 
       {/* Main Viewport Stage */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-black relative">
+      <main className="flex-1 flex flex-col overflow-hidden bg-background relative">
         {/* Dynamic Canvas Area — only the project wall scrolls */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
           {/* Header navigation bar */}
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-900">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-line">
             <div>
-              <span className="text-[10px] font-mono font-bold text-neutral-500 uppercase tracking-widest block">
+              <span className="text-[10px] font-mono font-bold text-muted uppercase tracking-widest block">
                 CREATIVE FLOW
               </span>
-              <h2 className="text-[18px] font-bold tracking-tight text-white mt-1">All Projects &amp; Stills</h2>
+              <h2 className="text-[18px] font-bold tracking-tight text-foreground mt-1">All Projects &amp; Stills</h2>
             </div>
           </div>
 
@@ -374,24 +374,24 @@ function VideoWorkspace() {
 
         {/* Dynamic Error Status Alerts */}
         {error && (
-          <div className="mx-8 mb-4 rounded-xl border border-red-950 bg-red-950/40 p-4 text-xs text-red-300 flex items-center justify-between animate-rise">
+          <div className="mx-8 mb-4 rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger flex items-center justify-between animate-rise">
             <span>Error: {error}</span>
-            <button onClick={() => setError(null)} className="text-neutral-500 hover:text-white">
+            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
               <X size={14} />
             </button>
           </div>
         )}
 
         {/* Mobile-only compact settings — desktop uses the left rail */}
-        <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-900 bg-background/90 px-4 py-2.5 backdrop-blur-md scrollbar-none sm:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto border-t border-line bg-background/90 px-4 py-2.5 backdrop-blur-md scrollbar-none sm:hidden">
           <AspectRatioStrip options={VIDEO_ASPECTS} value={aspect} onChange={(v) => setAspect(v as (typeof ASPECTS)[number])} />
-          <span className="h-5 w-px shrink-0 bg-neutral-800" />
+          <span className="h-5 w-px shrink-0 bg-surface-2" />
           {DURATIONS.map((d) => (
             <button
               key={d}
               onClick={() => setDuration(d)}
-              className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-                d === duration ? "border-blue-500 bg-[#0c152d] text-white" : "border-neutral-800 bg-[#07090f] text-neutral-400"
+              className={`shrink-0 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                d === duration ? "border-accent bg-surface text-foreground" : "border-line bg-background text-ink-3"
               }`}
             >
               {d}s

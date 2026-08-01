@@ -73,13 +73,13 @@ export default function AudioDetailClient({ id }: { id: string }) {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-black text-white">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-6 pb-16 pt-20">
         {/* Back + actions */}
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/audio"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-neutral-500 hover:text-white transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Voice Studio
@@ -88,13 +88,13 @@ export default function AudioDetailClient({ id }: { id: string }) {
             <div className="flex items-center gap-2">
               <Link
                 href={`/dashboard/audio`}
-                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 hover:bg-[#131d35] transition-colors"
+                className="flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-accent-ink hover:bg-surface-2 transition-colors"
               >
                 <RefreshCw size={11} /> New Take
               </Link>
               <button
                 onClick={deleteItem}
-                className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-ink-3 hover:border-danger hover:text-danger transition-colors"
               >
                 <Trash2 size={11} /> Delete
               </button>
@@ -103,29 +103,29 @@ export default function AudioDetailClient({ id }: { id: string }) {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 text-neutral-500">
+          <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
             <span className="text-xs font-mono uppercase tracking-wider">Loading Take…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-2xl border border-white/5 bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">Take not found</p>
+          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted">Take not found</p>
           </div>
         ) : (
           <>
             {/* 1 · MONITOR PLAYER */}
             {isRendering || !item.audioUrl ? (
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#070b16] p-10 text-center">
+              <div className="relative overflow-hidden rounded-3xl border border-line bg-background p-10 text-center">
                 <div className="absolute -inset-[20px] opacity-40">
                   <div className="absolute top-0 left-1/4 h-32 w-32 rounded-full bg-emerald-600/15 blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
-                  <div className="absolute bottom-0 right-1/4 h-36 w-36 rounded-full bg-blue-500/15 blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
+                  <div className="absolute bottom-0 right-1/4 h-36 w-36 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
                 </div>
                 <div className="relative z-10 flex flex-col items-center">
-                  <Loader2 size={26} className="mb-3 animate-spin text-white" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-white">
+                  <Loader2 size={26} className="mb-3 animate-spin text-foreground" />
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-foreground">
                     Synthesizing Custom Voice…
                   </span>
-                  <p className="mt-1 text-[10px] text-neutral-500">The GPU worker is rendering your take.</p>
+                  <p className="mt-1 text-[10px] text-muted">The GPU worker is rendering your take.</p>
                 </div>
               </div>
             ) : (
@@ -136,7 +136,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
             <PromptCard
               prompt={item.prompt}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-neutral-600">
+                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
                   {item.id.startsWith("voice_") ? "AI Cloned Take" : "Prebuilt Speaker"} ·{" "}
                   {new Date(item.createdAt).toLocaleDateString()}
                 </span>

@@ -96,12 +96,12 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
   const seekRatio = duration > 0 ? time / duration : 0;
 
   return (
-    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col bg-black">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col bg-background">
       {/* Viewport */}
       <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto">
         <div className="flex min-h-full min-w-full items-center justify-center" style={{ width: "max-content", minWidth: "100%", minHeight: "100%" }}>
           <div
-            className="relative shrink-0 overflow-hidden rounded-lg border border-white/5 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.9)]"
+            className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-background shadow-[0_10px_40px_rgba(0,0,0,0.9)]"
             style={{ width: stageW, height: stageH, margin: pad / 2 }}
           >
             <div ref={containerRef} className="absolute inset-0" />
@@ -111,8 +111,8 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
                 onClick={() => playerRef.current?.play()}
                 className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity"
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0a0f1d]/80 border border-white/15 backdrop-blur-md shadow-xl">
-                  <Play size={20} className="text-white fill-white translate-x-0.5" />
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0a0f1d]/80 border border-line-2 backdrop-blur-md shadow-xl">
+                  <Play size={20} className="text-foreground fill-foreground translate-x-0.5" />
                 </span>
               </button>
             )}
@@ -120,31 +120,31 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
         </div>
 
         {/* Zoom chip */}
-        <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border border-white/10 bg-[#0a0f1d]/80 px-2 py-0.5 font-mono text-[9px] font-bold text-neutral-400 backdrop-blur-md">
+        <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border border-line bg-[#0a0f1d]/80 px-2 py-0.5 font-mono text-[9px] font-bold text-ink-3 backdrop-blur-md">
           {Math.round(zoom * 100)}%
         </div>
       </div>
 
       {/* Transport bar */}
-      <div className="flex items-center gap-3 border-t border-white/5 bg-[#0a0f1d]/90 px-4 py-2 shrink-0">
+      <div className="flex items-center gap-3 border-t border-line bg-[#0a0f1d]/90 px-4 py-2 shrink-0">
         <div className="flex items-center gap-1">
           <button
             onClick={() => playerRef.current?.seek(0)}
-            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-ink-3 hover:text-foreground hover:bg-surface transition-colors"
             title="Jump to start (Home)"
           >
             <SkipBack size={14} />
           </button>
           <button
             onClick={() => playerRef.current?.toggle()}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black hover:bg-blue-100 transition-colors shadow-md"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background hover:bg-accent-soft transition-colors shadow-md"
             title="Play / Pause (Space)"
           >
             {playing ? <Pause size={14} fill="black" /> : <Play size={14} fill="black" className="ml-0.5" />}
           </button>
           <button
             onClick={() => playerRef.current?.seek(duration)}
-            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-ink-3 hover:text-foreground hover:bg-surface transition-colors"
             title="Jump to end (End)"
           >
             <SkipForward size={14} />
@@ -155,7 +155,7 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
               setLoop(next);
               playerRef.current?.controller.setLoop(next);
             }}
-            className={`p-1.5 rounded-md transition-colors ${loop ? "text-blue-400 bg-[#0c152d]" : "text-neutral-500 hover:text-white hover:bg-white/5"}`}
+            className={`p-1.5 rounded-lg transition-colors ${loop ? "text-accent-ink bg-surface" : "text-muted hover:text-foreground hover:bg-surface"}`}
             title="Loop playback"
           >
             <Repeat size={13} />
@@ -176,24 +176,24 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
           }}
         />
 
-        <span className="font-mono text-[10px] text-neutral-400 shrink-0">
-          <span className="text-white font-bold">{formatTimecode(time, doc.fps)}</span>
-          <span className="text-neutral-600"> / {formatTimecode(duration, doc.fps)}</span>
+        <span className="font-mono text-[10px] text-ink-3 shrink-0">
+          <span className="text-foreground font-bold">{formatTimecode(time, doc.fps)}</span>
+          <span className="text-faint"> / {formatTimecode(duration, doc.fps)}</span>
         </span>
 
         {/* View controls */}
-        <div className="flex items-center gap-0.5 border-l border-white/10 pl-2">
+        <div className="flex items-center gap-0.5 border-l border-line pl-2">
           <button
             onClick={() => stepZoom(-1)}
-            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-ink-3 hover:text-foreground hover:bg-surface transition-colors"
             title="Zoom preview out"
           >
             <ZoomOut size={13} />
           </button>
           <button
             onClick={() => setZoom(1)}
-            className={`rounded-md px-1.5 py-1 text-[9px] font-bold font-mono uppercase transition-colors ${
-              zoom === 1 ? "text-blue-400" : "text-neutral-400 hover:text-white hover:bg-white/5"
+            className={`rounded-xl px-1.5 py-1 text-[9px] font-bold font-mono uppercase transition-colors ${
+              zoom === 1 ? "text-accent-ink" : "text-ink-3 hover:text-foreground hover:bg-surface"
             }`}
             title="Fit to viewport"
           >
@@ -201,14 +201,14 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
           </button>
           <button
             onClick={() => stepZoom(1)}
-            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-ink-3 hover:text-foreground hover:bg-surface transition-colors"
             title="Zoom preview in"
           >
             <ZoomIn size={13} />
           </button>
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1.5 rounded-lg text-ink-3 hover:text-foreground hover:bg-surface transition-colors"
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}

@@ -45,27 +45,27 @@ export default function FloatingChrome() {
       <Link
         href="/dashboard"
         aria-label="Home"
-        className="fixed top-3 left-3 sm:top-4 sm:left-6 z-50 flex items-center gap-2.5 rounded-full bg-surface/80 border border-white/10 backdrop-blur-md px-3 py-2.5 sm:px-5 sm:py-3 shadow-2xl transition-all hover:border-white/20 active:scale-95 select-none cursor-pointer"
+        className="fixed top-3 left-3 sm:top-4 sm:left-6 z-50 flex items-center gap-2.5 rounded-full bg-surface/80 border border-line backdrop-blur-md px-3 py-2.5 sm:px-5 sm:py-3 shadow-2xl transition-all hover:border-line-2 active:scale-95 select-none cursor-pointer"
       >
         <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
           <circle cx="16" cy="16" r="16" fill="white" />
           <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
         </svg>
-        <span className="hidden sm:inline font-mono text-[14px] font-bold tracking-tight lowercase text-white">
+        <span className="hidden sm:inline font-mono text-[14px] font-bold tracking-tight lowercase text-foreground">
           optiq studio
         </span>
       </Link>
 
       {/* Top-right: balance + account + sign out */}
-      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center gap-2 sm:gap-4.5 rounded-full bg-surface/80 border border-white/10 backdrop-blur-md px-3 py-2 sm:px-5 sm:py-2.5 text-xs shadow-2xl transition-all hover:border-white/20">
+      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center gap-2 sm:gap-4.5 rounded-full bg-surface/80 border border-line backdrop-blur-md px-3 py-2 sm:px-5 sm:py-2.5 text-xs shadow-2xl transition-all hover:border-line-2">
         {/* Wallet — the one number that matters on a phone */}
         <Link
           href="/dashboard/billing"
-          className="flex items-center gap-1.5 sm:border-r sm:border-white/15 sm:pr-3.5 active:scale-95 transition-transform"
+          className="flex items-center gap-1.5 sm:border-r sm:border-line-2 sm:pr-3.5 active:scale-95 transition-transform"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          <span className="font-bold text-emerald-400 whitespace-nowrap">GMD {balance}</span>
-          <span className="hidden sm:inline text-neutral-500 font-medium">Balance</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-success" />
+          <span className="font-bold text-success whitespace-nowrap">GMD {balance}</span>
+          <span className="hidden sm:inline text-muted font-medium">Balance</span>
         </Link>
 
         {/* Desktop-only nav — on mobile the logo covers Home and the wallet
@@ -73,24 +73,24 @@ export default function FloatingChrome() {
         <nav className="hidden sm:flex items-center gap-3.5">
           <Link
             href="/dashboard"
-            className={`font-semibold hover:text-white transition-colors ${
-              pathname === "/dashboard" ? "text-white" : "text-neutral-400"
+            className={`font-semibold hover:text-foreground transition-colors ${
+              pathname === "/dashboard" ? "text-foreground" : "text-ink-3"
             }`}
           >
             Home
           </Link>
           <Link
             href="/dashboard/billing"
-            className={`font-semibold hover:text-white transition-colors ${
-              pathname.startsWith("/dashboard/billing") ? "text-white" : "text-neutral-400"
+            className={`font-semibold hover:text-foreground transition-colors ${
+              pathname.startsWith("/dashboard/billing") ? "text-foreground" : "text-ink-3"
             }`}
           >
             Billing
           </Link>
           <Link
             href="/dashboard/developer"
-            className={`font-semibold hover:text-white transition-colors ${
-              pathname.startsWith("/dashboard/developer") ? "text-white" : "text-neutral-400"
+            className={`font-semibold hover:text-foreground transition-colors ${
+              pathname.startsWith("/dashboard/developer") ? "text-foreground" : "text-ink-3"
             }`}
           >
             API
@@ -100,13 +100,13 @@ export default function FloatingChrome() {
         {/* Account initial (desktop also shows the email) */}
         <Link
           href="/dashboard/billing"
-          className="flex items-center gap-2 sm:border-l sm:border-white/15 sm:pl-3.5 active:scale-95 transition-transform"
+          className="flex items-center gap-2 sm:border-l sm:border-line-2 sm:pl-3.5 active:scale-95 transition-transform"
           title={user.displayName || user.email || ""}
         >
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-600 text-[11px] font-bold text-white uppercase">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-bold text-foreground uppercase">
             {initial}
           </div>
-          <span className="hidden lg:inline font-medium text-neutral-300 max-w-[100px] truncate">
+          <span className="hidden lg:inline font-medium text-ink-2 max-w-[100px] truncate">
             {user.displayName || user.email || ""}
           </span>
         </Link>
@@ -115,7 +115,7 @@ export default function FloatingChrome() {
         <button
           onClick={() => void signOut()}
           aria-label="Sign out"
-          className="border-l border-white/15 pl-2 sm:pl-3.5 font-bold text-neutral-500 hover:text-red-400 active:scale-95 transition-all flex items-center gap-1.5"
+          className="border-l border-line-2 pl-2 sm:pl-3.5 font-bold text-muted hover:text-danger active:scale-95 transition-all flex items-center gap-1.5"
         >
           <span className="hidden sm:inline">Sign Out</span>
           <LogOut size={13} />

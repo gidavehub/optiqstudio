@@ -17,7 +17,7 @@ export default function AgentMessage({ message }: { message: AgentChatMessage })
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md border border-blue-500/25 bg-[#0c152d] px-4 py-2.5 text-[13px] leading-relaxed text-white">
+        <div className="max-w-[85%] rounded-3xl rounded-br-md border border-accent-line bg-surface px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
           {message.text}
         </div>
       </div>
@@ -29,7 +29,7 @@ export default function AgentMessage({ message }: { message: AgentChatMessage })
 
   return (
     <div className="flex gap-3">
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-surface text-blue-400">
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-2xl border border-line bg-surface text-accent-ink">
         <Bot size={14} />
       </span>
 
@@ -44,7 +44,7 @@ export default function AgentMessage({ message }: { message: AgentChatMessage })
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-600"
+                className="h-1.5 w-1.5 animate-pulse rounded-full bg-surface-3"
                 style={{ animationDelay: `${i * 160}ms` }}
               />
             ))}
@@ -52,14 +52,14 @@ export default function AgentMessage({ message }: { message: AgentChatMessage })
         )}
 
         {message.status === "failed" && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/5 px-3.5 py-3 text-[11px] leading-relaxed text-red-400">
+          <div className="flex items-start gap-2.5 rounded-2xl border border-danger bg-danger-soft px-3.5 py-3 text-[11px] leading-relaxed text-danger">
             <AlertCircle size={13} className="mt-px shrink-0" />
             <span>{message.error || "The agent hit an error mid-turn. Try that again."}</span>
           </div>
         )}
 
         {message.touchedFilm && message.status === "done" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/25 bg-[#0c152d] px-2.5 py-1 text-[10px] font-bold text-blue-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-line bg-surface px-2.5 py-1 text-[10px] font-bold text-accent-ink">
             <PenLine size={10} /> Script updated
           </span>
         )}

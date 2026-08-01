@@ -20,16 +20,16 @@ export default function AudioPlayerPreview({ audio }: { audio: { preview: string
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-neutral-900 border border-neutral-800 px-2.5 py-1.5 shrink-0 select-none">
+    <div className="flex items-center gap-2 rounded-xl bg-surface border border-line px-2.5 py-1.5 shrink-0 select-none">
       <audio ref={audioRef} src={audio.preview} onEnded={() => setIsPlaying(false)} className="hidden" />
       <button
         type="button"
         onClick={togglePlay}
-        className="p-1 rounded-full bg-neutral-800 hover:bg-neutral-700 transition-colors text-neutral-300 hover:text-white flex items-center justify-center shrink-0"
+        className="p-1 rounded-full bg-surface-2 hover:bg-surface-3 transition-colors text-ink-2 hover:text-foreground flex items-center justify-center shrink-0"
       >
         {isPlaying ? <Pause size={10} /> : <Play size={10} />}
       </button>
-      <span className="text-[10px] text-neutral-300 font-mono max-w-[120px] truncate" title={audio.name}>
+      <span className="text-[10px] text-ink-2 font-mono max-w-[120px] truncate" title={audio.name}>
         {audio.name}
       </span>
     </div>

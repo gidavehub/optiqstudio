@@ -56,44 +56,44 @@ export default function BottomPromptConsole({
   };
 
   return (
-    <div className="relative z-40 border-t border-neutral-900 bg-background/90 p-5 backdrop-blur-md">
+    <div className="relative z-40 border-t border-line bg-background/90 p-5 backdrop-blur-md">
       {images.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           {images.map((img) => (
             <div key={img.id} className="group relative flex items-center gap-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.preview} alt="Reference" className="h-14 w-14 rounded-lg border border-neutral-800 object-cover" />
+              <img src={img.preview} alt="Reference" className="h-14 w-14 rounded-xl border border-line object-cover" />
               <button
                 onClick={() => removeImage(img.id)}
-                className="absolute -right-1.5 -top-1.5 rounded-full border border-neutral-800 bg-neutral-900/90 p-0.5 text-neutral-400 opacity-0 transition-opacity hover:text-white group-hover:opacity-100"
+                className="absolute -right-1.5 -top-1.5 rounded-full border border-line bg-surface p-0.5 text-ink-3 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
               >
                 <X size={10} />
               </button>
             </div>
           ))}
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-muted">
             {images.length} reference image{images.length > 1 ? "s" : ""} attached
           </span>
         </div>
       )}
 
       <div
-        className="relative flex w-full items-center gap-3 rounded-2xl border border-neutral-800 bg-surface p-3 shadow-inner transition-all duration-300"
+        className="relative flex w-full items-center gap-3 rounded-3xl border border-line bg-surface p-3 shadow-inner transition-all duration-300"
         onDragEnter={handleDragEnter}
         onDragOver={(e) => e.preventDefault()}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         {isDragging && (
-          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm transition-all duration-300">
-            <UploadCloud size={24} className="animate-pulse text-white" />
-            <span className="mt-2 font-mono text-xs uppercase tracking-widest text-white">Drop image</span>
-            <span className="mt-1 text-[10px] text-neutral-500">Use as a style / composition reference</span>
+          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-black/85 backdrop-blur-sm transition-all duration-300">
+            <UploadCloud size={24} className="animate-pulse text-foreground" />
+            <span className="mt-2 font-mono text-xs uppercase tracking-widest text-foreground">Drop image</span>
+            <span className="mt-1 text-[10px] text-muted">Use as a style / composition reference</span>
           </div>
         )}
 
         <div className="flex shrink-0 items-center gap-1.5">
-          <label className="cursor-pointer p-1.5 text-neutral-400 transition-colors hover:text-white" title="Attach reference image">
+          <label className="cursor-pointer p-1.5 text-ink-3 transition-colors hover:text-foreground" title="Attach reference image">
             <ImagePlus size={17} />
             <input
               type="file"
@@ -112,8 +112,8 @@ export default function BottomPromptConsole({
             title={dictation.recording ? "Stop dictation" : "Dictate your prompt"}
             className={`rounded-full p-1.5 transition-colors ${
               dictation.recording
-                ? "animate-pulse bg-red-500/15 text-red-400"
-                : "text-neutral-400 hover:text-white"
+                ? "animate-pulse bg-danger-soft text-danger"
+                : "text-ink-3 hover:text-white"
             }`}
           >
             {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}
@@ -134,14 +134,14 @@ export default function BottomPromptConsole({
               ? "Listening…"
               : "A bioluminescent jellyfish drifting through a deep-sea trench, cinematic, 8k…"
           }
-          className="max-h-32 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm placeholder:text-neutral-600 focus:outline-none"
+          className="max-h-32 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm placeholder:text-faint focus:outline-none"
         />
 
         <button
           onClick={enhance}
           disabled={enhancing || !prompt.trim()}
           title="Enhance prompt"
-          className="p-1.5 text-neutral-400 transition-colors hover:text-white disabled:opacity-40"
+          className="p-1.5 text-ink-3 transition-colors hover:text-foreground disabled:opacity-40"
         >
           {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
         </button>
@@ -149,7 +149,7 @@ export default function BottomPromptConsole({
         <button
           onClick={onGenerate}
           disabled={generating || !prompt.trim()}
-          className="shrink-0 rounded-full bg-white px-5 py-2 text-sm font-medium text-black transition-colors hover:bg-neutral-200 disabled:opacity-40"
+          className="shrink-0 rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-ink-2 disabled:opacity-40"
         >
           {generating ? "Generating…" : "Generate"}
         </button>

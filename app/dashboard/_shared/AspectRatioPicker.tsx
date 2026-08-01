@@ -51,14 +51,14 @@ export default function AspectRatioPicker({
               type="button"
               onClick={() => onChange(opt.id)}
               aria-pressed={active}
-              className={`group relative flex flex-col items-center justify-center gap-2 rounded-xl border px-2 py-3.5 transition-all duration-300 ${
+              className={`group relative flex flex-col items-center justify-center gap-2 rounded-2xl border px-2 py-3.5 transition-all duration-300 ${
                 active
-                  ? "border-blue-500 bg-[#0c152d] shadow-[0_0_24px_-10px_rgba(59,130,246,0.6)]"
-                  : "border-neutral-800/80 bg-[#07090f] hover:border-neutral-700 hover:bg-white/[0.03]"
+                  ? "border-accent bg-surface shadow-[0_0_24px_-10px_rgba(59,130,246,0.6)]"
+                  : "border-line bg-background hover:border-line-2 hover:bg-white/[0.03]"
               }`}
             >
               {active && (
-                <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white">
+                <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white">
                   <Check size={9} strokeWidth={3} />
                 </span>
               )}
@@ -67,13 +67,13 @@ export default function AspectRatioPicker({
                 <span
                   style={{ width: rectW, height: rectH }}
                   className={`rounded-[3px] border-2 transition-colors ${
-                    active ? "border-blue-400" : "border-neutral-500 group-hover:border-neutral-300"
+                    active ? "border-accent" : "border-line-2 group-hover:border-line-2"
                   }`}
                 />
               </span>
               <span
                 className={`text-[11px] font-semibold tracking-tight transition-colors ${
-                  active ? "text-white" : "text-neutral-400 group-hover:text-neutral-200"
+                  active ? "text-foreground" : "text-ink-3 group-hover:text-foreground"
                 }`}
               >
                 {opt.label}

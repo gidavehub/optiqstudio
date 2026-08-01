@@ -64,13 +64,13 @@ export default function ImageDetailClient({ id }: { id: string }) {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-black text-white">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-6 pb-16 pt-20">
         {/* Back + actions */}
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/image"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-neutral-500 hover:text-white transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Image Studio
@@ -81,14 +81,14 @@ export default function ImageDetailClient({ id }: { id: string }) {
                 onClick={() => void reuse()}
                 disabled={reusing}
                 title="Reuse this prompt and its reference images"
-                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-[#131d35] disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-accent-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
               >
                 {reusing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                 Reuse Prompt
               </button>
               <button
                 onClick={deleteItem}
-                className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-ink-3 hover:border-danger hover:text-danger transition-colors"
               >
                 <Trash2 size={11} /> Delete
               </button>
@@ -97,18 +97,18 @@ export default function ImageDetailClient({ id }: { id: string }) {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 text-neutral-500">
+          <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
             <span className="text-xs font-mono uppercase tracking-wider">Loading Still…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-2xl border border-white/5 bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">Image not found</p>
+          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted">Image not found</p>
           </div>
         ) : (
           <>
             {/* 1 · THE STILL */}
-            <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#070b16] shadow-2xl">
+            <div className="group relative overflow-hidden rounded-3xl border border-line bg-background shadow-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={item.imageUrl} alt={item.prompt} className="mx-auto max-h-[70vh] w-auto object-contain" />
               {/* Hover actions */}
@@ -119,7 +119,7 @@ export default function ImageDetailClient({ id }: { id: string }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Download image"
-                  className="flex items-center justify-center rounded-lg border border-white/10 bg-black/80 p-2.5 text-white hover:bg-blue-600 transition-colors"
+                  className="flex items-center justify-center rounded-xl border border-line bg-black/80 p-2.5 text-white hover:bg-accent transition-colors"
                 >
                   <Download size={15} />
                 </a>
@@ -131,7 +131,7 @@ export default function ImageDetailClient({ id }: { id: string }) {
               prompt={item.prompt}
               referenceImageUrls={refUrls}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-neutral-600">
+                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
                   {new Date(item.createdAt).toLocaleDateString()} · {item.id.slice(0, 10)}…
                 </span>
               }

@@ -79,7 +79,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
   }, [src]);
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-xl border border-neutral-800 bg-black shadow-2xl">
+    <div className="group relative w-full overflow-hidden rounded-2xl border border-line bg-background shadow-2xl">
       <video
         ref={videoRef}
         src={src}
@@ -104,7 +104,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
             step={0.1}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full h-1 bg-white/25 rounded-lg appearance-none cursor-pointer accent-white hover:h-1.5 transition-all"
+            className="w-full h-1 bg-surface-3 rounded-xl appearance-none cursor-pointer accent-accent hover:h-1.5 transition-all"
             style={{
               background: `linear-gradient(to right, #ffffff ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(255, 255, 255, 0.2) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
             }}
@@ -116,12 +116,12 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
           <div className="flex items-center gap-4">
             <button
               onClick={togglePlay}
-              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+              className="text-foreground hover:text-ink-2 transition-colors p-1 rounded-full hover:bg-surface-2"
             >
               {isPlaying ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" />}
             </button>
 
-            <span className="text-[11px] font-mono text-neutral-300">
+            <span className="text-[11px] font-mono text-ink-2">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
@@ -133,21 +133,21 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
                 download={downloadName ?? "optiq_video.mp4"}
                 onClick={(e) => e.stopPropagation()}
                 title="Download MP4"
-                className="text-white hover:text-blue-300 transition-colors p-1 rounded-full hover:bg-white/10"
+                className="text-foreground hover:text-accent-ink transition-colors p-1 rounded-full hover:bg-surface-2"
               >
                 <Download size={15} />
               </a>
             )}
             <button
               onClick={toggleMute}
-              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+              className="text-foreground hover:text-ink-2 transition-colors p-1 rounded-full hover:bg-surface-2"
             >
               {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
             </button>
 
             <button
               onClick={handleFullscreen}
-              className="text-white hover:text-neutral-300 transition-colors p-1 rounded-full hover:bg-white/10"
+              className="text-foreground hover:text-ink-2 transition-colors p-1 rounded-full hover:bg-surface-2"
             >
               <Maximize size={15} />
             </button>

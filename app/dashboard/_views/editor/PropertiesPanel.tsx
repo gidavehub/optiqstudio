@@ -33,13 +33,13 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
       className={
         isSheet
           ? "flex w-full flex-col bg-transparent"
-          : "flex shrink-0 flex-col border-l border-white/5 bg-[#0a0f1d]/80"
+          : "flex shrink-0 flex-col border-l border-line bg-[#0a0f1d]/80"
       }
     >
       {/* The sheet supplies its own header, so skip the panel one */}
       {!isSheet && (
-        <div className="border-b border-white/5 px-3 py-2">
-          <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+        <div className="border-b border-line px-3 py-2">
+          <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
             <SlidersHorizontal size={10} /> Clip Properties
           </span>
         </div>
@@ -47,10 +47,10 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
 
       {!loc ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/5 bg-[#0c152d] text-neutral-600">
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-line bg-surface text-faint">
             <SlidersHorizontal size={16} />
           </span>
-          <p className="text-[10px] leading-relaxed text-neutral-600">
+          <p className="text-[10px] leading-relaxed text-faint">
             Select a clip on the timeline to adjust its volume, speed, fades, and overlay size.
           </p>
         </div>
@@ -66,9 +66,9 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
             return (
               <>
                 {/* Identity */}
-                <section className="rounded-lg border border-white/5 bg-[#0c152d]/60 p-2.5">
-                  <p className="truncate text-[10px] font-bold text-white">{clip.label || asset?.label || "Clip"}</p>
-                  <p className="mt-1 font-mono text-[8px] uppercase tracking-wider text-neutral-500">
+                <section className="rounded-2xl border border-line bg-[#0c152d]/60 p-2.5">
+                  <p className="truncate text-[10px] font-bold text-foreground">{clip.label || asset?.label || "Clip"}</p>
+                  <p className="mt-1 font-mono text-[8px] uppercase tracking-wider text-muted">
                     {track.name} · {clip.start.toFixed(2)}s → {clipEnd(clip).toFixed(2)}s · {clip.duration.toFixed(2)}s
                   </p>
                 </section>
@@ -77,21 +77,21 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {transform && (
                   <section className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
+                      <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
                         <Move size={10} /> Size & Position
                       </span>
                       <button
                         title="Reset transform"
                         onClick={() => engine.setClipProps(clip.id, { transform: { ...DEFAULT_TRANSFORM } })}
-                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold text-neutral-500 hover:text-white hover:bg-white/5 transition-colors"
+                        className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[8px] font-bold text-muted hover:text-foreground hover:bg-surface transition-colors"
                       >
                         <RotateCcw size={9} /> Reset
                       </button>
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">Scale</span>
-                        <span className="font-mono text-[9px] text-white">{Math.round(transform.scale * 100)}%</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Scale</span>
+                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.scale * 100)}%</span>
                       </div>
                       <input
                         type="range" min={0.1} max={2} step={0.01} value={transform.scale}
@@ -101,8 +101,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">Position X</span>
-                        <span className="font-mono text-[9px] text-white">{Math.round(transform.x * 100)}%</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Position X</span>
+                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.x * 100)}%</span>
                       </div>
                       <input
                         type="range" min={-0.5} max={0.5} step={0.01} value={transform.x}
@@ -112,8 +112,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">Position Y</span>
-                        <span className="font-mono text-[9px] text-white">{Math.round(transform.y * 100)}%</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Position Y</span>
+                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.y * 100)}%</span>
                       </div>
                       <input
                         type="range" min={-0.5} max={0.5} step={0.01} value={transform.y}
@@ -123,8 +123,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">Opacity</span>
-                        <span className="font-mono text-[9px] text-white">{Math.round(transform.opacity * 100)}%</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Opacity</span>
+                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.opacity * 100)}%</span>
                       </div>
                       <input
                         type="range" min={0} max={1} step={0.01} value={transform.opacity}
@@ -134,8 +134,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500">Rotation</span>
-                        <span className="font-mono text-[9px] text-white">{Math.round(transform.rotation)}°</span>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Rotation</span>
+                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.rotation)}°</span>
                       </div>
                       <input
                         type="range" min={-180} max={180} step={1} value={transform.rotation}
@@ -150,17 +150,17 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {!isImage && (
                   <section>
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">Volume</span>
-                      <span className="font-mono text-[9px] text-white">{Math.round(clip.volume * 100)}%</span>
+                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Volume</span>
+                      <span className="font-mono text-[9px] text-foreground">{Math.round(clip.volume * 100)}%</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         title={clip.muted ? "Unmute clip" : "Mute clip"}
                         onClick={() => engine.setClipProps(clip.id, { muted: !clip.muted })}
-                        className={`shrink-0 rounded-md p-1.5 border transition-colors ${
+                        className={`shrink-0 rounded-lg p-1.5 border transition-colors ${
                           clip.muted
-                            ? "border-red-500/40 bg-red-950/40 text-red-400"
-                            : "border-white/5 bg-white/5 text-neutral-400 hover:text-white"
+                            ? "border-red-500/40 bg-danger-soft text-danger"
+                            : "border-line bg-surface text-ink-3 hover:text-white"
                         }`}
                       >
                         {clip.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
@@ -181,7 +181,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {/* Speed */}
                 {!isImage && (
                   <section>
-                    <span className="mb-1.5 block text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
+                    <span className="mb-1.5 block text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
                       Playback Speed
                     </span>
                     <div className="grid grid-cols-4 gap-1">
@@ -189,10 +189,10 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                         <button
                           key={s}
                           onClick={() => engine.setClipSpeed(clip.id, s)}
-                          className={`rounded-md border py-1.5 text-[10px] font-bold transition-colors ${
+                          className={`rounded-xl border py-1.5 text-[10px] font-bold transition-colors ${
                             Math.abs(clip.speed - s) < 1e-9
-                              ? "border-blue-500 bg-[#0c152d] text-blue-400"
-                              : "border-white/5 bg-white/5 text-neutral-400 hover:text-white"
+                              ? "border-accent bg-surface text-accent-ink"
+                              : "border-line bg-surface text-ink-3 hover:text-foreground"
                           }`}
                         >
                           {s}x
@@ -206,8 +206,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 <section className="space-y-3">
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">Fade In</span>
-                      <span className="font-mono text-[9px] text-white">{clip.fadeIn.toFixed(1)}s</span>
+                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Fade In</span>
+                      <span className="font-mono text-[9px] text-foreground">{clip.fadeIn.toFixed(1)}s</span>
                     </div>
                     <input
                       type="range"
@@ -221,8 +221,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">Fade Out</span>
-                      <span className="font-mono text-[9px] text-white">{clip.fadeOut.toFixed(1)}s</span>
+                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Fade Out</span>
+                      <span className="font-mono text-[9px] text-foreground">{clip.fadeOut.toFixed(1)}s</span>
                     </div>
                     <input
                       type="range"
@@ -237,11 +237,11 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 </section>
 
                 {/* Actions */}
-                <section className="space-y-1.5 border-t border-white/5 pt-3">
+                <section className="space-y-1.5 border-t border-line pt-3">
                   <button
                     onClick={() => engine.splitClipAt(clip.id, playhead)}
                     disabled={!(playhead > clip.start && playhead < clipEnd(clip))}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/5 bg-white/5 py-2 text-[10px] font-bold text-neutral-300 hover:bg-white/10 hover:text-white disabled:opacity-30 transition-colors"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-surface py-2 text-[10px] font-bold text-ink-2 hover:bg-surface-2 hover:text-foreground disabled:opacity-30 transition-colors"
                   >
                     <Scissors size={11} /> Split at Playhead
                   </button>
@@ -250,7 +250,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                       engine.removeClip(clip.id);
                       onDeselect();
                     }}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/20 bg-red-950/20 py-2 text-[10px] font-bold text-red-400 hover:bg-red-950/50 transition-colors"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-danger bg-danger-soft py-2 text-[10px] font-bold text-danger hover:bg-danger-soft transition-colors"
                   >
                     <Trash2 size={11} /> Delete Clip
                   </button>

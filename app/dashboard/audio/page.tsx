@@ -13,11 +13,11 @@ const FACE_STACK = ["awa-wolof", "marcus-american", "eleanor-british", "wei-chin
 
 export default function AudioStudioPortal() {
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background text-neutral-200">
+    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="px-4 pt-20 sm:px-6 sm:pt-24 md:px-12">
         <Link
           href="/dashboard"
-          className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-500 transition-colors hover:text-white"
+          className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
         >
           <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
           Dashboard
@@ -29,21 +29,21 @@ export default function AudioStudioPortal() {
           {/* OPTIQ VOICE ENGINE */}
           <Link
             href="/dashboard/audio/voice"
-            className="group relative flex min-h-[260px] flex-col justify-between rounded-2xl border-2 border-dashed border-blue-500/30 bg-black p-6 shadow-2xl transition-all duration-300 hover:border-blue-400/60 active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
+            className="group relative flex min-h-[260px] flex-col justify-between rounded-3xl border-2 border-dashed border-accent-line bg-background p-6 shadow-2xl transition-all duration-300 hover:border-accent active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
           >
-            <span className="absolute -top-2.5 left-6 z-20 -rotate-6 select-none rounded-md border border-blue-400/30 bg-blue-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-blue-500/30">
+            <span className="absolute -top-2.5 left-6 z-20 -rotate-6 select-none rounded-lg border border-accent-line bg-accent px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-blue-500/30">
               16 Voices
             </span>
 
             <div className="relative z-10">
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-[#131d35] text-neutral-300 transition-transform group-hover:scale-110">
+              <span className="flex h-16 w-16 items-center justify-center rounded-3xl border border-line bg-surface-2 text-ink-2 transition-transform group-hover:scale-110">
                 <Mic size={26} />
               </span>
-              <h2 className="mt-8 text-2xl font-bold tracking-tight text-white">Optiq Voice Engine</h2>
-              <span className="mt-2.5 inline-flex rounded-full border border-white/10 bg-[#131d35] px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-300">
+              <h2 className="mt-8 text-2xl font-bold tracking-tight text-foreground">Optiq Voice Engine</h2>
+              <span className="mt-2.5 inline-flex rounded-full border border-line bg-surface-2 px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-ink-2">
                 Studio Narration
               </span>
-              <p className="mt-4 max-w-xs text-xs leading-relaxed text-neutral-400">
+              <p className="mt-4 max-w-xs text-xs leading-relaxed text-ink-3">
                 Pick a speaker, paste your script, and generate a broadcast-clean voiceover. African, diaspora and
                 international accents — each with a real voice you can preview.
               </p>
@@ -57,14 +57,14 @@ export default function AudioStudioPortal() {
                     key={id}
                     src={`/media/voice-faces/${id}.jpg`}
                     alt=""
-                    className="h-9 w-9 rounded-full border-2 border-black object-cover"
+                    className="h-9 w-9 rounded-full border-2 border-line-2 object-cover"
                   />
                 ))}
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-[#131d35] text-[10px] font-bold text-neutral-300">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-line-2 bg-surface-2 text-[10px] font-bold text-ink-2">
                   +{VOICE_PROFILES.length - FACE_STACK.length}
                 </span>
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-blue-400/20 bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition-all group-hover:scale-[1.03]">
+              <span className="inline-flex items-center gap-1.5 rounded-2xl border border-accent-line bg-accent px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition-all group-hover:scale-[1.03]">
                 Open <ChevronRight size={13} />
               </span>
             </div>
@@ -73,17 +73,17 @@ export default function AudioStudioPortal() {
           {/* OPTIQ MUSIC */}
           <Link
             href="/dashboard/audio/music"
-            className="group relative flex min-h-[260px] flex-col justify-between overflow-hidden rounded-2xl border-2 border-dashed border-emerald-500/30 bg-black p-6 shadow-2xl transition-all duration-300 hover:border-emerald-400/60 active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
+            className="group relative flex min-h-[260px] flex-col justify-between overflow-hidden rounded-3xl border-2 border-dashed border-success bg-background p-6 shadow-2xl transition-all duration-300 hover:border-emerald-400/60 active:scale-[0.99] sm:min-h-[340px] sm:p-10 md:min-h-[380px]"
           >
             <div className="relative z-10">
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-[#10231b] text-emerald-300 transition-transform group-hover:scale-110">
+              <span className="flex h-16 w-16 items-center justify-center rounded-3xl border border-line bg-[#10231b] text-success transition-transform group-hover:scale-110">
                 <Music size={26} />
               </span>
-              <h2 className="mt-8 text-2xl font-bold tracking-tight text-white">Optiq Music</h2>
-              <span className="mt-2.5 inline-flex rounded-full border border-white/10 bg-[#10231b] px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-200">
+              <h2 className="mt-8 text-2xl font-bold tracking-tight text-foreground">Optiq Music</h2>
+              <span className="mt-2.5 inline-flex rounded-full border border-line bg-[#10231b] px-3 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-success">
                 Original Score
               </span>
-              <p className="mt-4 max-w-xs text-xs leading-relaxed text-neutral-400">
+              <p className="mt-4 max-w-xs text-xs leading-relaxed text-ink-3">
                 Describe a mood, genre or scene and generate an original, royalty-free instrumental — a soundtrack made
                 to sit under your ad.
               </p>
@@ -99,7 +99,7 @@ export default function AudioStudioPortal() {
                   />
                 ))}
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 transition-all group-hover:scale-[1.03]">
+              <span className="inline-flex items-center gap-1.5 rounded-2xl border border-emerald-400/20 bg-success px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 transition-all group-hover:scale-[1.03]">
                 Open <ChevronRight size={13} />
               </span>
             </div>

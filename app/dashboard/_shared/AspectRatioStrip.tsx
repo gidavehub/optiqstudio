@@ -31,17 +31,17 @@ export default function AspectRatioStrip({
             type="button"
             onClick={() => onChange(opt.id)}
             aria-pressed={active}
-            className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-colors ${
-              active ? "border-blue-500 bg-[#0c152d]" : "border-neutral-800 bg-[#07090f]"
+            className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 transition-colors ${
+              active ? "border-accent bg-surface" : "border-line bg-background"
             }`}
           >
             <span className="flex h-4 w-4 items-center justify-center">
               <span
                 style={{ width: rectW, height: rectH }}
-                className={`rounded-[2px] border ${active ? "border-blue-400" : "border-neutral-500"}`}
+                className={`rounded-[2px] border ${active ? "border-accent" : "border-line-2"}`}
               />
             </span>
-            <span className={`text-[11px] font-semibold ${active ? "text-white" : "text-neutral-400"}`}>
+            <span className={`text-[11px] font-semibold ${active ? "text-foreground" : "text-ink-3"}`}>
               {opt.label}
             </span>
           </button>

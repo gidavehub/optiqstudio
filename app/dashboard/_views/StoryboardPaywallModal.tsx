@@ -67,15 +67,15 @@ export default function StoryboardPaywallModal() {
         onClick={() => setStoryboardPayOpen(false)}
       />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a1024] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-line bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
         <div className="flex items-start justify-between">
-          <h3 className="text-lg font-black tracking-tight text-white">
+          <h3 className="text-lg font-black tracking-tight text-foreground">
             {paywallStep === "choose" ? "How should we build it?" : "Ready to write"}
           </h3>
           <button
             onClick={() => setStoryboardPayOpen(false)}
             aria-label="Close"
-            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-white/5 hover:text-white"
+            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-foreground"
           >
             <X size={16} />
           </button>
@@ -95,14 +95,14 @@ export default function StoryboardPaywallModal() {
                 setPaywallStep("pay");
                 await generateStoryboard("auto-merge");
               }}
-              className="group flex items-center gap-4 rounded-2xl border border-blue-500 bg-[#0c152d] p-4 text-left transition-all hover:bg-[#101c3a] active:scale-[0.98]"
+              className="group flex items-center gap-4 rounded-3xl border border-accent bg-surface p-4 text-left transition-all hover:bg-surface-2 active:scale-[0.98]"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent text-white">
                 <Zap size={18} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-bold text-white">Make the whole film</span>
-                <span className="block text-[11px] text-neutral-400">
+                <span className="block text-sm font-bold text-foreground">Make the whole film</span>
+                <span className="block text-[11px] text-ink-3">
                   Writes the script, renders every scene, opens the timeline
                 </span>
               </span>
@@ -115,30 +115,30 @@ export default function StoryboardPaywallModal() {
                 setPaywallStep("pay");
                 await generateStoryboard("manual");
               }}
-              className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-all hover:border-white/25 hover:bg-white/[0.06] active:scale-[0.98]"
+              className="group flex items-center gap-4 rounded-3xl border border-line bg-white/[0.03] p-4 text-left transition-all hover:border-line-2 hover:bg-white/[0.06] active:scale-[0.98]"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-foreground">
                 <Edit3 size={17} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-bold text-white">Let me edit first</span>
-                <span className="block text-[11px] text-neutral-400">Review each scene before rendering</span>
+                <span className="block text-sm font-bold text-foreground">Let me edit first</span>
+                <span className="block text-[11px] text-ink-3">Review each scene before rendering</span>
               </span>
             </button>
           </div>
         ) : (
           /* ── STEP 1: PAY ─────────────────────────────────────────────── */
           <div>
-            <p className="mt-1 text-[13px] text-neutral-400">
+            <p className="mt-1 text-[13px] text-ink-3">
               {length} ad · {scenes} scenes
             </p>
 
             <div className="mt-6 text-center">
-              <p className="font-display text-5xl font-black leading-none tracking-tight text-white">
-                <span className="mr-1.5 align-top text-xl font-bold text-neutral-500">GMD</span>
+              <p className="font-display text-5xl font-black leading-none tracking-tight text-foreground">
+                <span className="mr-1.5 align-top text-xl font-bold text-muted">GMD</span>
                 {cost.toLocaleString()}
               </p>
-              <p className="mt-2 text-[11px] text-neutral-500">
+              <p className="mt-2 text-[11px] text-muted">
                 {hasEnough
                   ? `GMD ${remaining.toLocaleString()} left after this`
                   : `GMD ${(cost - balance).toLocaleString()} short`}
@@ -149,7 +149,7 @@ export default function StoryboardPaywallModal() {
               {hasEnough ? (
                 <button
                   onClick={handleWalletPay}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-3xl bg-foreground py-3.5 text-sm font-bold text-background transition-all hover:bg-ink-2 active:scale-[0.98]"
                 >
                   <CheckCircle size={15} />
                   Pay from wallet
@@ -157,7 +157,7 @@ export default function StoryboardPaywallModal() {
               ) : (
                 <button
                   onClick={() => router.push("/plans")}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-3xl bg-foreground py-3.5 text-sm font-bold text-background transition-all hover:bg-ink-2 active:scale-[0.98]"
                 >
                   <Wallet size={15} />
                   Top up wallet
@@ -165,7 +165,7 @@ export default function StoryboardPaywallModal() {
               )}
               <button
                 onClick={() => setStoryboardPayOpen(false)}
-                className="py-2 text-[13px] font-semibold text-neutral-500 transition-colors hover:text-white"
+                className="py-2 text-[13px] font-semibold text-muted transition-colors hover:text-foreground"
               >
                 Cancel
               </button>

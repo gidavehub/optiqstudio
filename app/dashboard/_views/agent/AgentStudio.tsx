@@ -75,15 +75,15 @@ export default function AgentStudio() {
   const hasScript = scenes.length > 0;
 
   return (
-    <div className="flex h-full flex-col bg-background text-neutral-200">
+    <div className="flex h-full flex-col bg-background text-foreground">
       {/* ── TOP CHROME (pt-16 clears the floating pills) ── */}
       <header className="relative z-10 shrink-0 px-4 pb-3 pt-16 sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
           <div className="min-w-0">
-            <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-blue-400">
+            <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-accent-ink">
               <Bot size={11} /> Storyline Agent
             </span>
-            <h2 className="truncate text-sm font-bold tracking-tight text-white">
+            <h2 className="truncate text-sm font-bold tracking-tight text-foreground">
               {storyboard?.title || project?.title || "Untitled film"}
             </h2>
           </div>
@@ -93,7 +93,7 @@ export default function AgentStudio() {
               <button
                 onClick={() => void startNewThread()}
                 title="Clear this conversation"
-                className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-[11px] font-semibold text-neutral-400 transition-colors hover:bg-white/10 hover:text-white active:scale-95"
+                className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3 py-2 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground active:scale-95"
               >
                 <Trash2 size={12} />
                 <span className="hidden sm:inline">New thread</span>
@@ -101,7 +101,7 @@ export default function AgentStudio() {
             )}
             <button
               onClick={() => router.push(`/dashboard/project/${activeProjectId}`)}
-              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-3.5 py-2 text-[11px] font-bold text-blue-400 transition-colors hover:border-blue-400 hover:bg-[#131d35] active:scale-95"
+              className="flex items-center gap-1.5 rounded-2xl border border-accent-line bg-surface px-3.5 py-2 text-[11px] font-bold text-accent-ink transition-colors hover:border-accent hover:bg-surface-2 active:scale-95"
             >
               <Edit3 size={12} /> Script
             </button>
@@ -113,9 +113,9 @@ export default function AgentStudio() {
           <div className="mx-auto mt-3 flex w-full max-w-3xl gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             <button
               onClick={() => appendToDraft("Looking at the film-wide direction:")}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-neutral-400 transition-colors hover:border-white/15 hover:text-white"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[10px] font-bold text-ink-3 transition-colors hover:border-line-2 hover:text-foreground"
             >
-              <Sliders size={10} className="text-blue-400" /> Direction
+              <Sliders size={10} className="text-accent-ink" /> Direction
             </button>
             {scenes.map((scene, idx) => {
               const rendered = videoStatus[idx]?.status === "succeeded";
@@ -124,9 +124,9 @@ export default function AgentStudio() {
                   key={scene.sceneNumber}
                   onClick={() => appendToDraft(`Scene ${scene.sceneNumber}:`)}
                   title={scene.setting}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-neutral-400 transition-colors hover:border-white/15 hover:text-white"
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[10px] font-bold text-ink-3 transition-colors hover:border-line-2 hover:text-foreground"
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full ${rendered ? "bg-emerald-500" : "bg-neutral-600"}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${rendered ? "bg-success" : "bg-surface-3"}`} />
                   Scene {scene.sceneNumber}
                 </button>
               );
@@ -143,24 +143,24 @@ export default function AgentStudio() {
       >
         <div className="mx-auto w-full max-w-3xl pb-6">
           {projectsLoading || loading ? (
-            <div className="flex items-center justify-center gap-2 py-24 font-mono text-[10px] uppercase tracking-widest text-neutral-500">
+            <div className="flex items-center justify-center gap-2 py-24 font-mono text-[10px] uppercase tracking-widest text-muted">
               <Loader2 size={12} className="animate-spin" /> Opening the room…
             </div>
           ) : !hasScript ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-              <Clapperboard size={22} className="text-neutral-600" />
-              <h3 className="text-sm font-bold text-white">There&apos;s no script here yet</h3>
-              <p className="max-w-xs text-[11px] leading-relaxed text-neutral-500">
+              <Clapperboard size={22} className="text-faint" />
+              <h3 className="text-sm font-bold text-foreground">There&apos;s no script here yet</h3>
+              <p className="max-w-xs text-[11px] leading-relaxed text-muted">
                 Generate the storyboard first — then bring it back here and we&apos;ll work it over together.
               </p>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-6 py-16 text-center sm:py-24">
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
                   Work the whole storyline
                 </h1>
-                <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-neutral-500">
+                <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-muted">
                   Ask for a change, name a scene, or just think out loud. I&apos;ll read the film, rewrite what
                   needs rewriting, and keep every lock intact.
                 </p>
@@ -170,7 +170,7 @@ export default function AgentStudio() {
                   <button
                     key={s}
                     onClick={() => setDraft(s)}
-                    className="rounded-2xl border border-white/5 bg-surface-2 px-4 py-3 text-left text-[11px] font-semibold leading-relaxed text-neutral-400 transition-all hover:border-blue-500/40 hover:bg-[#0c152d] hover:text-white active:scale-[0.98]"
+                    className="rounded-[28px] border border-line bg-surface-2 px-4 py-3 text-left text-[11px] font-semibold leading-relaxed text-ink-3 transition-all hover:border-accent-line hover:bg-surface hover:text-foreground active:scale-[0.98]"
                   >
                     {s}
                   </button>

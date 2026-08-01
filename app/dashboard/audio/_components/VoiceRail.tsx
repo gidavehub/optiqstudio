@@ -70,18 +70,18 @@ function SpeakerRow({
 }) {
   return (
     <div
-      className={`flex w-full items-center gap-2 rounded-xl border p-1.5 transition-all duration-300 ${
-        selected ? "border-blue-500 bg-[#0c152d]" : "border-transparent hover:border-white/5 hover:bg-[#131d35]"
+      className={`flex w-full items-center gap-2 rounded-2xl border p-1.5 transition-all duration-300 ${
+        selected ? "border-accent bg-surface" : "border-transparent hover:border-line hover:bg-surface-2"
       }`}
     >
       <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-        <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-neutral-900">
+        <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-line bg-surface">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`/media/voice-faces/${p.id}.jpg`} alt={p.name} className="h-full w-full object-cover" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-xs font-bold text-white">{p.name}</span>
-          <span className="block truncate text-[10px] text-neutral-500">{p.accent}</span>
+          <span className="block truncate text-xs font-bold text-foreground">{p.name}</span>
+          <span className="block truncate text-[10px] text-muted">{p.accent}</span>
         </span>
       </button>
       <button
@@ -89,8 +89,8 @@ function SpeakerRow({
         title="Play sample"
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
           playing
-            ? "border-blue-500 bg-blue-600/20 text-blue-400"
-            : "border-white/10 bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white"
+            ? "border-accent bg-accent-soft text-accent-ink"
+            : "border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-white"
         }`}
       >
         {loading ? (
@@ -114,10 +114,10 @@ export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
   const { playingId, loadingId, toggle } = useSamplePlayer();
 
   return (
-    <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-neutral-900 bg-background p-5 sm:block sm:w-72 sm:border-b-0 sm:border-r sm:pt-24">
+    <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-72 sm:border-b-0 sm:border-r sm:pt-24">
       <Link
         href="/dashboard/audio"
-        className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-500 transition-colors hover:text-white"
+        className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
       >
         <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
         Back
@@ -131,7 +131,7 @@ export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
             if (group.length === 0) return null;
             return (
               <div key={region}>
-                <p className="mb-1.5 px-1 font-mono text-[9px] uppercase tracking-widest text-neutral-600">{region}</p>
+                <p className="mb-1.5 px-1 font-mono text-[9px] uppercase tracking-widest text-faint">{region}</p>
                 <div className="space-y-1">
                   {group.map((p) => (
                     <SpeakerRow

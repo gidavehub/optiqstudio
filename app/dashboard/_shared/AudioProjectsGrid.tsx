@@ -110,19 +110,19 @@ function TrackCard({
 
   return (
     <div
-      className={`flex flex-col gap-3 rounded-2xl border border-neutral-900 bg-[#0b0d12] p-4 transition-colors hover:border-neutral-800 ${
+      className={`flex flex-col gap-3 rounded-3xl border border-line bg-background p-4 transition-colors hover:border-line ${
         isFresh ? "animate-card-pop" : ""
       }`}
     >
       {/* Prompt + actions */}
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-[12px] leading-snug text-neutral-300">{item.prompt}</p>
+        <p className="line-clamp-2 text-[12px] leading-snug text-ink-2">{item.prompt}</p>
         <div className="flex shrink-0 items-center gap-0.5">
           {onReuse && !item.id.startsWith("temp_") && (
             <button
               onClick={(e) => onReuse(item.id, e)}
               title="Reuse this prompt"
-              className="rounded-full p-1 text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-white"
+              className="rounded-full p-1 text-muted transition-colors hover:bg-surface hover:text-foreground"
             >
               <RotateCcw size={13} />
             </button>
@@ -133,23 +133,23 @@ function TrackCard({
                 e.stopPropagation();
                 setOpenedMenuId(openedMenuId === item.id ? null : item.id);
               }}
-              className="rounded-full p-1 text-neutral-500 transition-colors hover:bg-neutral-900 hover:text-white"
+              className="rounded-full p-1 text-muted transition-colors hover:bg-surface hover:text-foreground"
             >
               <MoreVertical size={14} />
             </button>
             {openedMenuId === item.id && (
-              <div className="absolute right-0 z-50 mt-1 w-32 rounded-lg border border-neutral-800 bg-[#121314] py-1 shadow-xl">
+              <div className="absolute right-0 z-50 mt-1 w-32 rounded-xl border border-line bg-surface py-1 shadow-xl">
                 {onReuse && !item.id.startsWith("temp_") && (
                   <button
                     onClick={(e) => onReuse(item.id, e)}
-                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-neutral-300 transition-colors hover:bg-neutral-900 hover:text-white"
+                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-ink-2 transition-colors hover:bg-surface hover:text-foreground"
                   >
                     <RotateCcw size={12} /> Reuse prompt
                   </button>
                 )}
                 <button
                   onClick={(e) => onDelete(item.id, e)}
-                  className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-red-400 transition-colors hover:bg-neutral-900 hover:text-red-300"
+                  className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-danger transition-colors hover:bg-surface hover:text-danger"
                 >
                   <Trash2 size={12} /> Delete
                 </button>
@@ -164,12 +164,12 @@ function TrackCard({
         <button
           onClick={onToggle}
           disabled={isRendering}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-black transition-transform hover:scale-105 disabled:opacity-40 ${
-            variant === "music" ? "bg-emerald-400" : "bg-blue-400"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-background transition-transform hover:scale-105 disabled:opacity-40 ${
+            variant === "music" ? "bg-emerald-400" : "bg-accent"
           }`}
         >
           {isRendering ? (
-            <Loader2 size={16} className="animate-spin text-black/70" />
+            <Loader2 size={16} className="animate-spin text-ink-3" />
           ) : isPlaying ? (
             <Pause size={16} fill="black" />
           ) : (
@@ -194,7 +194,7 @@ function TrackCard({
           onClick={download}
           disabled={isRendering || downloading}
           title="Download"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-white/5 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink-2 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
         >
           {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
         </button>
@@ -260,10 +260,10 @@ export default function AudioProjectsGrid({
 
   if (visible.length === 0) {
     return (
-      <div className="flex flex-col items-center py-24 text-center text-neutral-600 sm:py-28">
-        <Music size={34} className="mb-4 text-neutral-700" />
-        <h3 className="text-sm font-semibold text-neutral-400">{emptyTitle}</h3>
-        <p className="mt-1 max-w-xs text-xs leading-normal text-neutral-600">{emptyHint}</p>
+      <div className="flex flex-col items-center py-24 text-center text-faint sm:py-28">
+        <Music size={34} className="mb-4 text-faint" />
+        <h3 className="text-sm font-semibold text-ink-3">{emptyTitle}</h3>
+        <p className="mt-1 max-w-xs text-xs leading-normal text-faint">{emptyHint}</p>
       </div>
     );
   }

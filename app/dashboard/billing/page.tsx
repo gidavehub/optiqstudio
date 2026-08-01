@@ -116,36 +116,36 @@ function BillingInner() {
   const balance = profile?.credits ?? 0;
 
   return (
-    <div className="h-full overflow-y-auto bg-black text-white">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       {/* pt-24 clears the fixed FloatingChrome pills (logo + account) */}
       <div className="mx-auto max-w-4xl px-5 pb-16 pt-24 sm:px-8">
         <div className="flex items-center gap-3">
-          <Wallet className="text-neutral-400" size={22} />
+          <Wallet className="text-ink-3" size={22} />
           <div>
             <h1 className="text-[22px] font-bold tracking-tight sm:text-[24px]">Wallet</h1>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <p className="mt-0.5 text-xs text-muted">
               Pay only for what you make. No subscription, and your balance never expires.
             </p>
           </div>
         </div>
 
         {status === "success" && (
-          <div className="mt-6 rounded-xl border border-emerald-950 bg-emerald-950/30 px-4 py-3.5 text-xs text-emerald-300">
+          <div className="mt-6 rounded-2xl border border-emerald-950 bg-success-soft px-4 py-3.5 text-xs text-success">
             Payment received — your balance updates within a few seconds of confirmation.
           </div>
         )}
         {status === "cancelled" && (
-          <div className="mt-6 rounded-xl border border-neutral-900 bg-neutral-950 px-4 py-3.5 text-xs text-neutral-400">
+          <div className="mt-6 rounded-2xl border border-line bg-background px-4 py-3.5 text-xs text-ink-3">
             Checkout cancelled. No charge was made.
           </div>
         )}
         {/* ── BALANCE + TOP UP ──────────────────────────────────────────── */}
-        <div className="mt-8 rounded-2xl border border-white/5 bg-surface p-6">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+        <div className="mt-8 rounded-3xl border border-line bg-surface p-6">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
             Current balance
           </p>
-          <p className="mt-2 font-display text-4xl font-extrabold tracking-tight tabular-nums text-white sm:text-5xl">
-            <span className="mr-1.5 align-top text-lg font-bold text-neutral-500">GMD</span>
+          <p className="mt-2 font-display text-4xl font-extrabold tracking-tight tabular-nums text-foreground sm:text-5xl">
+            <span className="mr-1.5 align-top text-lg font-bold text-muted">GMD</span>
             {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
 
@@ -153,21 +153,21 @@ function BillingInner() {
               amount entry and a single checkout path to maintain. */}
           <button
             onClick={() => router.push("/plans?topup=1")}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-4 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.99]"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-foreground py-4 text-sm font-bold text-background transition-all hover:bg-ink-2 active:scale-[0.99]"
           >
             <Wallet size={16} />
             Top up wallet
           </button>
 
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-neutral-500">
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-muted">
             <ShieldCheck size={11} /> Card or mobile money, secured by ModemPay
           </p>
 
-          <div className="mt-5 border-t border-white/5 pt-4">
+          <div className="mt-5 border-t border-line pt-4">
             <button
               onClick={recoverPayment}
               disabled={recovering}
-              className="flex w-full items-center justify-center gap-2 text-[11px] font-semibold text-neutral-400 transition-colors hover:text-white disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 text-[11px] font-semibold text-ink-3 transition-colors hover:text-foreground disabled:opacity-50"
             >
               {recovering ? (
                 <Loader2 size={12} className="animate-spin" />
@@ -177,16 +177,16 @@ function BillingInner() {
               Paid but balance not updated? Recover it
             </button>
             {recoverMsg && (
-              <p className="mt-2.5 text-center text-[11px] text-neutral-300">{recoverMsg}</p>
+              <p className="mt-2.5 text-center text-[11px] text-ink-2">{recoverMsg}</p>
             )}
           </div>
         </div>
 
         {/* ── WHAT THINGS COST ──────────────────────────────────────────── */}
         <div className="mt-10 grid gap-5 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white">Complete ads</h3>
-            <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+          <div className="rounded-[28px] border border-line bg-surface/60 p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Complete ads</h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted">
               One price covers the script, the cast and every scene rendered.
             </p>
             <div className="mt-4 space-y-2.5">
@@ -195,11 +195,11 @@ function BillingInner() {
                   key={r.label}
                   className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
                 >
-                  <span className="text-xs text-neutral-200">
+                  <span className="text-xs text-foreground">
                     {r.label}
-                    <span className="ml-1.5 text-[10px] text-neutral-500">{r.detail}</span>
+                    <span className="ml-1.5 text-[10px] text-muted">{r.detail}</span>
                   </span>
-                  <span className="font-mono text-xs font-bold text-white">
+                  <span className="font-mono text-xs font-bold text-foreground">
                     GMD {r.total.toLocaleString()}
                   </span>
                 </div>
@@ -207,9 +207,9 @@ function BillingInner() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/5 bg-surface/60 p-5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white">Direct Studio</h3>
-            <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+          <div className="rounded-[28px] border border-line bg-surface/60 p-5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Direct Studio</h3>
+            <p className="mt-1 text-[10px] leading-relaxed text-muted">
               Single assets generated outside an ad, charged per request.
             </p>
             <div className="mt-4 space-y-2.5">
@@ -218,11 +218,11 @@ function BillingInner() {
                   key={`${r.label}-${r.detail}`}
                   className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
                 >
-                  <span className="text-xs text-neutral-200">
+                  <span className="text-xs text-foreground">
                     {r.label}
-                    <span className="ml-1.5 text-[10px] text-neutral-500">{r.detail}</span>
+                    <span className="ml-1.5 text-[10px] text-muted">{r.detail}</span>
                   </span>
-                  <span className="font-mono text-xs font-bold text-white">{r.price}</span>
+                  <span className="font-mono text-xs font-bold text-foreground">{r.price}</span>
                 </div>
               ))}
             </div>
@@ -230,25 +230,25 @@ function BillingInner() {
         </div>
 
         {/* ── HISTORY ───────────────────────────────────────────────────── */}
-        <div className="mt-12 border-t border-white/5 pt-10">
+        <div className="mt-12 border-t border-line pt-10">
           <div className="mb-4 flex items-center gap-2">
-            <Receipt className="text-neutral-400" size={15} />
-            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-neutral-400">
+            <Receipt className="text-ink-3" size={15} />
+            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-ink-3">
               Payment history
             </h3>
           </div>
 
           {txLoading ? (
-            <div className="flex items-center justify-center gap-2 p-6 font-mono text-xs uppercase tracking-wider text-neutral-500">
-              <Loader2 className="animate-spin text-neutral-400" size={14} />
+            <div className="flex items-center justify-center gap-2 p-6 font-mono text-xs uppercase tracking-wider text-muted">
+              <Loader2 className="animate-spin text-ink-3" size={14} />
               Loading…
             </div>
           ) : transactions.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-white/5 bg-surface/60">
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface/60">
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-white/5 bg-background font-mono text-[9px] uppercase tracking-wider text-neutral-500">
+                    <tr className="border-b border-line bg-background font-mono text-[9px] uppercase tracking-wider text-muted">
                       <th className="px-4 py-3 font-semibold">Date</th>
                       <th className="px-4 py-3 font-semibold">Description</th>
                       <th className="hidden px-4 py-3 font-semibold sm:table-cell">Method</th>
@@ -256,18 +256,18 @@ function BillingInner() {
                       <th className="px-4 py-3 text-right font-semibold">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.04] text-neutral-300">
+                  <tbody className="divide-y divide-white/[0.04] text-ink-2">
                     {transactions.map((tx) => (
                       <tr key={tx.id || tx.invoiceId} className="transition-colors hover:bg-white/[0.02]">
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-neutral-400">{tx.date}</td>
-                        <td className="px-4 py-3 font-medium text-neutral-200">{tx.description}</td>
-                        <td className="hidden px-4 py-3 text-neutral-400 sm:table-cell">{tx.method}</td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-ink-3">{tx.date}</td>
+                        <td className="px-4 py-3 font-medium text-foreground">{tx.description}</td>
+                        <td className="hidden px-4 py-3 text-ink-3 sm:table-cell">{tx.method}</td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[9px] font-bold uppercase ${
                               tx.status?.toLowerCase() === "succeeded"
-                                ? "border border-emerald-900 bg-emerald-950/40 text-emerald-400"
-                                : "border border-neutral-800 bg-neutral-950 text-neutral-400"
+                                ? "border border-emerald-900 bg-emerald-950/40 text-success"
+                                : "border border-line bg-background text-ink-3"
                             }`}
                           >
                             {tx.status}
@@ -276,7 +276,7 @@ function BillingInner() {
                         {/* Amounts are already GMD — shown exactly as recorded */}
                         <td
                           className={`whitespace-nowrap px-4 py-3 text-right font-mono font-bold ${
-                            tx.amount?.trim().startsWith("-") ? "text-neutral-400" : "text-emerald-400"
+                            tx.amount?.trim().startsWith("-") ? "text-ink-3" : "text-success"
                           }`}
                         >
                           {tx.amount}
@@ -288,11 +288,11 @@ function BillingInner() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/5 bg-background p-8 text-center">
-              <p className="font-mono text-xs uppercase tracking-wider text-neutral-500">No transactions yet</p>
+            <div className="rounded-3xl border border-line bg-background p-8 text-center">
+              <p className="font-mono text-xs uppercase tracking-wider text-muted">No transactions yet</p>
               <button
                 onClick={() => router.push("/plans")}
-                className="mt-3 text-xs font-bold text-blue-400 hover:underline"
+                className="mt-3 text-xs font-bold text-accent-ink hover:underline"
               >
                 See what things cost
               </button>

@@ -55,26 +55,26 @@ export default function ConfirmGenerationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a1024] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-line bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
         <div className="flex items-start justify-between">
-          <h3 className="text-lg font-black tracking-tight text-white">{title}</h3>
+          <h3 className="text-lg font-black tracking-tight text-foreground">{title}</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-white/5 hover:text-white"
+            className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-foreground"
           >
             <X size={16} />
           </button>
         </div>
 
-        <p className="mt-1 text-[13px] text-neutral-400">{description}</p>
+        <p className="mt-1 text-[13px] text-ink-3">{description}</p>
 
         <div className="mt-6 text-center">
-          <p className="font-display text-5xl font-black leading-none tracking-tight text-white">
-            <span className="mr-1.5 align-top text-xl font-bold text-neutral-500">GMD</span>
+          <p className="font-display text-5xl font-black leading-none tracking-tight text-foreground">
+            <span className="mr-1.5 align-top text-xl font-bold text-muted">GMD</span>
             {fmt(cost)}
           </p>
-          <p className="mt-2 text-[11px] text-neutral-500">
+          <p className="mt-2 text-[11px] text-muted">
             {hasEnoughBalance
               ? `GMD ${fmt(remainingBalance)} left after this`
               : `GMD ${fmt(shortfall)} short`}
@@ -88,7 +88,7 @@ export default function ConfirmGenerationModal({
                 onConfirm();
                 onClose();
               }}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 rounded-3xl bg-foreground py-3.5 text-sm font-bold text-background transition-all hover:bg-ink-2 active:scale-[0.98]"
             >
               <Zap size={15} />
               {actionLabel}
@@ -96,7 +96,7 @@ export default function ConfirmGenerationModal({
           ) : (
             <button
               onClick={() => router.push("/plans")}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 rounded-3xl bg-foreground py-3.5 text-sm font-bold text-background transition-all hover:bg-ink-2 active:scale-[0.98]"
             >
               <Wallet size={15} />
               Top up wallet
@@ -104,7 +104,7 @@ export default function ConfirmGenerationModal({
           )}
           <button
             onClick={onClose}
-            className="py-2 text-[13px] font-semibold text-neutral-500 transition-colors hover:text-white"
+            className="py-2 text-[13px] font-semibold text-muted transition-colors hover:text-foreground"
           >
             Cancel
           </button>

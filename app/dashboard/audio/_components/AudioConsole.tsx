@@ -44,10 +44,10 @@ export default function AudioConsole({
   const dictation = useDictation((updater) => setValue(updater(value)));
 
   return (
-    <div className="relative z-40 border-t border-neutral-900 bg-background/90 p-4 backdrop-blur-md sm:p-5">
+    <div className="relative z-40 border-t border-line bg-background/90 p-4 backdrop-blur-md sm:p-5">
       {children}
 
-      <div className="flex w-full items-end gap-3 rounded-2xl border border-neutral-800 bg-surface p-3 shadow-inner transition-all duration-300">
+      <div className="flex w-full items-end gap-3 rounded-3xl border border-line bg-surface p-3 shadow-inner transition-all duration-300">
         <textarea
           rows={1}
           value={dictation.recording && dictation.interim ? `${value} ${dictation.interim}`.trim() : value}
@@ -59,7 +59,7 @@ export default function AudioConsole({
           }}
           readOnly={dictation.recording}
           placeholder={dictation.recording ? "Listening…" : placeholder}
-          className="max-h-40 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-sm placeholder:text-neutral-600 focus:outline-none"
+          className="max-h-40 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 text-sm placeholder:text-faint focus:outline-none"
         />
 
         <button
@@ -67,8 +67,8 @@ export default function AudioConsole({
           title={dictation.recording ? "Stop dictation" : "Dictate"}
           className={`shrink-0 rounded-full p-1.5 transition-colors ${
             dictation.recording
-              ? "animate-pulse bg-red-500/15 text-red-400"
-              : "text-neutral-400 hover:text-white"
+              ? "animate-pulse bg-danger-soft text-danger"
+              : "text-ink-3 hover:text-white"
           }`}
         >
           {dictation.recording ? <MicOff size={16} /> : <Mic size={16} />}
@@ -79,7 +79,7 @@ export default function AudioConsole({
             onClick={onEnhance}
             disabled={enhancing || !value.trim()}
             title="Enhance brief"
-            className="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-white disabled:opacity-40"
+            className="shrink-0 p-1.5 text-ink-3 transition-colors hover:text-foreground disabled:opacity-40"
           >
             {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
           </button>
@@ -88,14 +88,14 @@ export default function AudioConsole({
         <button
           onClick={onGenerate}
           disabled={busy || !value.trim()}
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-neutral-200 disabled:opacity-40"
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition-colors hover:bg-ink-2 disabled:opacity-40"
         >
           {busy && <Loader2 size={13} className="animate-spin" />}
           {busy ? busyLabel : generateLabel}
         </button>
       </div>
 
-      <div className="mt-1.5 flex justify-between px-1 font-mono text-[10px] text-neutral-600">
+      <div className="mt-1.5 flex justify-between px-1 font-mono text-[10px] text-faint">
         <span>
           {value.length.toLocaleString()} / {maxLength.toLocaleString()}
         </span>

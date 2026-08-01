@@ -25,22 +25,22 @@ export default function SceneReferenceImages({
   onRemove,
 }: SceneReferenceImagesProps) {
   return (
-    <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-3.5">
-      <span className="text-[9px] font-bold uppercase tracking-wide text-neutral-500">
+    <div className="rounded-[28px] border border-line bg-white/[0.02] p-3.5">
+      <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
         Reference images — attached to this scene&apos;s render
       </span>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {attached.map((img, imgIdx) => (
           <div
             key={`${img.path}-${imgIdx}`}
-            className="group relative h-14 w-14 overflow-hidden rounded-xl border border-white/10 bg-black"
+            className="group relative h-14 w-14 overflow-hidden rounded-2xl border border-line bg-background"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={img.url} alt={img.name} className="h-full w-full object-cover" />
             <button
               onClick={() => onRemove(imgIdx)}
               title="Remove from this scene"
-              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-neutral-300 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-ink-2 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
             >
               <X size={10} />
             </button>
@@ -49,7 +49,7 @@ export default function SceneReferenceImages({
 
         <label
           title="Upload a new reference image"
-          className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-xl border border-dashed border-white/15 text-neutral-500 transition-colors hover:border-blue-500/50 hover:text-blue-400"
+          className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-line-2 text-muted transition-colors hover:border-accent-line hover:text-accent-ink"
         >
           <Plus size={15} />
           <input
@@ -69,12 +69,12 @@ export default function SceneReferenceImages({
             key={mat.path}
             onClick={() => onAttach(mat)}
             title={`Attach ${mat.name}`}
-            className="relative h-14 w-14 overflow-hidden rounded-xl border border-white/5 opacity-40 transition-all hover:border-blue-500/50 hover:opacity-100"
+            className="relative h-14 w-14 overflow-hidden rounded-2xl border border-line opacity-40 transition-all hover:border-accent-line hover:opacity-100"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={mat.url} alt={mat.name} className="h-full w-full object-cover" />
             <span className="absolute inset-0 flex items-center justify-center bg-black/40">
-              <Plus size={13} className="text-white" />
+              <Plus size={13} className="text-foreground" />
             </span>
           </button>
         ))}

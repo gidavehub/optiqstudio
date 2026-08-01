@@ -143,12 +143,12 @@ export default function MusicStudio() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-black text-white sm:flex-row">
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
       {/* Mood rail (desktop) */}
-      <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-neutral-900 bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
+      <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
         <Link
           href="/dashboard/audio"
-          className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-500 transition-colors hover:text-white"
+          className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
         >
           <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
           Back
@@ -160,7 +160,7 @@ export default function MusicStudio() {
               <button
                 key={m}
                 onClick={() => addMood(m)}
-                className="rounded-full border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-[11px] font-semibold text-neutral-300 transition-colors hover:border-emerald-500/40 hover:bg-[#10231b] hover:text-emerald-200"
+                className="rounded-full border border-line bg-background px-3 py-1.5 text-[11px] font-semibold text-ink-2 transition-colors hover:border-success hover:bg-[#10231b] hover:text-success"
               >
                 {m}
               </button>
@@ -169,14 +169,14 @@ export default function MusicStudio() {
         </div>
       </aside>
 
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-black">
+      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
         <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-neutral-900 pb-4">
+          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
             <div>
-              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
                 OPTIQ MUSIC
               </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-white">All Tracks</h2>
+              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Tracks</h2>
             </div>
           </div>
 
@@ -201,9 +201,9 @@ export default function MusicStudio() {
         </div>
 
         {error && (
-          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-xl border border-red-950 bg-red-950/40 p-4 text-xs text-red-300 sm:mx-8">
+          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger sm:mx-8">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-neutral-500 hover:text-white">
+            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
               <X size={14} />
             </button>
           </div>
@@ -229,7 +229,7 @@ export default function MusicStudio() {
               <button
                 key={m}
                 onClick={() => addMood(m)}
-                className="shrink-0 rounded-full border border-neutral-800 bg-[#07090f] px-3 py-1.5 text-[11px] font-semibold text-neutral-300"
+                className="shrink-0 rounded-full border border-line bg-background px-3 py-1.5 text-[11px] font-semibold text-ink-2"
               >
                 {m}
               </button>

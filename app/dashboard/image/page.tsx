@@ -174,17 +174,17 @@ function ImageWorkspace() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-black text-white sm:flex-row">
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
       <SettingsRail aspectRatio={aspectRatio} setAspectRatio={setAspectRatio} />
 
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-black">
+      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
         <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-neutral-900 pb-4">
+          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
             <div>
-              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
                 CREATIVE FLOW
               </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-white">All Stills &amp; Artwork</h2>
+              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Stills &amp; Artwork</h2>
             </div>
           </div>
 
@@ -212,16 +212,16 @@ function ImageWorkspace() {
         </div>
 
         {error && (
-          <div className="mx-8 mb-4 flex animate-rise items-center justify-between rounded-xl border border-red-950 bg-red-950/40 p-4 text-xs text-red-300">
+          <div className="mx-8 mb-4 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger">
             <span>Error: {error}</span>
-            <button onClick={() => setError(null)} className="text-neutral-500 hover:text-white">
+            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
               <X size={14} />
             </button>
           </div>
         )}
 
         {/* Mobile-only compact settings — desktop uses the left rail */}
-        <div className="border-t border-neutral-900 bg-background/90 px-4 py-2.5 backdrop-blur-md sm:hidden">
+        <div className="border-t border-line bg-background/90 px-4 py-2.5 backdrop-blur-md sm:hidden">
           <AspectRatioStrip options={IMAGE_ASPECTS} value={aspectRatio} onChange={setAspectRatio} />
         </div>
 

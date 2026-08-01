@@ -72,7 +72,7 @@ export default function MobileEditorDock({
     <>
       {/* ── TOOL TRAY ─────────────────────────────────────────────────────
           Scrolls sideways; each tool is a thumb-sized target with a label. */}
-      <div className="shrink-0 border-t border-white/10 bg-[#0a0f1d] pb-[env(safe-area-inset-bottom)]">
+      <div className="shrink-0 border-t border-line bg-background pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-stretch gap-1 overflow-x-auto px-2 py-2.5 scrollbar-none">
           {hasClip ? (
             <>
@@ -88,7 +88,7 @@ export default function MobileEditorDock({
               <DockTool label="Delete" danger onClick={remove}>
                 <Trash2 size={18} />
               </DockTool>
-              <span className="mx-1 my-2 w-px shrink-0 bg-white/10" />
+              <span className="mx-1 my-2 w-px shrink-0 bg-surface-2" />
               <DockTool label="Add" onClick={() => setSheet("add")}>
                 <Plus size={18} />
               </DockTool>
@@ -124,14 +124,14 @@ export default function MobileEditorDock({
             className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]"
           />
           <div className="fixed inset-x-0 bottom-0 z-50 animate-slideUp">
-            <div className="max-h-[62dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0f1d]/95 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-[#0a0f1d]/95 px-4 py-2.5">
-                <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-neutral-400">
+            <div className="max-h-[62dvh] overflow-y-auto rounded-t-3xl border-t border-line bg-[#0a0f1d]/95 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-[#0a0f1d]/95 px-4 py-2.5">
+                <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-ink-3">
                   {sheet === "add" ? "Add Media" : "Clip Settings"}
                 </span>
                 <button
                   onClick={() => setSheet(null)}
-                  className="rounded-lg bg-white/5 px-3 py-1 text-[11px] font-bold text-neutral-300 transition-transform active:scale-95"
+                  className="rounded-2xl bg-surface px-3 py-1 text-[11px] font-bold text-ink-2 transition-transform active:scale-95"
                 >
                   Done
                 </button>
@@ -180,20 +180,20 @@ function DockTool({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex w-[62px] shrink-0 flex-col items-center gap-1.5 rounded-xl px-1 py-1.5 transition-transform active:scale-90 disabled:opacity-30"
+      className="flex w-[62px] shrink-0 flex-col items-center gap-1.5 rounded-2xl px-1 py-1.5 transition-transform active:scale-90 disabled:opacity-30"
     >
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors ${
+        className={`flex h-11 w-11 items-center justify-center rounded-3xl border transition-colors ${
           danger
-            ? "border-red-500/30 bg-red-950/30 text-red-400"
+            ? "border-danger bg-danger-soft text-danger"
             : accent
-            ? "border-blue-500/40 bg-[#0c152d] text-blue-400"
-            : "border-white/10 bg-white/5 text-neutral-300"
+            ? "border-accent-line bg-surface text-accent-ink"
+            : "border-line bg-surface text-ink-2"
         }`}
       >
         {children}
       </span>
-      <span className="text-[9px] font-semibold tracking-tight text-neutral-400">{label}</span>
+      <span className="text-[9px] font-semibold tracking-tight text-ink-3">{label}</span>
     </button>
   );
 }

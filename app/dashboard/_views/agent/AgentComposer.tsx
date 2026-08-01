@@ -54,14 +54,14 @@ export default function AgentComposer({
     <div className="mx-auto w-full max-w-3xl">
       {activity && (
         <div className="mb-2 flex items-center gap-2 px-1">
-          <Loader2 size={11} className="shrink-0 animate-spin text-blue-400" />
-          <span className="truncate font-mono text-[10px] uppercase tracking-widest text-neutral-500">
+          <Loader2 size={11} className="shrink-0 animate-spin text-accent-ink" />
+          <span className="truncate font-mono text-[10px] uppercase tracking-widest text-muted">
             {activity}
           </span>
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/10 bg-[#0e1630]/75 p-3 shadow-2xl backdrop-blur-xl transition-all duration-300 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/10">
+      <div className="rounded-[28px] border border-line bg-[#0e1630]/75 p-3 shadow-2xl backdrop-blur-xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -82,27 +82,27 @@ export default function AgentComposer({
                 ? "Generate the storyboard first…"
                 : "Scene 4 drags — give it a real event, and land the tub in shot…"
           }
-          className="max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1.5 py-1 text-sm leading-relaxed text-white outline-none placeholder:text-neutral-600"
+          className="max-h-[200px] w-full resize-none overflow-y-auto bg-transparent px-1.5 py-1 text-sm leading-relaxed text-foreground outline-none placeholder:text-faint"
         />
 
-        <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2.5">
+        <div className="mt-2 flex items-center justify-between border-t border-line pt-2.5">
           <button
             type="button"
             onClick={dictation.toggle}
             disabled={disabled}
             title={dictation.recording ? "Stop dictation" : "Talk to the agent"}
-            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition-all disabled:opacity-40 ${
+            className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-[11px] font-bold transition-all disabled:opacity-40 ${
               dictation.recording
-                ? "animate-pulse border-red-500/20 bg-red-600/20 text-red-400"
-                : "border-white/5 bg-white/5 text-neutral-400 hover:border-white/10 hover:text-white"
+                ? "animate-pulse border-danger bg-danger-soft text-danger"
+                : "border-line bg-surface text-ink-3 hover:border-line hover:text-white"
             }`}
           >
-            {dictation.recording ? <MicOff size={12} /> : <Mic size={12} className="text-blue-400" />}
+            {dictation.recording ? <MicOff size={12} /> : <Mic size={12} className="text-accent-ink" />}
             {dictation.recording ? "Stop" : "Voice"}
           </button>
 
           <div className="flex items-center gap-3">
-            <span className="hidden font-mono text-[10px] uppercase tracking-widest text-neutral-600 sm:block">
+            <span className="hidden font-mono text-[10px] uppercase tracking-widest text-faint sm:block">
               {busy ? "Working" : "Enter to send"}
             </span>
             <button
@@ -110,7 +110,7 @@ export default function AgentComposer({
               onClick={submit}
               disabled={!canSend}
               aria-label="Send"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background transition-all hover:bg-ink-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowUp size={16} />}
             </button>

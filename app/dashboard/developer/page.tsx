@@ -361,18 +361,18 @@ Response Example:
 }`;
 
   return (
-    <div className="h-full overflow-y-auto bg-black text-white">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       {/* pt-24 clears the fixed FloatingChrome pills (logo + account) */}
       <div className="w-full px-5 sm:px-8 pt-24 pb-10">
         
         {/* Title */}
         <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-surface">
-            <Code className="text-neutral-400" size={18} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface">
+            <Code className="text-ink-3" size={18} />
           </div>
           <div>
             <h1 className="text-[26px] font-semibold tracking-tight">API & Developers</h1>
-            <p className="mt-1 text-[13px] text-neutral-500">
+            <p className="mt-1 text-[13px] text-muted">
               Integrate Optiq’s premium generative models into your custom pipelines and external services.
             </p>
           </div>
@@ -384,8 +384,8 @@ Response Example:
           <div className="lg:col-span-5 space-y-6">
             
             {/* Generate Key Card */}
-            <div className="rounded-lg border border-white/5 bg-surface p-5">
-              <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+            <div className="rounded-2xl border border-line bg-surface p-5">
+              <div className="flex items-center gap-2 text-sm font-medium text-ink-2">
                 <Key size={15} />
                 <h2>Generate API Credentials</h2>
               </div>
@@ -396,12 +396,12 @@ Response Example:
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
                   disabled={creating}
-                  className="flex-1 rounded-md border border-white/5 bg-black px-3 py-2 text-[13px] text-white placeholder-neutral-600 outline-none focus:border-white/20 transition-colors"
+                  className="flex-1 rounded-lg border border-line bg-background px-3 py-2 text-[13px] text-foreground placeholder-faint outline-none focus:border-line-2 transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={creating || !keyName.trim()}
-                  className="inline-flex h-9 items-center justify-center rounded-md bg-white px-3.5 text-[13px] font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 disabled:hover:bg-white"
+                  className="inline-flex h-9 items-center justify-center rounded-lg bg-foreground px-3.5 text-[13px] font-medium text-background hover:bg-ink-2 transition-colors disabled:opacity-40 disabled:hover:bg-foreground"
                 >
                   {creating ? (
                     <Loader2 className="animate-spin" size={14} />
@@ -415,40 +415,40 @@ Response Example:
             </div>
 
             {/* List Keys Card */}
-            <div className="rounded-lg border border-white/5 bg-surface p-5">
-              <h3 className="text-sm font-medium text-neutral-300">Active API Keys</h3>
-              <p className="mt-1 text-[11px] text-neutral-500 leading-normal">
+            <div className="rounded-2xl border border-line bg-surface p-5">
+              <h3 className="text-sm font-medium text-ink-2">Active API Keys</h3>
+              <p className="mt-1 text-[11px] text-muted leading-normal">
                 Credentials carry full spending access to your standard billing balance. Never expose live keys on client-side JS.
               </p>
 
               {loadingKeys ? (
                 <div className="mt-8 flex justify-center py-6">
-                  <Loader2 className="animate-spin text-neutral-600" size={20} />
+                  <Loader2 className="animate-spin text-faint" size={20} />
                 </div>
               ) : keys.length === 0 ? (
-                <div className="mt-6 flex flex-col items-center justify-center rounded-md border border-dashed border-white/5 py-8 text-center text-neutral-600">
+                <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-line py-8 text-center text-faint">
                   <Terminal size={22} className="mb-2" />
                   <p className="text-[12px]">No API keys found.</p>
                 </div>
               ) : (
-                <div className="mt-4 divide-y divide-white/5">
+                <div className="mt-4 divide-y divide-line">
                   {keys.map((key) => {
                     const masked = `${key.apiKey.slice(0, 15)}••••${key.apiKey.slice(-4)}`;
                     return (
                       <div key={key.id} className="py-3.5 first:pt-0 last:pb-0">
                         <div className="flex items-start justify-between">
                           <div>
-                            <p className="text-[13px] font-medium text-neutral-300">{key.name}</p>
-                            <p className="mt-1 font-mono text-[11px] text-neutral-500">{masked}</p>
+                            <p className="text-[13px] font-medium text-ink-2">{key.name}</p>
+                            <p className="mt-1 font-mono text-[11px] text-muted">{masked}</p>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleCopy(key.apiKey, key.id)}
                               title="Copy Key"
-                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-white/5 text-neutral-400 hover:text-white transition-colors"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-surface text-ink-3 hover:text-foreground transition-colors"
                             >
                               {copyingId === key.id ? (
-                                <Check className="text-emerald-500" size={13} />
+                                <Check className="text-success" size={13} />
                               ) : (
                                 <Copy size={13} />
                               )}
@@ -456,13 +456,13 @@ Response Example:
                             <button
                               onClick={() => revokeKey(key.id)}
                               title="Revoke Key"
-                              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-red-950/20 text-neutral-500 hover:text-red-500 transition-colors"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg hover:bg-danger-soft text-muted hover:text-danger transition-colors"
                             >
                               <Trash2 size={13} />
                             </button>
                           </div>
                         </div>
-                        <div className="mt-2.5 flex items-center justify-between text-[10px] text-neutral-600">
+                        <div className="mt-2.5 flex items-center justify-between text-[10px] text-faint">
                           <span>Created {new Date(key.createdAt).toLocaleDateString()}</span>
                           <span>
                             {key.lastUsedAt
@@ -483,19 +483,19 @@ Response Example:
           <div className="lg:col-span-7 space-y-6">
             
             {/* Getting Started Guide */}
-            <div className="rounded-lg border border-white/5 bg-surface p-6">
+            <div className="rounded-2xl border border-line bg-surface p-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+                <div className="flex items-center gap-2 text-sm font-medium text-ink-2">
                   <BookOpen size={15} />
                   <h2>Developer Quickstart</h2>
                 </div>
                 <button
                   onClick={handleCopyGuide}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white px-3 text-[11px] font-semibold text-neutral-300 transition-colors"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-surface border border-line hover:bg-surface-2 hover:text-foreground px-3 text-[11px] font-semibold text-ink-2 transition-colors"
                 >
                   {copyingGuide ? (
                     <>
-                      <Check className="text-emerald-500" size={11} /> Guide Copied
+                      <Check className="text-success" size={11} /> Guide Copied
                     </>
                   ) : (
                     <>
@@ -504,34 +504,34 @@ Response Example:
                   )}
                 </button>
               </div>
-              <p className="mt-3 text-[13px] leading-relaxed text-neutral-400">
-                All developer APIs use secure endpoints deployed in region <code className="font-mono text-neutral-300">us-east4</code>. Request parameters are passed via standard JSON, and authentication is fulfilled via bearer tokens:
+              <p className="mt-3 text-[13px] leading-relaxed text-ink-3">
+                All developer APIs use secure endpoints deployed in region <code className="font-mono text-ink-2">us-east4</code>. Request parameters are passed via standard JSON, and authentication is fulfilled via bearer tokens:
               </p>
-              <div className="mt-4 rounded-md bg-black border border-white/5 px-4 py-3 font-mono text-[12px] text-neutral-300">
-                Authorization: Bearer <span className="text-neutral-400 font-bold">optiq_live_YOUR_API_KEY</span>
+              <div className="mt-4 rounded-lg bg-background border border-line px-4 py-3 font-mono text-[12px] text-ink-2">
+                Authorization: Bearer <span className="text-ink-3 font-bold">optiq_live_YOUR_API_KEY</span>
               </div>
               
-              <div className="mt-5 flex gap-2 rounded-md bg-neutral-900/30 border border-white/5 p-3 text-[11px] text-neutral-500 leading-relaxed">
-                <Info className="shrink-0 text-neutral-400 mt-0.5" size={13} />
+              <div className="mt-5 flex gap-2 rounded-lg bg-surface border border-line p-3 text-[11px] text-muted leading-relaxed">
+                <Info className="shrink-0 text-ink-3 mt-0.5" size={13} />
                 <div>
-                  Our dashboard and external API share the exact same credit balances. For instance, generating an image costs <code className="font-mono text-neutral-300">5 credits</code> directly charged against your standard Optiq wallet.
+                  Our dashboard and external API share the exact same credit balances. For instance, generating an image costs <code className="font-mono text-ink-2">5 credits</code> directly charged against your standard Optiq wallet.
                 </div>
               </div>
             </div>
 
             {/* Docs Tabs Card */}
-            <div className="rounded-lg border border-white/5 bg-surface overflow-hidden">
+            <div className="rounded-2xl border border-line bg-surface overflow-hidden">
               
               {/* Tab Selector Header */}
-              <div className="flex border-b border-white/5 bg-black">
+              <div className="flex border-b border-line bg-background">
                 {(["image", "video", "tts"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`flex-1 py-3 text-center font-mono text-[11px] tracking-wider uppercase border-b-2 transition-all ${
                       activeTab === tab
-                        ? "border-white text-white bg-white/5 font-semibold"
-                        : "border-transparent text-neutral-500 hover:text-white"
+                        ? "border-line-2 text-foreground bg-surface font-semibold"
+                        : "border-transparent text-muted hover:text-foreground"
                     }`}
                   >
                     {tab === "tts" ? "TTS (Speech)" : tab}
@@ -545,27 +545,27 @@ Response Example:
                 {activeTab === "image" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-neutral-300">
+                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
                         POST /apiGenerateImage
                       </h4>
-                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
+                      <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
                         5 - 15 Credits
                       </span>
                     </div>
-                     <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Creates premium photorealistic graphics using <code className="font-mono text-neutral-300">gemini-3.1-flash-image-preview</code>. Supports optional reference image attachments (passed via <code className="font-mono text-neutral-300">{'referenceImages: [{"base64", "mimeType"}]'}</code>) to guide generations, or character sheets for subject consistency.
+                     <p className="text-[12.5px] leading-relaxed text-ink-3">
+                      Creates premium photorealistic graphics using <code className="font-mono text-ink-2">gemini-3.1-flash-image-preview</code>. Supports optional reference image attachments (passed via <code className="font-mono text-ink-2">{'referenceImages: [{"base64", "mimeType"}]'}</code>) to guide generations, or character sheets for subject consistency.
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-white/5 rounded-t-md text-[11px] text-neutral-500">
+                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlImage, "curl-image")}
-                          className="flex items-center gap-1 hover:text-white transition-colors"
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           {copyingText === "curl-image" ? (
                             <>
-                              <Check size={11} className="text-emerald-500" /> Copied
+                              <Check size={11} className="text-success" /> Copied
                             </>
                           ) : (
                             <>
@@ -574,16 +574,16 @@ Response Example:
                           )}
                         </button>
                       </div>
-                      <pre className="overflow-x-auto rounded-b-md bg-black p-4 font-mono text-[11px] text-neutral-300 leading-normal border-x border-b border-white/5">
+                      <pre className="overflow-x-auto rounded-b-lg bg-background p-4 font-mono text-[11px] text-ink-2 leading-normal border-x border-b border-line">
                         {curlImage}
                       </pre>
                     </div>
 
                     <div>
-                      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                      <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema (200 OK)
                       </p>
-                      <pre className="overflow-x-auto rounded-md bg-black/40 p-4 font-mono text-[11px] text-neutral-300 leading-normal border border-white/5">
+                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseImage}
                       </pre>
                     </div>
@@ -593,27 +593,27 @@ Response Example:
                 {activeTab === "video" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-neutral-300">
+                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
                         POST /apiGenerateVideo
                       </h4>
-                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
+                      <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
                         5 - 12 Credits / Sec
                       </span>
                     </div>
-                    <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Generates high-motion cinematic video using <code className="font-mono text-neutral-300">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion. You can optionally attach reference images or videos (using <code className="font-mono text-neutral-300">imageBase64</code>/<code className="font-mono text-neutral-300">imageMimeType</code> or <code className="font-mono text-neutral-300">videoBase64</code>/<code className="font-mono text-neutral-300">videoMimeType</code>) to guide the first frame of the generated output, as well as an audio voice reference (using <code className="font-mono text-neutral-300">audioBase64</code>/<code className="font-mono text-neutral-300">audioMimeType</code>) to extract and clone custom voice profiles for character speech.
+                    <p className="text-[12.5px] leading-relaxed text-ink-3">
+                      Generates high-motion cinematic video using <code className="font-mono text-ink-2">gemini-omni-flash-preview</code>. Returns a unique tracking ID to poll for completion. You can optionally attach reference images or videos (using <code className="font-mono text-ink-2">imageBase64</code>/<code className="font-mono text-ink-2">imageMimeType</code> or <code className="font-mono text-ink-2">videoBase64</code>/<code className="font-mono text-ink-2">videoMimeType</code>) to guide the first frame of the generated output, as well as an audio voice reference (using <code className="font-mono text-ink-2">audioBase64</code>/<code className="font-mono text-ink-2">audioMimeType</code>) to extract and clone custom voice profiles for character speech.
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-white/5 rounded-t-md text-[11px] text-neutral-500">
+                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlVideo, "curl-video")}
-                          className="flex items-center gap-1 hover:text-white transition-colors"
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           {copyingText === "curl-video" ? (
                             <>
-                              <Check size={11} className="text-emerald-500" /> Copied
+                              <Check size={11} className="text-success" /> Copied
                             </>
                           ) : (
                             <>
@@ -622,43 +622,43 @@ Response Example:
                           )}
                         </button>
                       </div>
-                      <pre className="overflow-x-auto rounded-b-md bg-black p-4 font-mono text-[11px] text-neutral-300 leading-normal border-x border-b border-white/5">
+                      <pre className="overflow-x-auto rounded-b-lg bg-background p-4 font-mono text-[11px] text-ink-2 leading-normal border-x border-b border-line">
                         {curlVideo}
                       </pre>
                     </div>
 
                     <div>
-                      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                      <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema
                       </p>
-                      <pre className="overflow-x-auto rounded-md bg-black/40 p-4 font-mono text-[11px] text-neutral-300 leading-normal border border-white/5">
+                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseVideo}
                       </pre>
                     </div>
 
-                    <div className="border-t border-white/5 pt-4 space-y-4">
+                    <div className="border-t border-line pt-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-mono text-[12px] font-bold text-neutral-300">
+                        <h4 className="font-mono text-[12px] font-bold text-ink-2">
                           GET /apiGetVideoStatus
                         </h4>
-                        <span className="text-[10px] text-neutral-500">
+                        <span className="text-[10px] text-muted">
                           Polling Query
                         </span>
                       </div>
-                      <p className="text-[12.5px] leading-relaxed text-neutral-400">
+                      <p className="text-[12.5px] leading-relaxed text-ink-3">
                         Check execution states and retrieve finalized mp4 CDN URLs.
                       </p>
 
                       <div>
-                        <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-white/5 rounded-t-md text-[11px] text-neutral-500">
+                        <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                           <span>CURL STATUS COMMAND</span>
                           <button
                             onClick={() => handleCopyText(curlVideoStatus, "curl-video-status")}
-                            className="flex items-center gap-1 hover:text-white transition-colors"
+                            className="flex items-center gap-1 hover:text-foreground transition-colors"
                           >
                             {copyingText === "curl-video-status" ? (
                               <>
-                                <Check size={11} className="text-emerald-500" /> Copied
+                                <Check size={11} className="text-success" /> Copied
                               </>
                             ) : (
                               <>
@@ -667,16 +667,16 @@ Response Example:
                             )}
                           </button>
                         </div>
-                        <pre className="overflow-x-auto rounded-b-md bg-black p-4 font-mono text-[11px] text-neutral-300 leading-normal border-x border-b border-white/5">
+                        <pre className="overflow-x-auto rounded-b-lg bg-background p-4 font-mono text-[11px] text-ink-2 leading-normal border-x border-b border-line">
                           {curlVideoStatus}
                         </pre>
                       </div>
 
                       <div>
-                        <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                        <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                           Status Schema (Succeeded)
                         </p>
-                        <pre className="overflow-x-auto rounded-md bg-black/40 p-4 font-mono text-[11px] text-neutral-300 leading-normal border border-white/5">
+                        <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                           {responseVideoStatus}
                         </pre>
                       </div>
@@ -687,27 +687,27 @@ Response Example:
                 {activeTab === "tts" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-neutral-300">
+                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
                         POST /apiGenerateTTS
                       </h4>
-                      <span className="rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-300 font-medium">
+                      <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
                         1 Credit / 100 Chars
                       </span>
                     </div>
-                    <p className="text-[12.5px] leading-relaxed text-neutral-400">
-                      Generate hyper-realistic natural speech audio using <code className="font-mono text-neutral-300">gemini-3.1-flash-preview-tts</code>. Customize delivery style directions like accents, dramatic pause, and tone.
+                    <p className="text-[12.5px] leading-relaxed text-ink-3">
+                      Generate hyper-realistic natural speech audio using <code className="font-mono text-ink-2">gemini-3.1-flash-preview-tts</code>. Customize delivery style directions like accents, dramatic pause, and tone.
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-white/5 rounded-t-md text-[11px] text-neutral-500">
+                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlTts, "curl-tts")}
-                          className="flex items-center gap-1 hover:text-white transition-colors"
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           {copyingText === "curl-tts" ? (
                             <>
-                              <Check size={11} className="text-emerald-500" /> Copied
+                              <Check size={11} className="text-success" /> Copied
                             </>
                           ) : (
                             <>
@@ -716,16 +716,16 @@ Response Example:
                           )}
                         </button>
                       </div>
-                      <pre className="overflow-x-auto rounded-b-md bg-black p-4 font-mono text-[11px] text-neutral-300 leading-normal border-x border-b border-white/5">
+                      <pre className="overflow-x-auto rounded-b-lg bg-background p-4 font-mono text-[11px] text-ink-2 leading-normal border-x border-b border-line">
                         {curlTts}
                       </pre>
                     </div>
 
                     <div>
-                      <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
+                      <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema
                       </p>
-                      <pre className="overflow-x-auto rounded-md bg-black/40 p-4 font-mono text-[11px] text-neutral-300 leading-normal border border-white/5">
+                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseTts}
                       </pre>
                     </div>

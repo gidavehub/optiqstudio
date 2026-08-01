@@ -17,8 +17,34 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-line: var(--line);
+  --color-line-2: var(--line-2);
   --color-muted: var(--muted);
+
+  /* Ink ladder — the five steps of type emphasis, brightest to faintest.
+     These exist so the app can invert light/dark from one place instead of
+     from two thousand hardcoded neutral-400s. */
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-faint: var(--faint);
+
+  /* Accents. `-soft` is the tinted fill, `-line` its border, `-ink` the
+     legible text weight on that fill. */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-pink: var(--pink);
+  --color-pink-soft: var(--pink-soft);
+  --color-orange: var(--orange);
+  --color-orange-soft: var(--orange-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
   --font-sans: var(--font-google-sans), var(--font-roboto), Roboto, system-ui, sans-serif;
   --font-mono: var(--font-roboto-mono), monospace;
   --font-display: var(--font-google-sans), var(--font-roboto), Roboto, sans-serif;
@@ -30,6 +56,118 @@ body {
   font-family: var(--font-sans);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE APP THEME — light, scoped to the dashboard only
+   ══════════════════════════════════════════════════════════════════════════
+   Everything above this line is the marketing site: still the deep midnight
+   blue. The product itself is light, and it gets there by REDEFINING the same
+   custom properties inside `.optiq-app` rather than by introducing a parallel
+   set of utilities.
+
+   That works because `@theme inline` compiles `bg-surface` down to
+   `background-color: var(--surface)` — a live variable lookup resolved at the
+   element, not a baked-in hex. So re-declaring `--surface` on the dashboard
+   wrapper re-colours every `bg-surface` beneath it and touches nothing on
+   /, /blog, /news, /login, /plans or /enterprise.
+
+   Practical consequence: this block is the ONLY place the product's palette
+   lives. Retuning the whole app is an edit to these ~30 lines. */
+.optiq-app {
+  /* Canvas and the shades of white stacked on it */
+  --background: #ffffff; /* Page canvas */
+  --surface: #f7f8fa;    /* Rails, cards, panels — the second white */
+  --surface-2: #eef0f4;  /* Inputs, hover fills */
+  --surface-3: #e3e7ed;  /* Pressed, selected, active */
+
+  /* Hairlines. --line is the quiet 1px everywhere; --line-2 is for edges
+     that need to actually hold a shape. */
+  --line: #e6e9ef;
+  --line-2: #d6dbe3;
+
+  /* Type, brightest to faintest */
+  --foreground: #171a1f;
+  --ink-2: #3c424b;
+  --ink-3: #5b626d;
+  --muted: #767d89;
+  --faint: #98a0ab;
+
+  /* Blue carries every primary action */
+  --accent: #1a73e8;
+  --accent-hover: #1666d4;
+  --accent-ink: #0b57d0;
+  --accent-soft: #e8f0fe;
+  --accent-line: #c6dafc;
+
+  /* Supporting accents — used sparingly, as tints rather than fields */
+  --pink: #d93b7a;
+  --pink-soft: #fdeaf2;
+  --orange: #e8710a;
+  --orange-soft: #fef0e2;
+  --success: #128a3d;
+  --success-soft: #e6f4ea;
+  --danger: #d93025;
+  --danger-soft: #fce8e6;
+
+  /* Frosted chrome */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-line: rgba(0, 0, 0, 0.07);
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Light scrollbars for the app. The global rule above paints a white thumb,
+   which is invisible on a white canvas. */
+.optiq-app *,
+.optiq-app {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.optiq-app ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+.optiq-app ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+/* ── Liquid glass ─────────────────────────────────────────────────────────
+   Floating chrome, docks, rails and modal shells. Translucent white over a
+   heavy blur with a hairline and a soft ambient shadow — this is what keeps
+   panels reading as *floating* now that they can no longer rely on being
+   lighter than a black background. Solid colour only, no gradients. */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.7);
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 8px 24px -6px rgba(16, 24, 40, 0.1);
+}
+
+/* Heavier pour, for surfaces that sit directly over video or imagery */
+.glass-strong {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 16px 40px -12px rgba(16, 24, 40, 0.16);
+}
+
+/* Ambient elevation for opaque cards — on white, a border alone reads flat
+   and a hard black shadow reads cheap. */
+.elevate {
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 4px 12px -4px rgba(16, 24, 40, 0.08);
+}
+.elevate-lg {
+  box-shadow:
+    0 1px 3px rgba(16, 24, 40, 0.05),
+    0 12px 32px -8px rgba(16, 24, 40, 0.14);
 }
 
 /* ── Custom scrollbars ────────────────────────────────────────────────────
@@ -376,4 +514,17 @@ select:focus {
 /* Solid placeholder for slots whose generated media hasn't landed yet */
 .media-fallback {
   background: #111625;
+}
+
+/* The same two helpers, re-tinted for the light app. Both classes are shared
+   with the marketing site (MediaSlot on `/`), so these are scoped overrides
+   rather than edits to the rules above. */
+.optiq-app .media-fallback {
+  background: var(--surface-2);
+}
+
+/* The aurora's frosted veil is a scrim: dark on the marketing hero, white
+   here, or the light field would blow out the panel underneath it. */
+.optiq-app .aurora-veil {
+  background: rgba(255, 255, 255, 0.55);
 }

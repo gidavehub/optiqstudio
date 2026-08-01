@@ -174,13 +174,13 @@ export default function VideoDetailClient({ id }: { id: string }) {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="h-full overflow-y-auto bg-black text-white">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-6 pb-16 pt-20">
         {/* Back */}
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/video"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-neutral-500 hover:text-white transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Video Studio
@@ -191,14 +191,14 @@ export default function VideoDetailClient({ id }: { id: string }) {
                 onClick={() => void reuse()}
                 disabled={reusing}
                 title="Reuse this prompt and its reference images"
-                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-[#0c152d] px-3 py-1.5 text-[10px] font-semibold text-blue-400 transition-colors hover:bg-[#131d35] disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-accent-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
               >
                 {reusing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                 Reuse Prompt
               </button>
               <button
                 onClick={deleteItem}
-                className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[10px] font-semibold text-neutral-400 hover:border-red-500/30 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-ink-3 hover:border-danger hover:text-danger transition-colors"
               >
                 <Trash2 size={11} /> Delete
               </button>
@@ -207,28 +207,28 @@ export default function VideoDetailClient({ id }: { id: string }) {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 text-neutral-500">
+          <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
             <span className="text-xs font-mono uppercase tracking-wider">Loading Project…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-2xl border border-white/5 bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-neutral-500">Video not found</p>
+          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted">Video not found</p>
           </div>
         ) : (
           <>
             {/* 1 · PLAYER */}
             {isRendering ? (
-              <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-[#070b16]">
+              <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background">
                 <div className="absolute -inset-[20px] opacity-40">
                   <div className="absolute top-1/4 left-1/4 h-40 w-40 rounded-full bg-blue-600/15 blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
-                  <div className="absolute bottom-1/4 right-1/4 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
+                  <div className="absolute bottom-1/4 right-1/4 h-44 w-44 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
                 </div>
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-2xl" />
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center">
-                  <Loader2 size={30} className="mb-4 animate-spin text-white" />
-                  <span className="mb-1 font-mono text-sm font-semibold uppercase tracking-wider text-white">Rendering Stream…</span>
-                  <p className="max-w-sm text-xs leading-normal text-neutral-400">
+                  <Loader2 size={30} className="mb-4 animate-spin text-foreground" />
+                  <span className="mb-1 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">Rendering Stream…</span>
+                  <p className="max-w-sm text-xs leading-normal text-ink-3">
                     The Optiq Video Engine is generating frames. This usually takes 1-3 minutes.
                   </p>
                 </div>
@@ -247,22 +247,22 @@ export default function VideoDetailClient({ id }: { id: string }) {
               prompt={item.prompt}
               referenceImageUrls={refUrls}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-neutral-600">
+                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
                   {new Date(item.createdAt).toLocaleDateString()} · {item.id.slice(0, 10)}…
                 </span>
               }
             />
 
             {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-950/30 px-4 py-3 text-xs text-red-400">{error}</div>
+              <div className="rounded-3xl border border-danger bg-danger-soft px-4 py-3 text-xs text-danger">{error}</div>
             )}
 
             {/* 3 · OMNI REFINEMENT CONSOLE */}
-            <div className="rounded-2xl border border-white/5 bg-[#0a0f1d]/80 p-4 backdrop-blur">
-              <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+            <div className="rounded-[28px] border border-line bg-[#0a0f1d]/80 p-4 backdrop-blur">
+              <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
                 Optiq Refinement Console
               </p>
-              <p className="mt-1 text-[11px] leading-normal text-neutral-500">
+              <p className="mt-1 text-[11px] leading-normal text-muted">
                 Describe an adjustment (&ldquo;make it rain heavily&rdquo;, &ldquo;switch to a close-up tracking shot&rdquo;) — Optiq renders a new take of this scene.
               </p>
 
@@ -271,10 +271,10 @@ export default function VideoDetailClient({ id }: { id: string }) {
                   {images.map((img) => (
                     <div key={img.id} className="group relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt="Reference" className="h-12 w-14 rounded-lg border border-white/10 object-cover" />
+                      <img src={img.preview} alt="Reference" className="h-12 w-14 rounded-xl border border-line object-cover" />
                       <button
                         onClick={() => setImages((prev) => prev.filter((i) => i.id !== img.id))}
-                        className="absolute -right-1.5 -top-1.5 rounded-full border border-white/10 bg-[#0a0f1d]/90 p-0.5 text-neutral-400 opacity-0 hover:text-white group-hover:opacity-100 transition-opacity"
+                        className="absolute -right-1.5 -top-1.5 rounded-full border border-line bg-[#0a0f1d]/90 p-0.5 text-ink-3 opacity-0 hover:text-foreground group-hover:opacity-100 transition-opacity"
                       >
                         <X size={10} />
                       </button>
@@ -283,7 +283,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                   {audioFile && (
                     <div className="flex items-center gap-2">
                       <AudioPlayerPreview audio={audioFile} />
-                      <button onClick={() => setAudioFile(null)} className="text-neutral-500 hover:text-white">
+                      <button onClick={() => setAudioFile(null)} className="text-muted hover:text-foreground">
                         <X size={12} />
                       </button>
                     </div>
@@ -291,8 +291,8 @@ export default function VideoDetailClient({ id }: { id: string }) {
                 </div>
               )}
 
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-[#0c152d]/60 p-2.5 focus-within:border-blue-500/50 transition-colors">
-                <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference image">
+              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-line bg-[#0c152d]/60 p-2.5 focus-within:border-accent-line transition-colors">
+                <label className="cursor-pointer p-1.5 text-ink-3 hover:text-foreground transition-colors" title="Attach reference image">
                   <ImagePlus size={15} />
                   <input
                     type="file"
@@ -302,7 +302,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                     onChange={(e) => Array.from(e.target.files || []).forEach(attachImage)}
                   />
                 </label>
-                <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach voice reference">
+                <label className="cursor-pointer p-1.5 text-ink-3 hover:text-foreground transition-colors" title="Attach voice reference">
                   <Mic size={15} />
                   <input
                     type="file"
@@ -320,20 +320,20 @@ export default function VideoDetailClient({ id }: { id: string }) {
                     e.target.style.height = `${e.target.scrollHeight}px`;
                   }}
                   placeholder="Instruct Optiq to modify this video…"
-                  className="max-h-24 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-xs placeholder:text-neutral-600 focus:outline-none"
+                  className="max-h-24 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-xs placeholder:text-faint focus:outline-none"
                 />
                 <button
                   onClick={() => void enhance()}
                   disabled={enhancing || !prompt.trim()}
                   title="Enhance prompt"
-                  className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+                  className="p-1.5 text-ink-3 hover:text-foreground transition-colors disabled:opacity-40"
                 >
                   {enhancing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
                 </button>
                 <button
                   onClick={() => prompt.trim() && setConfirmOpen(true)}
                   disabled={editing || !prompt.trim() || isRendering}
-                  className="shrink-0 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-40 shadow-lg shadow-blue-500/20"
+                  className="shrink-0 rounded-xl bg-accent px-4 py-1.5 text-xs font-bold text-white hover:bg-accent transition-colors disabled:opacity-40 shadow-lg shadow-blue-500/20"
                 >
                   {editing ? "Editing…" : "Optiq Edit"}
                 </button>

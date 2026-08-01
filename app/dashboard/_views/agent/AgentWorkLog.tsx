@@ -42,36 +42,36 @@ export default function AgentWorkLog({ steps, live }: { steps: AgentStep[]; live
     : `${steps.length} step${steps.length === 1 ? "" : "s"}${writes > 0 ? ` · ${writes} edit${writes === 1 ? "" : "s"}` : ""}${failed > 0 ? ` · ${failed} failed` : ""}`;
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-white/[0.02]">
+    <div className="rounded-[28px] border border-line bg-white/[0.02]">
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={live}
         className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left disabled:cursor-default"
       >
         {live ? (
-          <Loader2 size={12} className="shrink-0 animate-spin text-blue-400" />
+          <Loader2 size={12} className="shrink-0 animate-spin text-accent-ink" />
         ) : failed > 0 ? (
-          <AlertCircle size={12} className="shrink-0 text-amber-400" />
+          <AlertCircle size={12} className="shrink-0 text-orange" />
         ) : (
-          <Check size={12} className="shrink-0 text-emerald-400" />
+          <Check size={12} className="shrink-0 text-success" />
         )}
-        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-neutral-400">{summary}</span>
-        {!live && (expanded ? <ChevronUp size={12} className="text-neutral-600" /> : <ChevronDown size={12} className="text-neutral-600" />)}
+        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-ink-3">{summary}</span>
+        {!live && (expanded ? <ChevronUp size={12} className="text-faint" /> : <ChevronDown size={12} className="text-faint" />)}
       </button>
 
       {expanded && (
-        <ol className="space-y-2 border-t border-white/5 px-3.5 py-3">
+        <ol className="space-y-2 border-t border-line px-3.5 py-3">
           {steps.map((step, i) => {
             const Icon = TOOL_ICONS[step.tool] || Wrench;
             return (
               <li key={i} className="flex items-start gap-2.5">
                 <span
-                  className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                  className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border ${
                     step.status === "failed"
-                      ? "border-red-500/25 bg-red-500/10 text-red-400"
+                      ? "border-red-500/25 bg-danger-soft text-danger"
                       : step.writes
-                        ? "border-blue-500/25 bg-[#0c152d] text-blue-400"
-                        : "border-white/5 bg-white/5 text-neutral-500"
+                        ? "border-accent-line bg-surface text-accent-ink"
+                        : "border-line bg-surface text-muted"
                   }`}
                 >
                   {step.status === "running" ? <Loader2 size={10} className="animate-spin" /> : <Icon size={10} />}
@@ -79,18 +79,18 @@ export default function AgentWorkLog({ steps, live }: { steps: AgentStep[]; live
                 <span className="min-w-0 flex-1">
                   <span
                     className={`block text-[11px] font-semibold ${
-                      step.status === "failed" ? "text-red-400" : "text-neutral-300"
+                      step.status === "failed" ? "text-danger" : "text-ink-2"
                     }`}
                   >
                     {step.label}
                   </span>
                   {step.detail && (
-                    <span className="mt-0.5 block font-mono text-[10px] leading-relaxed text-neutral-600">
+                    <span className="mt-0.5 block font-mono text-[10px] leading-relaxed text-faint">
                       {step.detail}
                     </span>
                   )}
                 </span>
-                {step.status === "done" && <Check size={11} className="mt-1 shrink-0 text-emerald-500/70" />}
+                {step.status === "done" && <Check size={11} className="mt-1 shrink-0 text-success" />}
               </li>
             );
           })}

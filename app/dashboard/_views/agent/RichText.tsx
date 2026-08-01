@@ -26,7 +26,7 @@ function inline(text: string, keyPrefix: string): React.ReactNode[] {
     const key = `${keyPrefix}-${i++}`;
     if (token.startsWith("**")) {
       parts.push(
-        <strong key={key} className="font-semibold text-white">
+        <strong key={key} className="font-semibold text-foreground">
           {token.slice(2, -2)}
         </strong>
       );
@@ -34,14 +34,14 @@ function inline(text: string, keyPrefix: string): React.ReactNode[] {
       parts.push(
         <code
           key={key}
-          className="rounded border border-white/10 bg-white/5 px-1 py-0.5 font-mono text-[0.92em] text-blue-300"
+          className="rounded-xl border border-line bg-surface px-1 py-0.5 font-mono text-[0.92em] text-accent-ink"
         >
           {token.slice(1, -1)}
         </code>
       );
     } else {
       parts.push(
-        <em key={key} className="italic text-neutral-200">
+        <em key={key} className="italic text-foreground">
           {token.slice(1, -1)}
         </em>
       );
@@ -68,7 +68,7 @@ export default function RichText({ text }: { text: string }) {
   const flushList = (key: string) => {
     if (listItems.length === 0) return;
     const items = listItems.map((item, i) => (
-      <li key={i} className="pl-0.5 marker:text-neutral-600">
+      <li key={i} className="pl-0.5 marker:text-faint">
         {inline(item, `${key}-${i}`)}
       </li>
     ));
@@ -112,7 +112,7 @@ export default function RichText({ text }: { text: string }) {
       flushParagraph(key);
       flushList(key);
       blocks.push(
-        <h4 key={key} className="pt-1 text-[13px] font-bold tracking-tight text-white">
+        <h4 key={key} className="pt-1 text-[13px] font-bold tracking-tight text-foreground">
           {inline(heading[2], key)}
         </h4>
       );
@@ -135,5 +135,5 @@ export default function RichText({ text }: { text: string }) {
   flushParagraph("tail");
   flushList("tail-list");
 
-  return <div className="space-y-3 text-[13px] text-neutral-300">{blocks}</div>;
+  return <div className="space-y-3 text-[13px] text-ink-2">{blocks}</div>;
 }

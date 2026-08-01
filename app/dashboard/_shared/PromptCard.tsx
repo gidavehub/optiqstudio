@@ -30,20 +30,20 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
   const isLong = prompt.length > 220;
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#0c152d]/60 backdrop-blur overflow-hidden">
+    <div className="rounded-[28px] border border-line bg-[#0c152d]/60 backdrop-blur overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-blue-400 shrink-0">
+          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-accent-ink shrink-0">
             Prompt
           </span>
           {meta}
         </div>
         <button
           onClick={copy}
-          className="flex shrink-0 items-center gap-1 rounded-lg bg-white/5 border border-white/5 px-2.5 py-1 text-[10px] font-semibold text-neutral-400 hover:text-white hover:bg-white/10 transition-colors"
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-surface border border-line px-2.5 py-1 text-[10px] font-semibold text-ink-3 hover:text-foreground hover:bg-surface-2 transition-colors"
         >
-          {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+          {copied ? <Check size={10} className="text-success" /> : <Copy size={10} />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
@@ -55,14 +55,14 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
         className={`block w-full px-4 py-3 text-left ${isLong ? "cursor-pointer" : "cursor-default"}`}
       >
         <p
-          className={`text-xs leading-relaxed text-neutral-300 whitespace-pre-line transition-all ${
+          className={`text-xs leading-relaxed text-ink-2 whitespace-pre-line transition-all ${
             expanded ? "" : "line-clamp-3"
           }`}
         >
           {prompt}
         </p>
         {isLong && (
-          <span className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-blue-400 hover:text-blue-300">
+          <span className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-accent-ink hover:text-accent-ink">
             <ChevronDown size={11} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
             {expanded ? "Show less" : "Tap to expand"}
           </span>
@@ -71,8 +71,8 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
 
       {/* Reference images strip */}
       {referenceImageUrls.length > 0 && (
-        <div className="border-t border-white/5 px-4 py-3">
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+        <div className="border-t border-line px-4 py-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
             <ImageIcon size={10} /> Reference Images ({referenceImageUrls.length})
           </p>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -82,7 +82,7 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
                 <img
                   src={url}
                   alt={`Reference ${i + 1}`}
-                  className="h-16 w-20 rounded-lg border border-white/10 object-cover hover:border-blue-500/60 transition-colors"
+                  className="h-16 w-20 rounded-xl border border-line object-cover hover:border-accent transition-colors"
                 />
               </a>
             ))}

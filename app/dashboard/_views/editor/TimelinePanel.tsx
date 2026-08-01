@@ -358,7 +358,7 @@ export default function TimelinePanel({
       : 0;
 
   return (
-    <div style={{ height }} className="shrink-0 border-t border-white/5 bg-[#080d1a]">
+    <div style={{ height }} className="shrink-0 border-t border-line bg-background">
       <div
         ref={scrollRef}
         className="h-full overflow-auto"
@@ -372,11 +372,11 @@ export default function TimelinePanel({
           {/* ── Ruler row ── */}
           <div className="sticky top-0 z-30 flex" style={{ height: RULER_H }}>
             <div
-              className="sticky left-0 z-40 shrink-0 border-b border-r border-white/5 bg-[#0a0f1d]"
+              className="sticky left-0 z-40 shrink-0 border-b border-r border-line bg-background"
               style={{ width: HEADER_W }}
             />
             <div
-              className="relative flex-1 cursor-col-resize border-b border-white/5 bg-[#0a0f1d]"
+              className="relative flex-1 cursor-col-resize border-b border-line bg-background"
               onPointerDown={(e) => {
                 (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
                 scrubRef.current = true;
@@ -387,9 +387,9 @@ export default function TimelinePanel({
             >
               {ticks.map((tick) => (
                 <div key={tick.time} className="absolute top-0 h-full" style={{ left: tick.time * pps }}>
-                  <div className={`w-px ${tick.major ? "h-full bg-white/20" : "h-2 bg-white/10 mt-auto absolute bottom-0"}`} />
+                  <div className={`w-px ${tick.major ? "h-full bg-surface-3" : "h-2 bg-surface-2 mt-auto absolute bottom-0"}`} />
                   {tick.major && tick.label && (
-                    <span className="absolute left-1 top-0.5 font-mono text-[8px] text-neutral-500">{tick.label}</span>
+                    <span className="absolute left-1 top-0.5 font-mono text-[8px] text-muted">{tick.label}</span>
                   )}
                 </div>
               ))}
@@ -411,18 +411,18 @@ export default function TimelinePanel({
                   className="flex overflow-hidden transition-[height] duration-150 ease-out"
                 >
                   <div
-                    className="sticky left-0 z-20 flex shrink-0 items-center justify-center border-r border-white/5 bg-[#0a0f1d]"
+                    className="sticky left-0 z-20 flex shrink-0 items-center justify-center border-r border-line bg-background"
                     style={{ width: HEADER_W }}
                   >
-                    <span className="text-[8px] font-bold font-mono uppercase tracking-widest text-blue-400">
+                    <span className="text-[8px] font-bold font-mono uppercase tracking-widest text-accent-ink">
                       New layer
                     </span>
                   </div>
-                  <div className="relative flex-1 bg-blue-500/5">
-                    <div className="absolute inset-x-1 inset-y-1 rounded-md border border-dashed border-blue-500/40" />
+                  <div className="relative flex-1 bg-accent-soft">
+                    <div className="absolute inset-x-1 inset-y-1 rounded-lg border border-dashed border-accent-line" />
                     {slotOpen && (
                       <div
-                        className="absolute top-1 bottom-1 rounded-md border border-blue-400 bg-blue-500/25 shadow-[0_0_14px_rgba(59,130,246,0.5)]"
+                        className="absolute top-1 bottom-1 rounded-lg border border-accent bg-blue-500/25 shadow-[0_0_14px_rgba(59,130,246,0.5)]"
                         style={{ left: activeSlotStart * pps, width: Math.max(activeSlotWidth, 12) }}
                       />
                     )}
@@ -433,16 +433,16 @@ export default function TimelinePanel({
                 <div className="flex border-b border-white/[0.04]" style={{ height: ROW_H }}>
                   {/* Header */}
                   <div
-                    className="sticky left-0 z-20 flex shrink-0 items-center justify-between gap-1 border-r border-white/5 bg-[#0a0f1d] px-2"
+                    className="sticky left-0 z-20 flex shrink-0 items-center justify-between gap-1 border-r border-line bg-background px-2"
                     style={{ width: HEADER_W }}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
                       {track.kind === "video" ? (
-                        <Clapperboard size={11} className="text-blue-400 shrink-0" />
+                        <Clapperboard size={11} className="text-accent-ink shrink-0" />
                       ) : (
-                        <Music size={11} className="text-emerald-400 shrink-0" />
+                        <Music size={11} className="text-success shrink-0" />
                       )}
-                      <span className="truncate text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-400">
+                      <span className="truncate text-[9px] font-bold font-mono uppercase tracking-wider text-ink-3">
                         {track.name}
                       </span>
                     </div>
@@ -450,14 +450,14 @@ export default function TimelinePanel({
                       <button
                         title={track.muted ? "Unmute track" : "Mute track"}
                         onClick={() => engine.setTrackProps(track.id, { muted: !track.muted })}
-                        className={`p-1 rounded ${track.muted ? "text-red-400" : "text-neutral-600 hover:text-white"}`}
+                        className={`p-1 rounded-lg ${track.muted ? "text-danger" : "text-faint hover:text-foreground"}`}
                       >
                         {track.muted ? <VolumeX size={10} /> : <Volume2 size={10} />}
                       </button>
                       <button
                         title={track.locked ? "Unlock track" : "Lock track"}
                         onClick={() => engine.setTrackProps(track.id, { locked: !track.locked })}
-                        className={`p-1 rounded ${track.locked ? "text-yellow-400" : "text-neutral-600 hover:text-white"}`}
+                        className={`p-1 rounded-lg ${track.locked ? "text-orange" : "text-faint hover:text-foreground"}`}
                       >
                         {track.locked ? <Lock size={10} /> : <Unlock size={10} />}
                       </button>
@@ -476,7 +476,7 @@ export default function TimelinePanel({
                     {/* Free-space landing highlight */}
                     {laneHighlightId === track.id && (
                       <div
-                        className="pointer-events-none absolute top-1 bottom-1 z-20 rounded-md border border-blue-400/80 bg-blue-500/15"
+                        className="pointer-events-none absolute top-1 bottom-1 z-20 rounded-lg border border-accent bg-accent-soft"
                         style={{ left: laneHighlightStart * pps, width: Math.max(laneHighlightWidth, 12) }}
                       />
                     )}
@@ -493,18 +493,18 @@ export default function TimelinePanel({
                           onPointerDown={(e) => onClipPointerDown(e, track, clip)}
                           onPointerMove={(e) => onClipPointerMove(e, track, clip)}
                           onPointerUp={(e) => onClipPointerUp(e, clip)}
-                          className={`absolute top-1 bottom-1 overflow-hidden rounded-md border transition-shadow ${
+                          className={`absolute top-1 bottom-1 overflow-hidden rounded-lg border transition-shadow ${
                             tool === "razor" ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
                           } ${lifted ? "opacity-30" : ""} ${
                             selected
-                              ? "border-blue-400 ring-1 ring-blue-400/60 shadow-[0_0_14px_rgba(59,130,246,0.35)] z-10"
-                              : "border-white/10 hover:border-white/25"
+                              ? "border-accent ring-1 ring-blue-400/60 shadow-[0_0_14px_rgba(59,130,246,0.35)] z-10"
+                              : "border-line hover:border-line-2"
                           } ${
                             isAudio
                               ? "bg-emerald-950/80"
                               : isImage
                                 ? "bg-purple-950/70"
-                                : "bg-[#0e1a3a]"
+                                : "bg-surface-2"
                           }`}
                           style={{ left: clip.start * pps, width: Math.max(clip.duration * pps, 6) }}
                         >
@@ -537,15 +537,15 @@ export default function TimelinePanel({
                             />
                           )}
                           {/* Label */}
-                          <span className="pointer-events-none absolute left-2 top-1 z-10 flex max-w-[85%] items-center gap-1 truncate text-[8px] font-bold font-mono uppercase tracking-wider text-white/90 drop-shadow">
+                          <span className="pointer-events-none absolute left-2 top-1 z-10 flex max-w-[85%] items-center gap-1 truncate text-[8px] font-bold font-mono uppercase tracking-wider text-foreground drop-shadow">
                             {isImage && <ImageIcon size={8} className="shrink-0" />}
                             {clip.label || asset?.label || (isAudio ? "Audio" : isImage ? "Image" : "Clip")}
-                            {clip.speed !== 1 && <span className="text-blue-300">{clip.speed}x</span>}
-                            {clip.muted && <span className="text-red-300">M</span>}
+                            {clip.speed !== 1 && <span className="text-accent-ink">{clip.speed}x</span>}
+                            {clip.muted && <span className="text-danger">M</span>}
                           </span>
                           {/* Trim handles */}
-                          <div className="absolute inset-y-0 left-0 z-10 w-[7px] cursor-ew-resize bg-white/20 opacity-0 hover:opacity-100" />
-                          <div className="absolute inset-y-0 right-0 z-10 w-[7px] cursor-ew-resize bg-white/20 opacity-0 hover:opacity-100" />
+                          <div className="absolute inset-y-0 left-0 z-10 w-[7px] cursor-ew-resize bg-surface-3 opacity-0 hover:opacity-100" />
+                          <div className="absolute inset-y-0 right-0 z-10 w-[7px] cursor-ew-resize bg-surface-3 opacity-0 hover:opacity-100" />
                         </div>
                       );
                     })}
@@ -558,7 +558,7 @@ export default function TimelinePanel({
           {/* Empty-state hint */}
           {doc.tracks.every((t) => t.clips.length === 0) && (
             <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex justify-center" style={{ paddingLeft: HEADER_W }}>
-              <span className="rounded-full border border-dashed border-white/10 bg-[#0a0f1d]/80 px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest text-neutral-500">
+              <span className="rounded-full border border-dashed border-line bg-[#0a0f1d]/80 px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest text-muted">
                 Drag clips, images, or audio from the media bin
               </span>
             </div>
@@ -567,11 +567,11 @@ export default function TimelinePanel({
           {/* ── Ghost clip riding the pointer ── */}
           {ghost && (
             <div
-              className={`pointer-events-none absolute z-40 flex items-center overflow-hidden rounded-md border px-2 shadow-2xl ${
+              className={`pointer-events-none absolute z-40 flex items-center overflow-hidden rounded-lg border px-2 shadow-2xl ${
                 ghost.target
                   ? ghost.trackKind === "audio"
                     ? "border-emerald-400/80 bg-emerald-900/80"
-                    : "border-blue-400/80 bg-[#12224a]/90"
+                    : "border-accent bg-[#12224a]/90"
                   : "border-red-500/60 bg-red-950/60"
               }`}
               style={{
@@ -581,7 +581,7 @@ export default function TimelinePanel({
                 height: ROW_H - 8,
               }}
             >
-              <span className="truncate text-[8px] font-bold font-mono uppercase tracking-wider text-white/90">
+              <span className="truncate text-[8px] font-bold font-mono uppercase tracking-wider text-foreground">
                 {ghost.label}
               </span>
             </div>
@@ -593,7 +593,7 @@ export default function TimelinePanel({
             style={{ left: HEADER_W + playhead * pps }}
           >
             <div className="absolute -left-[5px] top-[14px] h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-blue-400" />
-            <div className="h-full w-px bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+            <div className="h-full w-px bg-accent shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
           </div>
         </div>
       </div>

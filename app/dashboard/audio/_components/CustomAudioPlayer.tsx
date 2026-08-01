@@ -56,7 +56,7 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
   }, [src]);
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-2xl border border-neutral-800 bg-surface/95 p-4 shadow-xl flex items-center gap-4 backdrop-blur-md">
+    <div className="group relative w-full overflow-hidden rounded-3xl border border-line bg-surface/95 p-4 shadow-xl flex items-center gap-4 backdrop-blur-md">
       <audio
         ref={audioRef}
         src={src}
@@ -66,14 +66,14 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
       />
       <button
         onClick={togglePlay}
-        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition-all shadow-md active:scale-95"
+        className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:bg-ink-2 transition-all shadow-md active:scale-95"
       >
         {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
       </button>
 
       <div className="flex-1 flex flex-col gap-1">
-        <div className="flex items-center justify-between text-[11px] text-neutral-400 font-mono">
-          <span className="font-semibold text-neutral-200 uppercase tracking-wider text-[9px]">MONITOR PLAYBACK</span>
+        <div className="flex items-center justify-between text-[11px] text-ink-3 font-mono">
+          <span className="font-semibold text-foreground uppercase tracking-wider text-[9px]">MONITOR PLAYBACK</span>
           <span>
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
@@ -86,7 +86,7 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
             step={0.1}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white hover:h-1.5 transition-all"
+            className="w-full h-1 bg-surface-3 rounded-xl appearance-none cursor-pointer accent-accent hover:h-1.5 transition-all"
             style={{
               background: `linear-gradient(to right, #ffffff ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(255, 255, 255, 0.2) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
             }}
@@ -97,7 +97,7 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
       <a
         href={src}
         download="optiq_take.wav"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface hover:bg-surface-2 text-ink-2 hover:text-foreground transition-colors cursor-pointer"
         title="Download WAV Take"
       >
         <Download size={14} />

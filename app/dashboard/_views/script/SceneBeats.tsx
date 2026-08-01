@@ -13,17 +13,17 @@ function Field({ label, body, tone = "neutral" }: { label: string; body: string;
       ? "border-blue-500/15 bg-blue-500/5"
       : "border-white/5 bg-white/[0.02]";
   return (
-    <div className={`rounded-2xl border p-3.5 ${shell}`}>
+    <div className={`rounded-[28px] border p-3.5 ${shell}`}>
       <span
         className={`text-[9px] font-bold uppercase tracking-wide ${
-          tone === "blue" ? "text-blue-400" : "text-neutral-500"
+          tone === "blue" ? "text-accent-ink" : "text-muted"
         }`}
       >
         {label}
       </span>
       <p
         className={`mt-1 text-xs leading-relaxed ${
-          tone === "blue" ? "italic text-neutral-200" : "text-neutral-300"
+          tone === "blue" ? "italic text-foreground" : "text-ink-2"
         }`}
       >
         {body}
@@ -62,18 +62,18 @@ export default function SceneBeats({
       {scene.dialogue && <Field label="Dialogue" body={`“${scene.dialogue}”`} tone="blue" />}
 
       {/* Rewrite engine */}
-      <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-background px-3 py-1.5 transition-colors focus-within:border-blue-500/40">
+      <div className="flex items-center gap-2 rounded-3xl border border-line bg-background px-3 py-1.5 transition-colors focus-within:border-accent-line">
         <input
           value={revisionInput}
           onChange={(e) => onRevisionInput(e.target.value)}
           placeholder="Rewrite this scene (change the shirt colour, add rain, pan left…)"
           disabled={revising}
-          className="w-full bg-transparent text-xs text-white outline-none placeholder:text-neutral-700 disabled:opacity-50"
+          className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-faint disabled:opacity-50"
         />
         <button
           onClick={onRevise}
           disabled={revising || !revisionInput.trim()}
-          className="flex shrink-0 items-center gap-1 rounded-lg bg-[#131d35] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-600 disabled:bg-[#131d35] disabled:text-neutral-500"
+          className="flex shrink-0 items-center gap-1 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent disabled:bg-surface-2 disabled:text-muted"
         >
           {revising ? (
             <>

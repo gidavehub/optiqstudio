@@ -68,22 +68,22 @@ export default function BottomPromptConsole({
   };
 
   return (
-    <div className="border-t border-neutral-900 p-5 bg-background/90 backdrop-blur-md relative z-40">
+    <div className="border-t border-line p-5 bg-background/90 backdrop-blur-md relative z-40">
       {images.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-3">
           {images.map((img) => (
             <div key={img.id} className="relative group flex items-center gap-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.preview} alt="Reference" className="h-14 w-14 rounded-lg object-cover border border-neutral-800" />
+              <img src={img.preview} alt="Reference" className="h-14 w-14 rounded-xl object-cover border border-line" />
               <button
                 onClick={() => removeImage(img.id)}
-                className="absolute -top-1.5 -right-1.5 bg-neutral-900/90 text-neutral-400 hover:text-white rounded-full p-0.5 border border-neutral-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-1.5 -right-1.5 bg-surface text-ink-3 hover:text-foreground rounded-full p-0.5 border border-line opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X size={10} />
               </button>
             </div>
           ))}
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-muted">
             {images.length} Reference image{images.length > 1 ? "s" : ""} attached
           </span>
         </div>
@@ -91,26 +91,26 @@ export default function BottomPromptConsole({
 
       {videoFile && (
         <div className="mb-3 flex items-center gap-3">
-          <video src={videoFile.preview} className="h-14 w-14 rounded-lg object-cover border border-neutral-800" muted playsInline />
-          <button onClick={clearVideoFile} className="text-neutral-500 hover:text-white">
+          <video src={videoFile.preview} className="h-14 w-14 rounded-xl object-cover border border-line" muted playsInline />
+          <button onClick={clearVideoFile} className="text-muted hover:text-foreground">
             <X size={14} />
           </button>
-          <span className="text-xs text-neutral-500">Reference video attached</span>
+          <span className="text-xs text-muted">Reference video attached</span>
         </div>
       )}
 
       {audioFile && (
         <div className="mb-3 flex items-center gap-3">
           <AudioPlayerPreview audio={audioFile} />
-          <button onClick={clearAudioFile} className="text-neutral-500 hover:text-white">
+          <button onClick={clearAudioFile} className="text-muted hover:text-foreground">
             <X size={14} />
           </button>
-          <span className="text-xs text-neutral-500">Voice reference attached</span>
+          <span className="text-xs text-muted">Voice reference attached</span>
         </div>
       )}
 
       <div
-        className="relative flex items-center gap-3 rounded-2xl border border-neutral-800 bg-surface p-3 w-full shadow-inner transition-all duration-300"
+        className="relative flex items-center gap-3 rounded-3xl border border-line bg-surface p-3 w-full shadow-inner transition-all duration-300"
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -118,15 +118,15 @@ export default function BottomPromptConsole({
       >
         {/* Gorgeous Drop Overlay for Bottom Console */}
         {isDragging && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/30 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
-            <UploadCloud size={24} className="text-white animate-pulse animate-bounce-subtle" />
-            <span className="text-xs font-mono tracking-widest text-white mt-2 uppercase">Drop Image, Video or Audio</span>
-            <span className="text-[10px] text-neutral-500 mt-1">To use as a visual reference or voice profile</span>
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+            <UploadCloud size={24} className="text-foreground animate-pulse animate-bounce-subtle" />
+            <span className="text-xs font-mono tracking-widest text-foreground mt-2 uppercase">Drop Image, Video or Audio</span>
+            <span className="text-[10px] text-muted mt-1">To use as a visual reference or voice profile</span>
           </div>
         )}
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach reference media (image/video)">
+          <label className="cursor-pointer p-1.5 text-ink-3 hover:text-foreground transition-colors" title="Attach reference media (image/video)">
             <ImagePlus size={17} />
             <input
               type="file"
@@ -140,7 +140,7 @@ export default function BottomPromptConsole({
               }}
             />
           </label>
-          <label className="cursor-pointer p-1.5 text-neutral-400 hover:text-white transition-colors" title="Attach voice reference (audio)">
+          <label className="cursor-pointer p-1.5 text-ink-3 hover:text-foreground transition-colors" title="Attach voice reference (audio)">
             <Music size={17} />
             <input
               type="file"
@@ -160,8 +160,8 @@ export default function BottomPromptConsole({
             title={dictation.recording ? "Stop dictation" : "Dictate your prompt"}
             className={`rounded-full p-1.5 transition-colors ${
               dictation.recording
-                ? "animate-pulse bg-red-500/15 text-red-400"
-                : "text-neutral-400 hover:text-white"
+                ? "animate-pulse bg-danger-soft text-danger"
+                : "text-ink-3 hover:text-white"
             }`}
           >
             {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}
@@ -179,13 +179,13 @@ export default function BottomPromptConsole({
           placeholder={
             dictation.recording ? "Listening…" : "A slow dolly through a rain-soaked neon market at night…"
           }
-          className="flex-1 resize-none bg-transparent py-1 text-sm placeholder:text-neutral-600 max-h-32 overflow-y-auto focus:outline-none"
+          className="flex-1 resize-none bg-transparent py-1 text-sm placeholder:text-faint max-h-32 overflow-y-auto focus:outline-none"
         />
         <button
           onClick={enhance}
           disabled={enhancing || !prompt.trim()}
           title="Enhance prompt"
-          className="p-1.5 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+          className="p-1.5 text-ink-3 hover:text-foreground transition-colors disabled:opacity-40"
         >
           {enhancing ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
         </button>
@@ -193,7 +193,7 @@ export default function BottomPromptConsole({
         <button
           onClick={onGenerate}
           disabled={phase === "generating" || !prompt.trim()}
-          className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black hover:bg-neutral-200 transition-colors disabled:opacity-40 shrink-0"
+          className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background hover:bg-ink-2 transition-colors disabled:opacity-40 shrink-0"
         >
           {phase === "generating" ? "Generating…" : "Generate"}
         </button>

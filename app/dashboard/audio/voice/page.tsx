@@ -117,17 +117,17 @@ export default function VoiceEngineStudio() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-black text-white sm:flex-row">
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
       <VoiceRail selectedId={selectedId} onSelect={setSelectedId} />
 
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-black">
+      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
         <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-neutral-900 pb-4">
+          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
             <div>
-              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
                 OPTIQ VOICE ENGINE
               </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-white">All Voiceover Takes</h2>
+              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Voiceover Takes</h2>
             </div>
           </div>
 
@@ -152,9 +152,9 @@ export default function VoiceEngineStudio() {
         </div>
 
         {error && (
-          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-xl border border-red-950 bg-red-950/40 p-4 text-xs text-red-300 sm:mx-8">
+          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger sm:mx-8">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-neutral-500 hover:text-white">
+            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
               <X size={14} />
             </button>
           </div>
@@ -178,12 +178,12 @@ export default function VoiceEngineStudio() {
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 transition-colors ${
-                  selectedId === p.id ? "border-blue-500 bg-[#0c152d]" : "border-neutral-800 bg-[#07090f]"
+                  selectedId === p.id ? "border-accent bg-surface" : "border-line bg-background"
                 }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`/media/voice-faces/${p.id}.jpg`} alt="" className="h-6 w-6 rounded-full object-cover" />
-                <span className="text-[11px] font-semibold text-neutral-200">{p.name}</span>
+                <span className="text-[11px] font-semibold text-foreground">{p.name}</span>
               </button>
             ))}
           </div>

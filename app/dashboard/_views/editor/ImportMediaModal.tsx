@@ -149,27 +149,27 @@ export default function ImportMediaModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative flex h-[min(640px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-blue-500 bg-[#070e24]/95 shadow-2xl backdrop-blur-2xl animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="relative flex h-[min(640px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-accent bg-[#070e24]/95 shadow-2xl backdrop-blur-2xl animate-in fade-in-50 zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-          <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-white">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-foreground">
             <div className="flex items-center gap-1 shrink-0">
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <div className="h-1.5 w-1.5 rounded-full bg-accent" />
               <div className="h-1.5 w-1.5 rounded-full border border-blue-400/40 bg-transparent" />
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <div className="h-1.5 w-1.5 rounded-full bg-accent" />
             </div>
             Import Media
           </h3>
           <button
             onClick={onClose}
-            className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-full p-1 text-ink-3 transition-colors hover:bg-surface hover:text-foreground"
           >
             <X size={15} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/5 px-5 py-3">
+        <div className="flex items-center gap-2 border-b border-line px-5 py-3">
           {[
             { id: "upload" as Tab, label: "Upload", icon: Upload },
             { id: "library" as Tab, label: "My Library", icon: FolderOpen },
@@ -178,13 +178,13 @@ export default function ImportMediaModal({
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold transition-all ${
                 tab === id
-                  ? "border-blue-500 bg-[#0c152d] text-white shadow-lg shadow-blue-500/10"
-                  : "border-white/5 bg-white/[0.03] text-neutral-400 hover:border-white/10 hover:text-white"
+                  ? "border-accent bg-surface text-foreground shadow-lg shadow-blue-500/10"
+                  : "border-line bg-white/[0.03] text-ink-3 hover:border-line hover:text-foreground"
               }`}
             >
-              <Icon size={12} className={tab === id ? "text-blue-400" : ""} /> {label}
+              <Icon size={12} className={tab === id ? "text-accent-ink" : ""} /> {label}
             </button>
           ))}
 
@@ -196,8 +196,8 @@ export default function ImportMediaModal({
                   onClick={() => setKindFilter(chip.id)}
                   className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-all ${
                     kindFilter === chip.id
-                      ? "bg-blue-600/30 text-blue-300 border border-blue-500/40"
-                      : "border border-transparent text-neutral-500 hover:text-neutral-300"
+                      ? "bg-blue-600/30 text-accent-ink border border-accent-line"
+                      : "border border-transparent text-muted hover:text-ink-2"
                   }`}
                 >
                   {chip.label}
@@ -221,10 +221,10 @@ export default function ImportMediaModal({
                 setDragOver(false);
                 if (e.dataTransfer.files?.length) onUploadFiles(e.dataTransfer.files);
               }}
-              className={`flex h-full min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition-all ${
+              className={`flex h-full min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed text-center transition-all ${
                 dragOver
                   ? "border-blue-500/70 bg-[#0c152d]/70 scale-[1.005]"
-                  : "border-white/10 bg-white/[0.02] hover:border-blue-500/40"
+                  : "border-line bg-white/[0.02] hover:border-accent-line"
               }`}
             >
               <input
@@ -237,21 +237,21 @@ export default function ImportMediaModal({
                   e.target.value = "";
                 }}
               />
-              <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-[#0e1630] text-blue-400">
+              <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-3xl border border-line bg-surface text-accent-ink">
                 <Upload size={18} />
               </span>
-              <span className="text-sm font-bold text-white">Drop files or click to browse</span>
-              <span className="mt-1.5 text-[11px] text-neutral-500">
+              <span className="text-sm font-bold text-foreground">Drop files or click to browse</span>
+              <span className="mt-1.5 text-[11px] text-muted">
                 Videos, images and audio — saved to your library for every project
               </span>
               {uploads.length > 0 && (
                 <div className="mt-5 w-full max-w-xs space-y-2">
                   {uploads.map((u) => (
-                    <div key={u.name} className="rounded-lg border border-blue-500/20 bg-[#0c152d]/60 px-3 py-2">
+                    <div key={u.name} className="rounded-2xl border border-accent-line bg-[#0c152d]/60 px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        <Loader2 size={10} className="shrink-0 animate-spin text-blue-400" />
-                        <span className="truncate text-[10px] font-semibold text-neutral-300">{u.name}</span>
-                        <span className="ml-auto font-mono text-[9px] text-blue-400">{u.pct}%</span>
+                        <Loader2 size={10} className="shrink-0 animate-spin text-accent-ink" />
+                        <span className="truncate text-[10px] font-semibold text-ink-2">{u.name}</span>
+                        <span className="ml-auto font-mono text-[9px] text-accent-ink">{u.pct}%</span>
                       </div>
                     </div>
                   ))}
@@ -260,19 +260,19 @@ export default function ImportMediaModal({
             </label>
           ) : loading ? (
             <div className="flex h-full min-h-[280px] items-center justify-center">
-              <Loader2 size={22} className="animate-spin text-blue-400" />
+              <Loader2 size={22} className="animate-spin text-accent-ink" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex h-full min-h-[280px] flex-col items-center justify-center text-center">
               {tab === "library" ? (
-                <FolderOpen size={22} className="mb-3 text-neutral-600" />
+                <FolderOpen size={22} className="mb-3 text-faint" />
               ) : (
-                <Clapperboard size={22} className="mb-3 text-neutral-600" />
+                <Clapperboard size={22} className="mb-3 text-faint" />
               )}
-              <p className="text-xs font-bold text-neutral-400">
+              <p className="text-xs font-bold text-ink-3">
                 {tab === "library" ? "Nothing uploaded yet" : "No Direct Studio creations yet"}
               </p>
-              <p className="mt-1 max-w-xs text-[10px] text-neutral-600">
+              <p className="mt-1 max-w-xs text-[10px] text-faint">
                 {tab === "library"
                   ? "Files you upload are kept here, ready for any project."
                   : "Clips, images and voices you generate in the studios land here automatically."}
@@ -288,15 +288,15 @@ export default function ImportMediaModal({
                     key={`${m.id}-${m.url}`}
                     disabled={alreadyAdded}
                     onClick={() => toggleSelect(m)}
-                    className={`group relative overflow-hidden rounded-xl border text-left transition-all duration-200 ${
+                    className={`group relative overflow-hidden rounded-2xl border text-left transition-all duration-200 ${
                       alreadyAdded
-                        ? "cursor-default border-white/5 opacity-35"
+                        ? "cursor-default border-line opacity-35"
                         : isSelected
-                        ? "border-blue-500 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
-                        : "border-white/5 hover:border-blue-500/50"
+                        ? "border-accent ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
+                        : "border-line hover:border-accent-line"
                     }`}
                   >
-                    <div className="relative aspect-video bg-[#0c152d]">
+                    <div className="relative aspect-video bg-surface">
                       {m.kind === "video" ? (
                         <video
                           src={m.url}
@@ -313,21 +313,21 @@ export default function ImportMediaModal({
                           <Music size={20} className="text-emerald-400/70" />
                         </div>
                       )}
-                      <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                      <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded-lg bg-black/70 px-1.5 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
                         {m.kind === "video" ? <Video size={7} /> : m.kind === "image" ? <ImageIcon size={7} /> : <Music size={7} />}
                         {m.kind}
                       </span>
                       {(isSelected || alreadyAdded) && (
                         <span
                           className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow ${
-                            alreadyAdded ? "bg-neutral-600" : "bg-blue-600"
+                            alreadyAdded ? "bg-surface-3" : "bg-accent"
                           }`}
                         >
                           <Check size={11} />
                         </span>
                       )}
                     </div>
-                    <p className="truncate bg-[#0a0f1d] px-2 py-1.5 text-[9px] font-semibold text-neutral-400">
+                    <p className="truncate bg-background px-2 py-1.5 text-[9px] font-semibold text-ink-3">
                       {alreadyAdded ? "In project" : m.label || m.kind}
                     </p>
                   </button>
@@ -339,17 +339,17 @@ export default function ImportMediaModal({
 
         {/* Footer */}
         {tab !== "upload" && (
-          <div className="flex items-center justify-between border-t border-white/5 px-5 py-3.5">
-            <span className="font-mono text-[10px] text-neutral-500">
+          <div className="flex items-center justify-between border-t border-line px-5 py-3.5">
+            <span className="font-mono text-[10px] text-muted">
               {selectedCount > 0 ? `${selectedCount} selected` : "Tap items to select"}
             </span>
             <button
               disabled={selectedCount === 0 || importing}
               onClick={() => void importSelected()}
-              className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-2xl px-5 py-2.5 text-xs font-bold transition-all ${
                 selectedCount === 0 || importing
-                  ? "cursor-not-allowed bg-[#0e1630] text-neutral-600"
-                  : "bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500"
+                  ? "cursor-not-allowed bg-surface text-faint"
+                  : "bg-accent text-white shadow-lg shadow-blue-500/20 hover:bg-accent"
               }`}
             >
               {importing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
