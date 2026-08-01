@@ -11,8 +11,16 @@ import {
   buildFfmpegPlan,
   atempoChain,
   docFromLegacyProject,
+  syncSceneTakes,
+  assetSceneIndex,
   clipEnd,
 } from "../lib/editor";
+import {
+  recordTake,
+  sceneTakes,
+  activeTakeIndex,
+  VideoStatusEntry,
+} from "../app/dashboard/_flow/types";
 
 let passed = 0;
 const failures: string[] = [];
@@ -289,6 +297,112 @@ test("legacy project bridge builds a valid doc with bgm", () => {
   near(doc.duration, 18);
   // The whole thing must compile straight to a plan.
   buildFfmpegPlan(compileRenderJob(doc));
+});
+
+// ── Scene takes: re-rendering must not leave the timeline on the old clip ────
+
+test("re-rendered scenes re-point every clip cut from them, edits intact", () => {
+  const doc = docFromLegacyProject({
+    videoStatus: {
+      0: { status: "succeeded", url: "https://cdn/s0-take1.mp4" },
+      1: { status: "succeeded", url: "https://cdn/s1-take1.mp4" },
+    },
+  });
+  const engine = new EditorEngine(doc);
+  const video = engine.getDoc().tracks.find((t) => t.kind === "video")!;
+  // The director trims scene 1 and razors scene 2 in half before re-rendering.
+  engine.trimClipEnd(video.clips[0].id, 6);
+  engine.splitClipAt(engine.getDoc().tracks[0].clips[1].id, 10);
+  const before = engine.getDoc().tracks[0].clips.length;
+
+  const repointed = syncSceneTakes(engine, {
+    0: { status: "succeeded", url: "https://cdn/s0-take2.mp4" },
+    1: { status: "succeeded", url: "https://cdn/s1-take2.mp4" },
+  });
+
+  const after = engine.getDoc();
+  assert(repointed === 2, `two assets re-pointed, got ${repointed}`);
+  assert(after.tracks[0].clips.length === before, "no clips added or lost");
+  near(after.tracks[0].clips[0].duration, 6);
+  const urls = Object.values(after.assets).map((a) => a.url).sort();
+  assert(
+    JSON.stringify(urls) === JSON.stringify(["https://cdn/s0-take2.mp4", "https://cdn/s1-take2.mp4"]),
+    `assets follow the new takes, got ${urls.join()}`
+  );
+  validateDoc(after);
+});
+
+test("re-pointing is not undoable and leaves the director's own history alone", () => {
+  const engine = new EditorEngine(
+    docFromLegacyProject({ videoStatus: { 0: { status: "succeeded", url: "https://cdn/old.mp4" } } })
+  );
+  const clipId = engine.getDoc().tracks[0].clips[0].id;
+  engine.trimClipEnd(clipId, 7);
+  syncSceneTakes(engine, { 0: { status: "succeeded", url: "https://cdn/new.mp4" } });
+
+  engine.undo(); // must undo the trim, not the media swap
+  const doc = engine.getDoc();
+  near(doc.tracks[0].clips[0].duration, 10);
+  assert(doc.assets[doc.tracks[0].clips[0].assetId].url === "https://cdn/new.mp4", "still the new take");
+});
+
+test("a scene that hasn't re-rendered keeps the take that's on the timeline", () => {
+  const engine = new EditorEngine(
+    docFromLegacyProject({ videoStatus: { 0: { status: "succeeded", url: "https://cdn/good.mp4" } } })
+  );
+  const repointed = syncSceneTakes(engine, {
+    0: { status: "failed", url: undefined },
+  } as any);
+  assert(repointed === 0, "nothing re-pointed");
+  const doc = engine.getDoc();
+  assert(doc.assets[doc.tracks[0].clips[0].assetId].url === "https://cdn/good.mp4", "old take survives");
+});
+
+test("documents saved before provenance are matched by their scene label", () => {
+  // Exactly the shape a pre-versioning save produced: label, no sceneIndex.
+  const engine = new EditorEngine(createEmptyDoc());
+  const trackId = engine.getDoc().tracks[0].id;
+  const assetId = engine.addAsset({ kind: "video", url: "https://cdn/stale.mp4", duration: 10, label: "Scene 2" });
+  engine.insertClip(trackId, { assetId, start: 0 });
+  assert(assetSceneIndex(engine.getDoc().assets[assetId]) === 1, "Scene 2 → index 1");
+
+  syncSceneTakes(engine, { 1: { status: "succeeded", url: "https://cdn/fresh.mp4" } });
+  const asset = engine.getDoc().assets[assetId];
+  assert(asset.url === "https://cdn/fresh.mp4", "re-pointed by label");
+  assert(asset.sceneIndex === 1, "provenance stamped, so the label is never consulted again");
+});
+
+test("uploaded media is never mistaken for a scene clip", () => {
+  const engine = new EditorEngine(createEmptyDoc());
+  const trackId = engine.getDoc().tracks[0].id;
+  const assetId = engine.addAsset({ kind: "video", url: "https://cdn/b-roll.mp4", duration: 10, label: "b-roll" });
+  engine.insertClip(trackId, { assetId, start: 0 });
+  const repointed = syncSceneTakes(engine, { 0: { status: "succeeded", url: "https://cdn/scene1.mp4" } });
+  assert(repointed === 0, "untouched");
+  assert(engine.getDoc().assets[assetId].url === "https://cdn/b-roll.mp4", "still the upload");
+});
+
+// ── Take history ────────────────────────────────────────────────────────────
+
+test("a re-render appends a take and makes it active", () => {
+  let entry: VideoStatusEntry = { status: "succeeded", url: "https://cdn/take1.mp4" };
+  entry = recordTake(entry, { id: "gen2", url: "https://cdn/take2.mp4" });
+  assert(sceneTakes(entry).length === 2, "the first clip was kept");
+  assert(entry.url === "https://cdn/take2.mp4", "newest take is on air");
+  assert(activeTakeIndex(entry) === 1, "active index follows");
+});
+
+test("the same generation reported twice yields one take", () => {
+  let entry = recordTake({ status: "rendering" }, { id: "gen1", url: "https://cdn/a.mp4" });
+  entry = recordTake(entry, { id: "gen1", url: "https://cdn/a.mp4" });
+  assert(sceneTakes(entry).length === 1, `one take, got ${sceneTakes(entry).length}`);
+});
+
+test("pre-versioning scenes read as a one-take history", () => {
+  const legacy: VideoStatusEntry = { status: "succeeded", url: "https://cdn/only.mp4" };
+  assert(sceneTakes(legacy).length === 1, "single take");
+  assert(activeTakeIndex(legacy) === 0, "and it's the active one");
+  assert(activeTakeIndex({ status: "idle" }) === -1, "no clip, no take");
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

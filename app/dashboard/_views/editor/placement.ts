@@ -29,6 +29,9 @@ export interface MediaPayload {
   duration?: number;
   width?: number;
   height?: number;
+  /** Set for generated scene clips, so the asset can follow the scene's active
+   * take when it's re-rendered (see syncSceneTakes). */
+  sceneIndex?: number;
 }
 
 export const IMAGE_DEFAULT_SECONDS = 4;
@@ -63,6 +66,7 @@ export function findOrAddAsset(engine: EditorEngine, payload: MediaPayload): str
     duration: payload.kind === "image" ? undefined : payload.duration,
     width: payload.width,
     height: payload.height,
+    sceneIndex: payload.sceneIndex,
   });
 }
 

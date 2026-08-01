@@ -23,6 +23,16 @@ export interface AssetRef {
   width?: number;
   height?: number;
   label?: string;
+  /**
+   * Provenance: this asset is storyboard scene N's generated clip.
+   *
+   * Re-rendering a scene mints a NEW take at a new URL, and the stored document
+   * would otherwise keep playing the take it was built from forever. The stamp
+   * lets the editor re-point the asset at whichever take the script editor is
+   * currently showing — trims, order and everything else on the timeline
+   * survive, only the media behind them is swapped. See `syncSceneTakes`.
+   */
+  sceneIndex?: number;
 }
 
 /** Normalized visual transform for video/image clips. */

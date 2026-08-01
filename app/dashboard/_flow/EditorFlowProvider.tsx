@@ -40,6 +40,8 @@ import {
   Storyboard,
   VideoStatusMap,
   WizardStep,
+  recordTake,
+  sceneTakes,
 } from "./types";
 
 interface EditorFlowValue {
@@ -131,6 +133,9 @@ interface EditorFlowValue {
   /** True once every scene of the current storyboard has rendered. */
   allScenesRendered: (scenes: unknown[], statuses: VideoStatusMap) => boolean;
   generateVideoForScene: (sceneIndex: number, promptText: string) => Promise<void>;
+  /** Put an earlier (or later) take of a scene back on air — script editor,
+   * media bin and timeline all follow the scene's active take. */
+  selectSceneTake: (sceneIndex: number, takeIndex: number) => void;
   reviseScenePrompt: (sceneIndex: number) => Promise<void>;
   copyToClipboard: (text: string, index: number) => void;
   handleCompileProject: () => Promise<void>;
@@ -709,14 +714,25 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             const status = await apiFetch<{ status: string; videoUrl?: string; error?: string }>(
               `/api/video/status?id=${res.id}`
             );
-            if (status.status === "succeeded") {
+            if (status.status === "succeeded" && status.videoUrl) {
               clearInterval(intervalId);
+              // Kept as a NEW take rather than an overwrite: the clip this
+              // replaces cost money to make, and the director may well want it
+              // back after seeing the re-render.
+              const url = status.videoUrl;
               setVideoStatus((prev) => ({
                 ...prev,
-                [sceneIndex]: { ...prev[sceneIndex], status: "succeeded", url: status.videoUrl },
+                [sceneIndex]: recordTake(prev[sceneIndex], {
+                  id: res.id,
+                  url,
+                  createdAt: new Date().toISOString(),
+                  prompt: promptTextArg,
+                }),
               }));
               void refreshProfile();
-            } else if (status.status === "failed") {
+            } else if (status.status === "failed" || status.status === "succeeded") {
+              // "succeeded" with no clip is a failure with a friendlier name —
+              // recording it as a take would put a dead entry in the history.
               clearInterval(intervalId);
               setVideoStatus((prev) => ({
                 ...prev,
@@ -748,6 +764,30 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     [apiFetch, refreshProfile, aspectRatio, activeProjectId]
   );
 
+  // Put a different take of a scene back on air. Everything downstream reads
+  // the scene's `url` — the script editor, the media bin, and (via
+  // syncSceneTakes) the clips already cut into the timeline — so switching the
+  // active take is all it costs to swap a scene across the whole film.
+  const selectSceneTake = useCallback((sceneIndex: number, takeIndex: number) => {
+    setVideoStatus((prev) => {
+      const entry = prev[sceneIndex];
+      const takes = sceneTakes(entry);
+      const take = takes[takeIndex];
+      if (!take || !entry) return prev;
+      return {
+        ...prev,
+        [sceneIndex]: {
+          ...entry,
+          status: "succeeded",
+          url: take.url,
+          id: take.id ?? entry.id,
+          takes,
+          activeTake: takeIndex,
+        },
+      };
+    });
+  }, []);
+
   // Resume background polling with existing generation ID
   const resumePollingForScene = useCallback(
     async (sceneIndex: number, generationId: string) => {
@@ -771,14 +811,19 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
           const status = await apiFetch<{ status: string; videoUrl?: string; error?: string }>(
             `/api/video/status?id=${generationId}`
           );
-          if (status.status === "succeeded") {
+          if (status.status === "succeeded" && status.videoUrl) {
             clearInterval(intervalId);
+            const url = status.videoUrl;
             setVideoStatus((prev) => ({
               ...prev,
-              [sceneIndex]: { ...prev[sceneIndex], status: "succeeded", url: status.videoUrl },
+              [sceneIndex]: recordTake(prev[sceneIndex], {
+                id: generationId,
+                url,
+                createdAt: new Date().toISOString(),
+              }),
             }));
             void refreshProfile();
-          } else if (status.status === "failed") {
+          } else if (status.status === "failed" || status.status === "succeeded") {
             clearInterval(intervalId);
             setVideoStatus((prev) => ({
               ...prev,
@@ -1144,7 +1189,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     addSceneImages, attachMaterialToScene, removeSceneImage,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,
-    generateStoryboard, allScenesRendered, generateVideoForScene, reviseScenePrompt,
+    generateStoryboard, allScenesRendered, generateVideoForScene, selectSceneTake, reviseScenePrompt,
     copyToClipboard, handleCompileProject, deleteProject,
     goHome, goCreate, openProject, openProjectRoute,
   };

@@ -21,7 +21,7 @@ import { doc as fsDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
 import {
   EditorEngine, EditorPlayer, InteractionController, EditorAutosaver,
-  EditorDoc, PlaybackFrame, docFromLegacyProject, deserializeDoc,
+  EditorDoc, PlaybackFrame, docFromLegacyProject, deserializeDoc, syncSceneTakes,
   compileRenderJob, clampZoom, formatTimecode, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD,
   resolveShortcut, clipEnd,
 } from "../../../../lib/editor";
@@ -79,8 +79,15 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         });
       },
     });
+    // The saved document was built from whichever takes existed then; scenes
+    // re-rendered since point at new URLs. Adopt them here, before the engine
+    // is bound and before the first frame is drawn, so the timeline never shows
+    // a clip the director has already replaced. Binding afterwards keeps this
+    // out of the autosaver — the mount effect below persists it instead, since
+    // a Firestore write must not be a side effect of rendering.
+    const repointed = syncSceneTakes(engine, project?.videoStatus);
     const unbind = autosaver.bindEngine(engine);
-    return { engine, interaction, interactionOpts, autosaver, unbind };
+    return { engine, interaction, interactionOpts, autosaver, unbind, repointed };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
@@ -115,6 +122,8 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       setDoc(d);
       playerRef.current?.setDoc(d);
     });
+    // Persist the take adoption the session did on the way up.
+    if (session.repointed > 0) session.autosaver.markDirty(engine.getDoc());
     return () => {
       unsub();
       session.unbind();
@@ -122,6 +131,22 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       session.autosaver.dispose();
     };
   }, [engine, session]);
+
+  // A scene re-rendered (or a take switched) in the script editor changes the
+  // project's clip URLs under an open timeline. Keyed on the URLs themselves —
+  // the project object is rebuilt on every parent render, so its identity says
+  // nothing about whether the clips actually moved.
+  const takeSignature = useMemo(() => {
+    const scenes: Record<string, { url?: string } | undefined> = project?.videoStatus ?? {};
+    return Object.entries(scenes)
+      .map(([idx, s]) => `${idx}:${s?.url ?? ""}`)
+      .join("|");
+  }, [project?.videoStatus]);
+
+  useEffect(() => {
+    syncSceneTakes(engine, project?.videoStatus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, takeSignature]);
 
   const handlePlayer = useCallback((player: EditorPlayer | null) => {
     playerRef.current = player;
@@ -248,13 +273,13 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   const rendering = exporting || (renderStatus === "rendering" && !renderStalled);
 
   return (
-    <div className="flex h-full flex-col bg-[#070b16] text-neutral-200 overflow-hidden select-none">
+    <div className="flex h-full flex-col bg-background text-foreground overflow-hidden select-none">
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/5 bg-[#0a0f1d]/95 px-4 py-2.5 backdrop-blur-md shrink-0">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-[#0a0f1d]/95 px-4 py-2.5 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={goHome}
-            className="flex items-center gap-1 rounded-lg bg-white/5 border border-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            className="flex items-center gap-1 rounded-xl bg-surface border border-line px-2.5 py-1.5 text-[11px] font-semibold text-ink-3 hover:text-foreground hover:bg-surface-2 transition-colors shrink-0"
           >
             <ChevronLeft size={12} /> Portal
           </button>
@@ -265,18 +290,18 @@ export default function EditorStudio({ project }: EditorStudioProps) {
               <circle cx="16" cy="16" r="16" fill="white" />
               <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
             </svg>
-            <span className="font-mono text-[12px] font-bold tracking-tight lowercase text-white">
+            <span className="font-mono text-[12px] font-bold tracking-tight lowercase text-foreground">
               optiq studio
             </span>
           </div>
 
-          <span className="hidden sm:block h-4 w-px bg-white/10 shrink-0" />
+          <span className="hidden sm:block h-4 w-px bg-surface-2 shrink-0" />
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Film size={13} className="text-blue-400 shrink-0" />
-              <h1 className="text-xs font-bold text-white truncate max-w-[110px] sm:max-w-[260px]">{project?.title || "Untitled Film"}</h1>
-              <span className="hidden sm:inline rounded bg-[#0c152d] border border-blue-500/40 px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider text-blue-400 shrink-0">
+              <Film size={13} className="text-accent-ink shrink-0" />
+              <h1 className="text-xs font-bold text-foreground truncate max-w-[110px] sm:max-w-[260px]">{project?.title || "Untitled Film"}</h1>
+              <span className="hidden sm:inline rounded-lg bg-surface border border-accent-line px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider text-accent-ink shrink-0">
                 Timeline Editor
               </span>
             </div>
@@ -284,13 +309,13 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`hidden sm:inline text-[9px] font-mono uppercase tracking-wider ${autosaver.isDirty ? "text-yellow-400" : "text-neutral-600"}`}>
+          <span className={`hidden sm:inline text-[9px] font-mono uppercase tracking-wider ${autosaver.isDirty ? "text-orange" : "text-faint"}`}>
             {autosaver.isDirty ? "● Saving…" : "● Saved"}
           </span>
           <button
             onClick={() => setProductionMode("manual")}
             aria-label="Script editor"
-            className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/5 px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-white/10 hover:text-blue-400 active:scale-95 transition-all"
+            className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
           >
             <Edit3 size={11} /> <span className="hidden sm:inline">Script Editor</span>
           </button>
@@ -298,7 +323,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             <a
               href={renderUrl}
               download={`${(project?.title || "film").replace(/\s+/g, "_")}.mp4`}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 px-3 py-1.5 text-[11px] font-bold text-emerald-400 hover:bg-emerald-600/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600/20 border border-success px-3 py-1.5 text-[11px] font-bold text-success hover:bg-emerald-600/30 transition-colors"
             >
               <Download size={11} /> Download Film
             </a>
@@ -306,7 +331,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           <button
             onClick={handleExport}
             disabled={rendering}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-1.5 text-[11px] font-bold text-white transition-colors shadow-lg shadow-blue-500/20"
+            className="flex items-center gap-1.5 rounded-xl bg-accent hover:bg-accent disabled:opacity-50 px-4 py-1.5 text-[11px] font-bold text-white transition-colors shadow-lg shadow-blue-500/20"
           >
             {rendering ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
             {rendering ? "Rendering…" : "Export Film"}
@@ -315,17 +340,17 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       </div>
 
       {exportError && (
-        <div className="mx-4 mt-2 rounded-lg border border-red-500/20 bg-red-950/30 px-3 py-2 text-[11px] text-red-400 shrink-0">
+        <div className="mx-4 mt-2 rounded-xl border border-danger bg-danger-soft px-3 py-2 text-[11px] text-danger shrink-0">
           Export error: {exportError}
         </div>
       )}
       {renderStatus === "failed" && project?.renderV2Error && (
-        <div className="mx-4 mt-2 rounded-lg border border-red-500/20 bg-red-950/30 px-3 py-2 text-[11px] text-red-400 shrink-0">
+        <div className="mx-4 mt-2 rounded-xl border border-danger bg-danger-soft px-3 py-2 text-[11px] text-danger shrink-0">
           Last render failed: {project.renderV2Error}
         </div>
       )}
       {renderStalled && (
-        <div className="mx-4 mt-2 rounded-lg border border-amber-500/20 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-400 shrink-0">
+        <div className="mx-4 mt-2 rounded-xl border border-orange bg-orange-soft px-3 py-2 text-[11px] text-orange shrink-0">
           The previous render stopped responding and was abandoned. You can export again.
         </div>
       )}
@@ -348,7 +373,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
               onPointerDown={(e) => startResize(e, "bin")}
               className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
             >
-              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-accent group-active:bg-accent" />
             </div>
 
             <div className="flex min-w-0 flex-1 flex-col bg-black/60">
@@ -360,7 +385,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
               onPointerDown={(e) => startResize(e, "props")}
               className="group relative z-10 -mx-[3px] w-[7px] shrink-0 cursor-col-resize"
             >
-              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-accent group-active:bg-accent" />
             </div>
 
             <PropertiesPanel
@@ -378,7 +403,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             onPointerDown={(e) => startResize(e, "timeline")}
             className="group relative z-10 -my-[3px] h-[7px] shrink-0 cursor-row-resize"
           >
-            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-blue-500/60 group-active:bg-blue-400" />
+            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover:bg-accent group-active:bg-accent" />
           </div>
         </>
       )}
@@ -387,7 +412,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           Scrolls sideways rather than wrapping or clipping. On phones this is
           replaced by the CapCut-style MobileEditorDock below the timeline. */}
       {!isMobile && (
-      <div className="flex items-center justify-between gap-2 overflow-x-auto border-t border-white/5 bg-[#0a0f1d] px-3 py-1.5 shrink-0 scrollbar-none">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto border-t border-line bg-background px-3 py-1.5 shrink-0 scrollbar-none">
         <div className="flex items-center gap-1 shrink-0">
           <ToolButton title="Undo (Ctrl+Z)" disabled={!engine.canUndo()} onClick={() => engine.undo()}>
             <Undo2 size={13} />
@@ -395,7 +420,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           <ToolButton title="Redo (Ctrl+Shift+Z)" disabled={!engine.canRedo()} onClick={() => engine.redo()}>
             <Redo2 size={13} />
           </ToolButton>
-          <span className="mx-1 h-4 w-px bg-white/10" />
+          <span className="mx-1 h-4 w-px bg-surface-2" />
           <ToolButton
             title="Razor tool (click clips to split)"
             active={tool === "razor"}
@@ -426,8 +451,8 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           </ToolButton>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-[10px] text-neutral-500">
-          <span className="text-white font-bold">{formatTimecode(playhead, doc.fps)}</span>
+        <div className="flex items-center gap-2 font-mono text-[10px] text-muted">
+          <span className="text-foreground font-bold">{formatTimecode(playhead, doc.fps)}</span>
           <span>/</span>
           <span>{formatTimecode(doc.duration, doc.fps)}</span>
         </div>
@@ -496,10 +521,10 @@ function ToolButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-7 min-w-7 items-center justify-center rounded-md border px-1.5 transition-colors disabled:opacity-30 ${
+      className={`flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 transition-colors disabled:opacity-30 ${
         active
-          ? "border-blue-500 bg-[#0c152d] text-blue-400"
-          : "border-transparent text-neutral-400 hover:text-white hover:bg-white/5"
+          ? "border-accent bg-surface text-accent-ink"
+          : "border-transparent text-ink-3 hover:text-foreground hover:bg-surface"
       }`}
     >
       {children}

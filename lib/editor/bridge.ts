@@ -7,7 +7,7 @@
  * ships, with zero migration of stored projects.
  */
 
-import { createEmptyDoc, EditorDoc, genId } from "./types";
+import { AssetRef, createEmptyDoc, EditorDoc, genId } from "./types";
 import { EditorEngine } from "./engine";
 
 export interface LegacyTimelineItem {
@@ -56,6 +56,7 @@ export function docFromLegacyProject(proj: LegacyProjectShape): EditorDoc {
       url,
       duration: sceneSeconds,
       label: `Scene ${item.sceneIndex + 1}`,
+      sceneIndex: item.sceneIndex,
     });
     engine.insertClip(videoTrackId, {
       assetId,
@@ -85,4 +86,58 @@ export function docFromLegacyProject(proj: LegacyProjectShape): EditorDoc {
   }
 
   return engine.toJSON();
+}
+
+// ── Keeping a saved document pointed at the CURRENT takes ────────────────────
+//
+// A scene can be re-rendered any number of times, and each render mints a clip
+// at a brand-new URL. The stored editor document was built from whichever take
+// existed at the time, so without this the timeline would keep playing clips
+// the director has already replaced (and paid to replace).
+
+/** `Scene 3` → 2. The label the bridge and the media bin give generated clips. */
+const SCENE_LABEL = /^Scene (\d+)$/;
+
+/**
+ * Which storyboard scene an asset came from, or null if it isn't a scene clip.
+ *
+ * Prefers the explicit stamp. The label is a backfill for documents saved
+ * before assets carried provenance — narrow on purpose (an exact `Scene N` on a
+ * video asset), and it only ever runs once, because the sync writes the stamp.
+ */
+export function assetSceneIndex(asset: AssetRef): number | null {
+  if (typeof asset.sceneIndex === "number") return asset.sceneIndex;
+  if (asset.kind !== "video") return null;
+  const match = SCENE_LABEL.exec(asset.label ?? "");
+  return match ? Number(match[1]) - 1 : null;
+}
+
+/**
+ * Re-point every scene-derived asset at the scene's active take.
+ *
+ * Only the media URL moves: clip positions, trims, splits, speeds, volumes,
+ * overlays and added music are untouched, because clips address their source
+ * through the asset. Scenes with no successful render are left alone rather
+ * than blanked — a failed re-render must never cost the director the take
+ * that's already on the timeline.
+ *
+ * Returns how many assets actually changed source.
+ */
+export function syncSceneTakes(
+  engine: EditorEngine,
+  videoStatus: LegacyProjectShape["videoStatus"]
+): number {
+  if (!videoStatus) return 0;
+  let repointed = 0;
+  for (const asset of Object.values(engine.getDoc().assets)) {
+    const sceneIndex = assetSceneIndex(asset);
+    if (sceneIndex === null) continue;
+    const scene = videoStatus[sceneIndex];
+    if (scene?.status !== "succeeded" || !scene.url) continue;
+    const stale = asset.url !== scene.url;
+    if (!stale && asset.sceneIndex === sceneIndex) continue;
+    engine.retargetAsset(asset.id, { url: scene.url, sceneIndex });
+    if (stale) repointed++;
+  }
+  return repointed;
 }

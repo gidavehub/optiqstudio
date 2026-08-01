@@ -156,6 +156,36 @@ export class EditorEngine {
     return id;
   }
 
+  /**
+   * Re-point an asset at a different source file, keeping every clip cut from
+   * it exactly where it is.
+   *
+   * This is the project swapping in a fresh take of a generated scene, not an
+   * edit the director made — so it is timeless: it applies to every snapshot in
+   * the history as well as the live document. Undo therefore walks back the
+   * director's cuts while the new media stays put, instead of resurrecting a
+   * clip URL that has been superseded.
+   */
+  retargetAsset(
+    assetId: string,
+    patch: Partial<Pick<AssetRef, "url" | "label" | "duration" | "sceneIndex">>
+  ): void {
+    const apply = (doc: EditorDoc) => {
+      const asset = doc.assets[assetId];
+      if (asset) Object.assign(asset, patch);
+    };
+    for (const snapshot of this.undoStack) apply(snapshot);
+    for (const snapshot of this.redoStack) apply(snapshot);
+    if (this.transientBase) apply(this.transientBase);
+    this.command(
+      (doc) => {
+        if (!doc.assets[assetId]) throw new Error(`Unknown asset ${assetId}`);
+        apply(doc);
+      },
+      { history: false }
+    );
+  }
+
   removeAsset(assetId: string): void {
     this.command((doc) => {
       for (const track of doc.tracks) {
@@ -453,14 +483,17 @@ export class EditorEngine {
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
-  private command(mutate: (doc: EditorDoc) => void): void {
+  private command(
+    mutate: (doc: EditorDoc) => void,
+    opts: { history?: boolean } = {}
+  ): void {
     const before = this.doc;
     const draft = deepClone(this.doc);
     mutate(draft);
     draft.duration = computeDuration(draft);
     if (this.validateEveryCommand) validateDoc(draft);
     this.doc = draft;
-    if (!this.transientBase) this.pushHistory(before);
+    if (!this.transientBase && opts.history !== false) this.pushHistory(before);
     this.emit();
   }
 

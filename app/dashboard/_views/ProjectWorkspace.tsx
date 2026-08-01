@@ -15,6 +15,7 @@ import {
   RefreshCw, Edit3, AlertCircle, Undo2, Tv, Play, Bot,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
+import { activeTakeIndex, sceneTakes } from "../_flow/types";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import useIsMobile from "../_shared/useIsMobile";
@@ -36,7 +37,7 @@ export default function ProjectWorkspace() {
     generating, error, setError, retryStoryboard, projectsLoading,
     pipelineStage, pipelineProgress,
     copyToClipboard, copiedIndex,
-    generateVideoForScene, reviseScenePrompt,
+    generateVideoForScene, selectSceneTake, reviseScenePrompt,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     goHome, projects, activeProjectId, agentRunning,
@@ -132,10 +133,10 @@ export default function ProjectWorkspace() {
     <button
       onClick={openAgent}
       title="Work on the whole storyline with the agent"
-      className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors active:scale-95 ${
+      className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition-colors active:scale-95 ${
         agentRunning
-          ? "animate-pulse border-blue-400 bg-[#131d35] text-blue-300"
-          : "border-white/5 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-blue-400"
+          ? "animate-pulse border-accent bg-surface-2 text-accent-ink"
+          : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-accent-ink"
       }`}
     >
       <Bot size={13} />
@@ -146,31 +147,31 @@ export default function ProjectWorkspace() {
   // ── EMPTY / GENERATING / ERROR STATES ──────────────────────────────────
   if (!storyboard) {
     return (
-      <div className="flex h-full flex-col bg-background text-neutral-200">
+      <div className="flex h-full flex-col bg-background text-foreground">
         <div className="mx-auto flex h-full max-w-lg flex-1 flex-col items-center justify-center p-12 text-center">
           {isCloudGenerating ? (
             <div className="space-y-6">
-              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-3xl border border-white/10 bg-black shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-52 sm:w-96">
+              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-52 sm:w-96">
                 <div className="aurora" aria-hidden />
                 <div className="aurora-veil" aria-hidden />
               </div>
               <div className="space-y-1.5">
-                <h3 className="text-center text-sm font-bold tracking-tight text-white">{stageLabel}</h3>
+                <h3 className="text-center text-sm font-bold tracking-tight text-foreground">{stageLabel}</h3>
                 {pipelineStage === "building" && pipelineProgress ? (
-                  <p className="text-center font-mono text-[11px] text-neutral-500">
+                  <p className="text-center font-mono text-[11px] text-muted">
                     Scene {pipelineProgress.scenesDone} / {pipelineProgress.scenesTotal}
                   </p>
                 ) : (
-                  <p className="mx-auto max-w-xs text-center text-[11px] text-neutral-500">
+                  <p className="mx-auto max-w-xs text-center text-[11px] text-muted">
                     Running in the cloud — you can safely close this tab and come back; it&apos;ll pick up right here.
                   </p>
                 )}
               </div>
             </div>
           ) : error ? (
-            <div className="mx-auto max-w-md space-y-5 rounded-2xl border border-red-500/15 bg-red-950/20 p-8">
-              <AlertCircle size={36} className="mx-auto animate-pulse text-red-400" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase tracking-wider text-white">
+            <div className="mx-auto max-w-md space-y-5 rounded-3xl border border-danger bg-danger-soft p-8">
+              <AlertCircle size={36} className="mx-auto animate-pulse text-danger" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase tracking-wider text-foreground">
                 Generation Encountered an Issue
               </h3>
               <p className="text-center text-xs leading-relaxed text-red-400/90">
@@ -182,7 +183,7 @@ export default function ProjectWorkspace() {
                     setError(null);
                     void retryStoryboard();
                   }}
-                  className="flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black transition-all hover:bg-neutral-200"
+                  className="flex items-center gap-1.5 rounded-2xl bg-foreground px-5 py-2.5 text-xs font-bold text-background transition-all hover:bg-ink-2"
                 >
                   <RefreshCw size={12} /> Retry Storyboard Generation
                 </button>
@@ -190,14 +191,14 @@ export default function ProjectWorkspace() {
             </div>
           ) : projectsLoading ? (
             <div className="space-y-4">
-              <RefreshCw size={32} className="mx-auto animate-spin text-neutral-500" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase text-neutral-300">Loading Project…</h3>
+              <RefreshCw size={32} className="mx-auto animate-spin text-muted" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase text-ink-2">Loading Project…</h3>
             </div>
           ) : (
             <div className="space-y-4">
-              <AlertCircle size={32} className="mx-auto text-neutral-500" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase text-neutral-300">Project Empty</h3>
-              <p className="mx-auto max-w-sm text-center text-xs text-neutral-500">
+              <AlertCircle size={32} className="mx-auto text-muted" />
+              <h3 className="text-center font-mono text-sm font-bold uppercase text-ink-2">Project Empty</h3>
+              <p className="mx-auto max-w-sm text-center text-xs text-muted">
                 No storyboard specification has been initialized for this project.
               </p>
             </div>
@@ -223,25 +224,25 @@ export default function ProjectWorkspace() {
     const stalled = renderTally.pending === 0 && renderTally.failed > 0;
 
     return (
-      <div className="flex h-full flex-col bg-background text-neutral-200">
+      <div className="flex h-full flex-col bg-background text-foreground">
         {/* Minimal chrome, top corners only */}
         <div className="absolute left-0 right-0 top-16 z-10 flex items-center justify-between gap-2 px-4 py-4 sm:px-6">
-          <h2 className="max-w-[40%] truncate text-sm font-bold tracking-tight text-white/90">{storyboard.title}</h2>
+          <h2 className="max-w-[40%] truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <span className="font-mono text-[11px] font-bold text-neutral-400">
+            <span className="font-mono text-[11px] font-bold text-ink-3">
               {renderTally.done}
-              <span className="text-neutral-600"> / {sceneCount}</span>
+              <span className="text-faint"> / {sceneCount}</span>
             </span>
             {agentButton}
             <button
               onClick={() => setProductionMode("manual")}
-              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-white/10 hover:text-blue-400"
+              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-surface-2 hover:text-accent-ink"
             >
               <Edit3 size={12} /> Script Editor
             </button>
             <button
               onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-white/10"
+              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-surface-2"
             >
               <Undo2 size={12} /> Reset
             </button>
@@ -263,23 +264,23 @@ export default function ProjectWorkspace() {
               return (
                 <div
                   key={idx}
-                  className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black shadow-[0_16px_48px_rgba(0,0,0,0.7)]"
+                  className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-[0_16px_48px_rgba(0,0,0,0.7)]"
                 >
                   {ready ? (
                     <>
                       <video src={stat.url} autoPlay loop muted playsInline preload="auto" className="h-full w-full object-cover" />
-                      <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
+                      <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-success text-background shadow-lg">
                         <Play size={10} fill="black" className="translate-x-[1px]" />
                       </span>
                     </>
                   ) : failed ? (
                     <button
                       onClick={() => requestRender(idx, stat?.customPrompt || scene.fullPrompt)}
-                      className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-950/30 p-3 text-center transition-colors hover:bg-red-950/50"
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-danger-soft p-3 text-center transition-colors hover:bg-danger-soft"
                     >
-                      <AlertCircle size={20} className="text-red-400" />
-                      <span className="text-[10px] font-bold text-white">Scene {scene.sceneNumber} failed</span>
-                      <span className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-neutral-200">
+                      <AlertCircle size={20} className="text-danger" />
+                      <span className="text-[10px] font-bold text-foreground">Scene {scene.sceneNumber} failed</span>
+                      <span className="flex items-center gap-1 rounded-xl border border-line bg-surface px-2.5 py-1 text-[10px] font-semibold text-foreground">
                         <RefreshCw size={10} /> Retry
                       </span>
                     </button>
@@ -288,13 +289,13 @@ export default function ProjectWorkspace() {
                       <div className="aurora" aria-hidden />
                       <div className="aurora-veil" aria-hidden />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-display text-4xl text-white/90 drop-shadow-lg sm:text-5xl">
+                        <span className="font-display text-4xl text-foreground drop-shadow-lg sm:text-5xl">
                           {scene.sceneNumber}
                         </span>
                       </div>
                     </>
                   )}
-                  <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 font-mono text-[9px] font-bold text-white/80 backdrop-blur">
+                  <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 font-mono text-[9px] font-bold text-ink-2 backdrop-blur">
                     Scene {scene.sceneNumber}
                   </span>
                 </div>
@@ -304,7 +305,7 @@ export default function ProjectWorkspace() {
         </div>
 
         <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-2.5 px-4">
-          <p className="text-center font-mono text-[11px] text-neutral-500">
+          <p className="text-center font-mono text-[11px] text-muted">
             {stalled
               ? `${renderTally.failed} scene${renderTally.failed === 1 ? "" : "s"} didn't render — retry above, or continue with what's ready`
               : `Crafting your scenes — ${percent}%`}
@@ -312,7 +313,7 @@ export default function ProjectWorkspace() {
           {stalled && renderTally.done > 0 && (
             <button
               onClick={() => setForceEditor(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black transition-all hover:bg-neutral-200"
+              className="flex items-center gap-1.5 rounded-2xl bg-foreground px-5 py-2.5 text-xs font-bold text-background transition-all hover:bg-ink-2"
             >
               <Tv size={13} /> Open timeline anyway
             </button>
@@ -343,6 +344,7 @@ export default function ProjectWorkspace() {
           copiedIndex={copiedIndex}
           renderCost={renderCost}
           onRequestRender={requestRender}
+          onSelectTake={selectSceneTake}
           onOpenTimeline={() => setProductionMode("auto-merge")}
           onOpenAgent={openAgent}
           agentRunning={agentRunning}
@@ -354,32 +356,32 @@ export default function ProjectWorkspace() {
 
   // ── SCRIPT FACE — DESKTOP ──────────────────────────────────────────────
   return (
-    <div className="flex h-full flex-col bg-background text-neutral-200">
+    <div className="flex h-full flex-col bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 pb-6 pt-20 sm:px-6 sm:pt-24">
         {/* Header controls */}
-        <div className="flex flex-col gap-4 border-b border-white/5 pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="rounded-full border border-blue-500/30 bg-[#0c152d] px-2.5 py-0.5 text-[10px] font-bold uppercase text-blue-400">
+            <span className="rounded-full border border-accent-line bg-surface px-2.5 py-0.5 text-[10px] font-bold uppercase text-accent-ink">
               Script Engineering
             </span>
-            <h2 className="mt-2 text-xl font-bold tracking-tight text-white md:text-2xl">{storyboard.title}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">{storyboard.concept}</p>
+            <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">{storyboard.title}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{storyboard.concept}</p>
           </div>
           <div className="flex items-center gap-2 self-start">
-            <span className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 font-mono text-[11px] font-bold text-neutral-400">
+            <span className="rounded-3xl border border-line bg-surface px-3 py-2 font-mono text-[11px] font-bold text-ink-3">
               {renderTally.done}
-              <span className="text-neutral-600"> / {sceneCount}</span> rendered
+              <span className="text-faint"> / {sceneCount}</span> rendered
             </span>
             {agentButton}
             <button
               onClick={() => setProductionMode("auto-merge")}
-              className="flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-[#0c152d] px-4 py-2 text-xs font-semibold text-blue-400 transition-colors hover:border-blue-400 hover:bg-[#131d35]"
+              className="flex items-center gap-1.5 rounded-2xl border border-accent-line bg-surface px-4 py-2 text-xs font-semibold text-accent-ink transition-colors hover:border-accent hover:bg-surface-2"
             >
               <Tv size={12} /> Open Timeline Editor
             </button>
             <button
               onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/5 px-4 py-2 text-xs font-semibold transition-colors hover:bg-white/10"
+              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2"
             >
               <Undo2 size={12} /> Reset Draft
             </button>
@@ -392,11 +394,11 @@ export default function ProjectWorkspace() {
         </div>
 
         {/* Scene cards */}
-        <div className="mt-10 flex items-center gap-3 border-b border-white/5 pb-3">
-          <span className="flex h-6 w-6 items-center justify-center rounded border border-blue-500/30 bg-[#0c152d] text-blue-400">
+        <div className="mt-10 flex items-center gap-3 border-b border-line pb-3">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-accent-line bg-surface text-accent-ink">
             <Tv size={12} />
           </span>
-          <h3 className="text-base font-bold tracking-tight text-white">Scene Generation Panel</h3>
+          <h3 className="text-base font-bold tracking-tight text-foreground">Scene Generation Panel</h3>
         </div>
 
         <div className="mt-5 flex flex-col gap-6">
@@ -408,12 +410,12 @@ export default function ProjectWorkspace() {
             return (
               <div
                 key={scene.sceneNumber}
-                className="grid grid-cols-1 items-start gap-5 rounded-3xl border border-white/5 bg-[#0a1124] p-4 transition-colors hover:border-blue-500/30 sm:gap-6 sm:p-5 lg:grid-cols-12 lg:p-6"
+                className="grid grid-cols-1 items-start gap-5 rounded-[28px] border border-line bg-surface p-4 transition-colors hover:border-accent-line sm:gap-6 sm:p-5 lg:grid-cols-12 lg:p-6"
               >
                 {/* Scene copy */}
                 <div className="space-y-4 lg:col-span-7">
                   <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#131d35] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-[10px] font-bold text-foreground">
                       Scene {scene.sceneNumber} — {SCENE_SECONDS}s clip
                     </span>
                   </div>
@@ -462,6 +464,9 @@ export default function ProjectWorkspace() {
                     error={status.error}
                     cost={renderCost(idx)}
                     onRender={() => requestRender(idx, status.customPrompt || scene.fullPrompt)}
+                    takes={sceneTakes(videoStatus[idx])}
+                    activeTake={activeTakeIndex(videoStatus[idx])}
+                    onSelectTake={(take) => selectSceneTake(idx, take)}
                   />
                 </div>
               </div>

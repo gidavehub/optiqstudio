@@ -7,9 +7,14 @@
 // Every render that costs money routes through onRender, which the parent wraps
 // in the price-confirmation modal. The label carries the price so the charge is
 // never a surprise even before the modal opens.
+//
+// A re-render never destroys the clip it replaces — every render is kept as a
+// take, and the take strip under the video switches between them. At ~GMD 150 a
+// clip, "I preferred the second one" has to be one click, not another render.
 
 import React from "react";
-import { AlertCircle, CheckCircle, Play, RefreshCw, Video } from "lucide-react";
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Play, RefreshCw, Video } from "lucide-react";
+import { SceneTake } from "../../_flow/types";
 
 export type SceneRenderStatus = "idle" | "rendering" | "succeeded" | "failed";
 
@@ -20,6 +25,11 @@ interface SceneRenderPanelProps {
   /** GMD this render will cost. 0 = already covered by the ad's price. */
   cost: number;
   onRender: () => void;
+  /** Every clip rendered for this scene, oldest first. */
+  takes?: SceneTake[];
+  /** Index into `takes` currently on air. */
+  activeTake?: number;
+  onSelectTake?: (takeIndex: number) => void;
   /** Tighter padding for the mobile deck. */
   compact?: boolean;
 }
@@ -30,24 +40,69 @@ export default function SceneRenderPanel({
   error,
   cost,
   onRender,
+  takes = [],
+  activeTake = -1,
+  onSelectTake,
   compact = false,
 }: SceneRenderPanelProps) {
   const pad = compact ? "px-5 py-10" : "px-6 py-14";
   const priceLabel = cost > 0 ? `GMD ${cost.toLocaleString()}` : "Included";
+  const canSwitch = !!onSelectTake && takes.length > 1 && activeTake >= 0;
 
   if (status === "succeeded" && url) {
     return (
       <div className="space-y-3">
-        <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
+        <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-2xl">
           <video src={url} controls playsInline className="h-full w-full object-cover" />
         </div>
+
+        {canSwitch && (
+          <div className="flex items-center gap-2 rounded-2xl border border-line bg-white/[0.02] px-2 py-1.5">
+            <button
+              onClick={() => onSelectTake!(activeTake - 1)}
+              disabled={activeTake === 0}
+              aria-label="Previous take"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-25 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft size={13} />
+            </button>
+
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
+              {takes.map((take, i) => (
+                <button
+                  key={take.id || take.url}
+                  onClick={() => onSelectTake!(i)}
+                  title={take.createdAt ? new Date(take.createdAt).toLocaleString() : `Take ${i + 1}`}
+                  className={`shrink-0 rounded-xl px-2.5 py-1 text-[10px] font-bold transition-colors ${
+                    i === activeTake
+                      ? "bg-accent text-white"
+                      : "bg-surface text-ink-3 hover:bg-surface-2 hover:text-white"
+                  }`}
+                >
+                  Take {i + 1}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => onSelectTake!(activeTake + 1)}
+              disabled={activeTake === takes.length - 1}
+              aria-label="Next take"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl text-ink-3 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-25 disabled:hover:bg-transparent"
+            >
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400">
-            <CheckCircle size={11} /> Rendered
+          <span className="flex items-center gap-1.5 rounded-full border border-success bg-emerald-500/5 px-2.5 py-0.5 text-[11px] font-bold text-success">
+            <CheckCircle size={11} />
+            {canSwitch ? `Take ${activeTake + 1} of ${takes.length}` : "Rendered"}
           </span>
           <button
             onClick={onRender}
-            className="flex items-center gap-1 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-400 transition-colors hover:bg-white/10 hover:text-blue-400"
+            className="flex items-center gap-1 rounded-xl border border-line bg-surface px-3 py-1.5 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent-ink"
           >
             <RefreshCw size={11} /> Re-render · {priceLabel}
           </button>
@@ -58,10 +113,10 @@ export default function SceneRenderPanel({
 
   if (status === "rendering") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-2xl border border-blue-500/20 bg-[#0c152d]/40 text-center ${pad}`}>
-        <RefreshCw size={26} className="animate-spin text-blue-400" />
-        <h4 className="mt-3 text-xs font-bold text-white">Generating clip…</h4>
-        <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-neutral-500">
+      <div className={`flex flex-col items-center justify-center rounded-3xl border border-accent-line bg-[#0c152d]/40 text-center ${pad}`}>
+        <RefreshCw size={26} className="animate-spin text-accent-ink" />
+        <h4 className="mt-3 text-xs font-bold text-foreground">Generating clip…</h4>
+        <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-muted">
           The Optiq Video Engine is compiling frames. This usually takes 1–3 minutes.
         </p>
       </div>
@@ -70,15 +125,15 @@ export default function SceneRenderPanel({
 
   if (status === "failed") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-2xl border border-red-500/15 bg-red-500/[0.03] text-center ${pad}`}>
-        <AlertCircle size={24} className="text-red-400" />
-        <h4 className="mt-2.5 text-xs font-bold text-white">Generation failed</h4>
-        <p className="mt-1 max-w-xs text-[10px] leading-normal text-red-400">
+      <div className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-red-500/[0.03] text-center ${pad}`}>
+        <AlertCircle size={24} className="text-danger" />
+        <h4 className="mt-2.5 text-xs font-bold text-foreground">Generation failed</h4>
+        <p className="mt-1 max-w-xs text-[10px] leading-normal text-danger">
           {error || "The render timed out."}
         </p>
         <button
           onClick={onRender}
-          className="mt-3.5 flex items-center gap-1 rounded-lg border border-white/5 bg-white/5 px-3.5 py-1.5 text-xs font-semibold transition-colors hover:bg-white/10"
+          className="mt-3.5 flex items-center gap-1 rounded-xl border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold transition-colors hover:bg-surface-2"
         >
           <RefreshCw size={11} /> Retry · {priceLabel}
         </button>
@@ -87,17 +142,17 @@ export default function SceneRenderPanel({
   }
 
   return (
-    <div className={`flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.01] text-center ${pad}`}>
-      <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#0e1630] text-neutral-500">
+    <div className={`flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-white/[0.01] text-center ${pad}`}>
+      <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-muted">
         <Video size={16} />
       </span>
-      <h4 className="text-xs font-bold text-white">No clip yet</h4>
-      <p className="mt-1 max-w-xs text-[11px] leading-normal text-neutral-500">
+      <h4 className="text-xs font-bold text-foreground">No clip yet</h4>
+      <p className="mt-1 max-w-xs text-[11px] leading-normal text-muted">
         Send this prompt to the Optiq Video Engine.
       </p>
       <button
         onClick={onRender}
-        className="mt-4 flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-500"
+        className="mt-4 flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-accent"
       >
         <Play size={11} fill="white" /> Generate · {priceLabel}
       </button>

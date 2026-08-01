@@ -84,9 +84,18 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  const sceneClips: { label: string; url: string }[] = Object.entries(project?.videoStatus ?? {})
+  // Always the scene's ACTIVE take — re-rendering or switching takes in the
+  // script editor changes what this rail offers, and `sceneIndex` rides along
+  // so anything dropped from here keeps following that scene.
+  const sceneClips: { label: string; url: string; sceneIndex: number }[] = Object.entries(
+    project?.videoStatus ?? {}
+  )
     .filter(([, s]: [string, any]) => s?.status === "succeeded" && s?.url)
-    .map(([idx, s]: [string, any]) => ({ label: `Scene ${Number(idx) + 1}`, url: s.url }));
+    .map(([idx, s]: [string, any]) => ({
+      label: `Scene ${Number(idx) + 1}`,
+      url: s.url,
+      sceneIndex: Number(idx),
+    }));
 
   const library: LibraryItem[] = Array.isArray(project?.mediaLibrary) ? project.mediaLibrary : [];
   const visualMedia = library.filter((m) => m.kind === "video" || m.kind === "image");
@@ -175,14 +184,14 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
   // add-at-playhead behaviour, just laid out for a thumb.
   if (variant === "strip") {
     return (
-      <div className="flex shrink-0 flex-col border-t border-white/5 bg-[#0a0f1d]/80">
+      <div className="flex shrink-0 flex-col border-t border-line bg-[#0a0f1d]/80">
         <div className="flex items-center justify-between px-3 pt-2">
-          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
             Media
           </span>
           <button
             onClick={() => setImportOpen(true)}
-            className="flex items-center gap-1 rounded-md bg-blue-600/20 border border-blue-500/30 px-2 py-1 text-[9px] font-bold text-blue-400 active:scale-95 transition-transform"
+            className="flex items-center gap-1 rounded-lg bg-accent-soft border border-accent-line px-2 py-1 text-[9px] font-bold text-accent-ink active:scale-95 transition-transform"
           >
             <Upload size={9} /> Import
           </button>
@@ -190,12 +199,14 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         <div className="flex gap-2 overflow-x-auto px-3 py-2 scrollbar-none">
           {sceneClips.length === 0 && visualMedia.length === 0 ? (
-            <p className="w-full rounded-lg border border-dashed border-white/10 py-3 text-center text-[9px] text-neutral-600">
+            <p className="w-full rounded-xl border border-dashed border-line py-3 text-center text-[9px] text-faint">
               No media yet — tap Import
             </p>
           ) : (
             [
-              ...sceneClips.map((c) => ({ kind: "video" as const, url: c.url, label: c.label, duration: 10 })),
+              ...sceneClips.map((c) => ({
+                kind: "video" as const, url: c.url, label: c.label, duration: 10, sceneIndex: c.sceneIndex,
+              })),
               ...visualMedia.map((m) => ({
                 kind: m.kind as "video" | "image",
                 url: m.url,
@@ -207,7 +218,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                 key={`${item.label}-${item.url}`}
                 onClick={() => void addToTimeline(item as MediaPayload)}
                 title={`Add ${item.label} at playhead`}
-                className="relative aspect-video h-14 shrink-0 overflow-hidden rounded-lg border border-white/5 bg-[#0c152d] active:scale-95 active:border-blue-500/60 transition-all"
+                className="relative aspect-video h-14 shrink-0 overflow-hidden rounded-xl border border-line bg-surface active:scale-95 active:border-accent transition-all"
               >
                 {item.kind === "image" ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -215,7 +226,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                 ) : (
                   <video src={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover opacity-80" />
                 )}
-                <span className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 text-[7px] font-bold font-mono uppercase text-white">
+                <span className="absolute bottom-0.5 left-0.5 rounded-lg bg-black/70 px-1 text-[7px] font-bold font-mono uppercase text-white">
                   {item.label}
                 </span>
               </button>
@@ -224,8 +235,8 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
         </div>
 
         {uploads.map((u) => (
-          <div key={u.name} className="mx-3 mb-2 h-0.5 overflow-hidden rounded-full bg-white/5">
-            <div className="h-full bg-blue-500 transition-all" style={{ width: `${u.pct}%` }} />
+          <div key={u.name} className="mx-3 mb-2 h-0.5 overflow-hidden rounded-full bg-surface">
+            <div className="h-full bg-accent transition-all" style={{ width: `${u.pct}%` }} />
           </div>
         ))}
 
@@ -245,7 +256,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
   return (
     <aside
       style={{ width }}
-      className="flex shrink-0 flex-col border-r border-white/5 bg-[#0a0f1d]/80"
+      className="flex shrink-0 flex-col border-r border-line bg-[#0a0f1d]/80"
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -261,13 +272,13 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
         }
       }}
     >
-      <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
-        <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-neutral-500">
+      <div className="flex items-center justify-between border-b border-line px-3 py-2">
+        <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
           Media Bin
         </span>
         <button
           onClick={() => setImportOpen(true)}
-          className="flex items-center gap-1 rounded-md bg-blue-600/20 border border-blue-500/30 px-2 py-1 text-[9px] font-bold text-blue-400 hover:bg-blue-600/30 transition-colors"
+          className="flex items-center gap-1 rounded-lg bg-accent-soft border border-accent-line px-2 py-1 text-[9px] font-bold text-accent-ink hover:bg-blue-600/30 transition-colors"
         >
           <Upload size={9} /> Import
         </button>
@@ -286,8 +297,8 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
       <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         {dragOver && (
-          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-500/60 bg-[#0c152d]/80 backdrop-blur-sm">
-            <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-blue-400">
+          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-[#0c152d]/80 backdrop-blur-sm">
+            <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-accent-ink">
               Drop to import
             </span>
           </div>
@@ -295,30 +306,30 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Upload progress */}
         {uploads.map((u) => (
-          <div key={u.name} className="rounded-lg border border-blue-500/20 bg-[#0c152d]/60 px-2.5 py-2">
+          <div key={u.name} className="rounded-2xl border border-accent-line bg-[#0c152d]/60 px-2.5 py-2">
             <div className="flex items-center gap-1.5">
-              <Loader2 size={9} className="animate-spin text-blue-400 shrink-0" />
-              <span className="truncate text-[9px] font-semibold text-neutral-300">{u.name}</span>
-              <span className="ml-auto font-mono text-[8px] text-blue-400">{u.pct}%</span>
+              <Loader2 size={9} className="animate-spin text-accent-ink shrink-0" />
+              <span className="truncate text-[9px] font-semibold text-ink-2">{u.name}</span>
+              <span className="ml-auto font-mono text-[8px] text-accent-ink">{u.pct}%</span>
             </div>
-            <div className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-white/5">
-              <div className="h-full bg-blue-500 transition-all" style={{ width: `${u.pct}%` }} />
+            <div className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-surface">
+              <div className="h-full bg-accent transition-all" style={{ width: `${u.pct}%` }} />
             </div>
           </div>
         ))}
         {uploadError && (
-          <p className="rounded-lg border border-red-500/20 bg-red-950/30 px-2.5 py-2 text-[9px] text-red-400">
+          <p className="rounded-2xl border border-danger bg-danger-soft px-2.5 py-2 text-[9px] text-danger">
             {uploadError}
           </p>
         )}
 
         {/* Scene clips */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
-            <Clapperboard size={10} className="text-blue-400" /> Generated Scenes
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+            <Clapperboard size={10} className="text-accent-ink" /> Generated Scenes
           </p>
           {sceneClips.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-white/10 p-3 text-center text-[9px] text-neutral-600">
+            <p className="rounded-2xl border border-dashed border-line p-3 text-center text-[9px] text-faint">
               No rendered scenes yet
             </p>
           ) : (
@@ -326,8 +337,8 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
               {sceneClips.map((clip) => (
                 <div
                   key={clip.url}
-                  {...dragProps({ kind: "video", url: clip.url, label: clip.label, duration: 10 })}
-                  className="group relative aspect-video cursor-grab overflow-hidden rounded-lg border border-white/5 bg-[#0c152d] hover:border-blue-500/50 transition-colors active:cursor-grabbing"
+                  {...dragProps({ kind: "video", url: clip.url, label: clip.label, duration: 10, sceneIndex: clip.sceneIndex })}
+                  className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-accent-line transition-colors active:cursor-grabbing"
                 >
                   <video
                     src={clip.url}
@@ -336,13 +347,17 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                     preload="metadata"
                     className="pointer-events-none h-full w-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                   />
-                  <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                  <span className="absolute bottom-1 left-1 rounded-lg bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
                     {clip.label}
                   </span>
                   <button
                     title={`Add ${clip.label} at playhead`}
-                    onClick={() => void addToTimeline({ kind: "video", url: clip.url, label: clip.label, duration: 10 })}
-                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white opacity-0 shadow group-hover:opacity-100 hover:bg-blue-500 transition-all"
+                    onClick={() =>
+                      void addToTimeline({
+                        kind: "video", url: clip.url, label: clip.label, duration: 10, sceneIndex: clip.sceneIndex,
+                      })
+                    }
+                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow group-hover:opacity-100 hover:bg-accent transition-all"
                   >
                     <Plus size={11} />
                   </button>
@@ -355,12 +370,12 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
         {/* Compiled legacy film */}
         {project?.compileVideoUrl && (
           <section>
-            <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
-              <Film size={10} className="text-emerald-400" /> Compiled Film
+            <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+              <Film size={10} className="text-success" /> Compiled Film
             </p>
             <div
               {...dragProps({ kind: "video", url: project.compileVideoUrl, label: "Compiled Film" })}
-              className="group relative aspect-video cursor-grab overflow-hidden rounded-lg border border-white/5 bg-[#0c152d] hover:border-emerald-500/50 transition-colors active:cursor-grabbing"
+              className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-emerald-500/50 transition-colors active:cursor-grabbing"
             >
               <video
                 src={project.compileVideoUrl}
@@ -372,7 +387,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
               <button
                 title="Add compiled film at playhead"
                 onClick={() => void addToTimeline({ kind: "video", url: project.compileVideoUrl, label: "Compiled Film" })}
-                className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white opacity-0 shadow group-hover:opacity-100 hover:bg-emerald-500 transition-all"
+                className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-success text-white opacity-0 shadow group-hover:opacity-100 hover:bg-success transition-all"
               >
                 <Plus size={11} />
               </button>
@@ -382,13 +397,13 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Uploaded video / images */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
             <ImageIcon size={10} className="text-purple-400" /> Project Media
           </p>
           {visualMedia.length === 0 ? (
             <button
               onClick={() => setImportOpen(true)}
-              className="w-full rounded-lg border border-dashed border-white/10 p-3 text-center text-[9px] text-neutral-600 hover:border-purple-500/40 hover:text-neutral-400 transition-colors"
+              className="w-full rounded-xl border border-dashed border-line p-3 text-center text-[9px] text-faint hover:border-purple-500/40 hover:text-ink-3 transition-colors"
             >
               Drop videos or images here, or click to import
             </button>
@@ -398,7 +413,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                 <div
                   key={m.id}
                   {...dragProps(m)}
-                  className="group relative aspect-video cursor-grab overflow-hidden rounded-lg border border-white/5 bg-[#0c152d] hover:border-purple-500/50 transition-colors active:cursor-grabbing"
+                  className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-purple-500/50 transition-colors active:cursor-grabbing"
                 >
                   {m.kind === "video" ? (
                     <video
@@ -415,7 +430,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                       className="pointer-events-none h-full w-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                     />
                   )}
-                  <span className="absolute bottom-1 left-1 max-w-[85%] truncate rounded bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                  <span className="absolute bottom-1 left-1 max-w-[85%] truncate rounded-lg bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
                     {m.label || m.kind}
                   </span>
                   <button
@@ -433,14 +448,14 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Audio */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-neutral-500">
-            <Music size={10} className="text-emerald-400" /> Audio & Soundtracks
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+            <Music size={10} className="text-success" /> Audio & Soundtracks
           </p>
           <div className="space-y-1.5">
             {audioMedia.length === 0 && !project?.musicUrl && (
               <button
                 onClick={() => setImportOpen(true)}
-                className="w-full rounded-lg border border-dashed border-white/10 p-3 text-center text-[9px] text-neutral-600 hover:border-emerald-500/40 hover:text-neutral-400 transition-colors"
+                className="w-full rounded-xl border border-dashed border-line p-3 text-center text-[9px] text-faint hover:border-success hover:text-ink-3 transition-colors"
               >
                 Drop soundtracks or voiceovers here, or click to import
               </button>
@@ -449,17 +464,17 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
               <div
                 key={m.id}
                 {...dragProps(m)}
-                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-lg border border-white/5 bg-[#0c152d]/60 px-2.5 py-2 hover:border-emerald-500/40 transition-colors active:cursor-grabbing"
+                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-[#0c152d]/60 px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
               >
-                <Music size={10} className="shrink-0 text-emerald-500/70" />
-                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-neutral-300">{m.label || "Audio"}</span>
+                <Music size={10} className="shrink-0 text-success" />
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-ink-2">{m.label || "Audio"}</span>
                 {m.duration !== undefined && (
-                  <span className="shrink-0 font-mono text-[8px] text-neutral-600">{Math.round(m.duration)}s</span>
+                  <span className="shrink-0 font-mono text-[8px] text-faint">{Math.round(m.duration)}s</span>
                 )}
                 <button
                   title={`Add ${m.label ?? "audio"} at playhead`}
                   onClick={() => void addToTimeline(m)}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 text-neutral-400 opacity-0 group-hover:opacity-100 hover:bg-emerald-600 hover:text-white transition-all"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface text-ink-3 opacity-0 group-hover:opacity-100 hover:bg-success hover:text-white transition-all"
                 >
                   <Plus size={11} />
                 </button>
@@ -468,14 +483,14 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
             {project?.musicUrl && !audioMedia.some((m) => m.url === project.musicUrl) && (
               <div
                 {...dragProps({ kind: "audio", url: project.musicUrl, label: "Project Music" })}
-                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-lg border border-white/5 bg-[#0c152d]/60 px-2.5 py-2 hover:border-emerald-500/40 transition-colors active:cursor-grabbing"
+                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-[#0c152d]/60 px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
               >
-                <Music size={10} className="shrink-0 text-emerald-500/70" />
-                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-neutral-300">Project Music</span>
+                <Music size={10} className="shrink-0 text-success" />
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-ink-2">Project Music</span>
                 <button
                   title="Add project music at playhead"
                   onClick={() => void addToTimeline({ kind: "audio", url: project.musicUrl, label: "Project Music" })}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/5 text-neutral-400 opacity-0 group-hover:opacity-100 hover:bg-emerald-600 hover:text-white transition-all"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface text-ink-3 opacity-0 group-hover:opacity-100 hover:bg-success hover:text-white transition-all"
                 >
                   <Plus size={11} />
                 </button>
@@ -485,11 +500,11 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
         </section>
 
         {/* Doc stats */}
-        <section className="border-t border-white/5 pt-3">
-          <div className="space-y-1 font-mono text-[8px] uppercase tracking-wider text-neutral-600">
-            <div className="flex justify-between"><span>Canvas</span><span className="text-neutral-400">{doc.width}×{doc.height} @{doc.fps}fps</span></div>
-            <div className="flex justify-between"><span>Tracks</span><span className="text-neutral-400">{doc.tracks.length}</span></div>
-            <div className="flex justify-between"><span>Clips</span><span className="text-neutral-400">{doc.tracks.reduce((n, t) => n + t.clips.length, 0)}</span></div>
+        <section className="border-t border-line pt-3">
+          <div className="space-y-1 font-mono text-[8px] uppercase tracking-wider text-faint">
+            <div className="flex justify-between"><span>Canvas</span><span className="text-ink-3">{doc.width}×{doc.height} @{doc.fps}fps</span></div>
+            <div className="flex justify-between"><span>Tracks</span><span className="text-ink-3">{doc.tracks.length}</span></div>
+            <div className="flex justify-between"><span>Clips</span><span className="text-ink-3">{doc.tracks.reduce((n, t) => n + t.clips.length, 0)}</span></div>
           </div>
         </section>
       </div>
