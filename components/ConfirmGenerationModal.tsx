@@ -53,9 +53,9 @@ export default function ConfirmGenerationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="absolute inset-0 bg-foreground/25 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-line bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="glass-strong relative w-full max-w-sm overflow-hidden rounded-[28px] p-6 transition-all animate-in fade-in-50 zoom-in-95 duration-200">
         <div className="flex items-start justify-between">
           <h3 className="text-lg font-black tracking-tight text-foreground">{title}</h3>
           <button

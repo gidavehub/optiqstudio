@@ -302,6 +302,12 @@ select:focus {
   color: var(--muted);
 }
 
+/* In the app the same label is Google Sans — the mono eyebrow is a marketing
+   device and reads as console chrome next to the rest of the product. */
+.optiq-app .eyebrow {
+  font-family: var(--font-sans);
+}
+
 /* Marketing headline metrics */
 .display {
   letter-spacing: -0.03em;

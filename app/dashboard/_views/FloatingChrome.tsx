@@ -45,19 +45,20 @@ export default function FloatingChrome() {
       <Link
         href="/dashboard"
         aria-label="Home"
-        className="fixed top-3 left-3 sm:top-4 sm:left-6 z-50 flex items-center gap-2.5 rounded-full bg-surface/80 border border-line backdrop-blur-md px-3 py-2.5 sm:px-5 sm:py-3 shadow-2xl transition-all hover:border-line-2 active:scale-95 select-none cursor-pointer"
+        className="glass fixed top-3 left-3 sm:top-4 sm:left-6 z-50 flex items-center gap-2.5 rounded-full px-3 py-2.5 sm:px-5 sm:py-3 transition-all hover:border-line-2 active:scale-95 select-none cursor-pointer"
       >
         <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-          <circle cx="16" cy="16" r="16" fill="white" />
-          <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+          {/* Inverted for the light shell: ink disc, canvas-coloured ring. */}
+          <circle cx="16" cy="16" r="16" className="fill-foreground" />
+          <circle cx="16" cy="16" r="8" fill="none" className="stroke-background" strokeWidth={4} />
         </svg>
-        <span className="hidden sm:inline font-mono text-[14px] font-bold tracking-tight lowercase text-foreground">
+        <span className="hidden sm:inline tabular-nums text-[14px] font-bold tracking-tight lowercase text-foreground">
           optiq studio
         </span>
       </Link>
 
       {/* Top-right: balance + account + sign out */}
-      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center gap-2 sm:gap-4.5 rounded-full bg-surface/80 border border-line backdrop-blur-md px-3 py-2 sm:px-5 sm:py-2.5 text-xs shadow-2xl transition-all hover:border-line-2">
+      <div className="glass fixed top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center gap-2 sm:gap-4.5 rounded-full px-3 py-2 sm:px-5 sm:py-2.5 text-xs transition-all hover:border-line-2">
         {/* Wallet — the one number that matters on a phone */}
         <Link
           href="/dashboard/billing"

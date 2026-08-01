@@ -30,11 +30,11 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
   const isLong = prompt.length > 220;
 
   return (
-    <div className="rounded-[28px] border border-line bg-[#0c152d]/60 backdrop-blur overflow-hidden">
+    <div className="rounded-[28px] border border-line bg-surface backdrop-blur overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-accent-ink shrink-0">
+          <span className="text-[9px] font-bold tabular-nums uppercase tracking-widest text-accent-ink shrink-0">
             Prompt
           </span>
           {meta}
@@ -72,7 +72,7 @@ export default function PromptCard({ prompt, referenceImageUrls = [], meta }: Pr
       {/* Reference images strip */}
       {referenceImageUrls.length > 0 && (
         <div className="border-t border-line px-4 py-3">
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-widest text-muted">
             <ImageIcon size={10} /> Reference Images ({referenceImageUrls.length})
           </p>
           <div className="flex gap-2 overflow-x-auto pb-1">

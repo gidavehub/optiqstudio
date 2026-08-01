@@ -25,7 +25,7 @@ export default function SceneReferenceImages({
   onRemove,
 }: SceneReferenceImagesProps) {
   return (
-    <div className="rounded-[28px] border border-line bg-white/[0.02] p-3.5">
+    <div className="rounded-[28px] border border-line bg-surface p-3.5">
       <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
         Reference images — attached to this scene&apos;s render
       </span>
@@ -40,7 +40,7 @@ export default function SceneReferenceImages({
             <button
               onClick={() => onRemove(imgIdx)}
               title="Remove from this scene"
-              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-ink-2 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+              className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-background/85 backdrop-blur-sm text-ink-2 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
             >
               <X size={10} />
             </button>
@@ -73,7 +73,7 @@ export default function SceneReferenceImages({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={mat.url} alt={mat.name} className="h-full w-full object-cover" />
-            <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <span className="absolute inset-0 flex items-center justify-center bg-background/55">
               <Plus size={13} className="text-foreground" />
             </span>
           </button>

@@ -118,9 +118,9 @@ export default function BottomPromptConsole({
       >
         {/* Gorgeous Drop Overlay for Bottom Console */}
         {isDragging && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-black/85 backdrop-blur-sm pointer-events-none transition-all duration-300">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-background/90 backdrop-blur-sm pointer-events-none transition-all duration-300">
             <UploadCloud size={24} className="text-foreground animate-pulse animate-bounce-subtle" />
-            <span className="text-xs font-mono tracking-widest text-foreground mt-2 uppercase">Drop Image, Video or Audio</span>
+            <span className="text-xs tabular-nums tracking-widest text-foreground mt-2 uppercase">Drop Image, Video or Audio</span>
             <span className="text-[10px] text-muted mt-1">To use as a visual reference or voice profile</span>
           </div>
         )}
@@ -161,7 +161,7 @@ export default function BottomPromptConsole({
             className={`rounded-full p-1.5 transition-colors ${
               dictation.recording
                 ? "animate-pulse bg-danger-soft text-danger"
-                : "text-ink-3 hover:text-white"
+                : "text-ink-3 hover:text-foreground"
             }`}
           >
             {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}

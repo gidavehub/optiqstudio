@@ -28,7 +28,7 @@ export default function SettingsRail({
     <aside className="hidden w-full shrink-0 space-y-7 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
       <Link
         href="/dashboard"
-        className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
+        className="group flex w-fit items-center gap-1.5 tabular-nums text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
       >
         <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
         Back
@@ -52,8 +52,8 @@ export default function SettingsRail({
                 onClick={() => setDuration(d)}
                 className={`group flex w-full items-center justify-between rounded-2xl border px-3.5 py-2.5 transition-all ${
                   active
-                    ? "border-accent bg-surface shadow-[0_0_24px_-8px_rgba(59,130,246,0.55)]"
-                    : "border-transparent hover:border-line hover:bg-white/[0.03]"
+                    ? "border-accent bg-surface shadow-[0_0_24px_-8px_rgba(26,115,232,0.4)]"
+                    : "border-transparent hover:border-line hover:bg-surface"
                 }`}
               >
                 <span
@@ -64,7 +64,7 @@ export default function SettingsRail({
                   {d}s
                 </span>
                 <span
-                  className={`font-mono text-[12px] font-bold ${
+                  className={`tabular-nums text-[12px] font-bold ${
                     active ? "text-accent-ink" : "text-muted group-hover:text-ink-2"
                   }`}
                 >
@@ -74,7 +74,7 @@ export default function SettingsRail({
             );
           })}
         </div>
-        <p className="mt-2 text-center font-mono text-[10px] text-faint">Pay only for what you generate</p>
+        <p className="mt-2 text-center tabular-nums text-[10px] text-faint">Pay only for what you generate</p>
       </div>
     </aside>
   );

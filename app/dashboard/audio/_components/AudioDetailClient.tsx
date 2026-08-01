@@ -79,7 +79,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/audio"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold tabular-nums uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Voice Studio
@@ -105,11 +105,11 @@ export default function AudioDetailClient({ id }: { id: string }) {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
-            <span className="text-xs font-mono uppercase tracking-wider">Loading Take…</span>
+            <span className="text-xs tabular-nums uppercase tracking-wider">Loading Take…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted">Take not found</p>
+          <div className="rounded-[28px] border border-line bg-surface py-20 text-center">
+            <p className="text-xs tabular-nums uppercase tracking-widest text-muted">Take not found</p>
           </div>
         ) : (
           <>
@@ -117,12 +117,12 @@ export default function AudioDetailClient({ id }: { id: string }) {
             {isRendering || !item.audioUrl ? (
               <div className="relative overflow-hidden rounded-3xl border border-line bg-background p-10 text-center">
                 <div className="absolute -inset-[20px] opacity-40">
-                  <div className="absolute top-0 left-1/4 h-32 w-32 rounded-full bg-emerald-600/15 blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
+                  <div className="absolute top-0 left-1/4 h-32 w-32 rounded-full bg-success-soft blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
                   <div className="absolute bottom-0 right-1/4 h-36 w-36 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
                 </div>
                 <div className="relative z-10 flex flex-col items-center">
                   <Loader2 size={26} className="mb-3 animate-spin text-foreground" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-foreground">
+                  <span className="tabular-nums text-xs font-semibold uppercase tracking-wider text-foreground">
                     Synthesizing Custom Voice…
                   </span>
                   <p className="mt-1 text-[10px] text-muted">The GPU worker is rendering your take.</p>
@@ -136,7 +136,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
             <PromptCard
               prompt={item.prompt}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
+                <span className="truncate tabular-nums text-[9px] uppercase tracking-wider text-faint">
                   {item.id.startsWith("voice_") ? "AI Cloned Take" : "Prebuilt Speaker"} ·{" "}
                   {new Date(item.createdAt).toLocaleDateString()}
                 </span>

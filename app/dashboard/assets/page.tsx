@@ -112,14 +112,14 @@ export default function AssetsPage() {
                       <a
                         href={url}
                         download
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 hover:bg-surface border border-line text-white"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm hover:bg-surface border border-line text-foreground"
                         title="Download"
                       >
                         <Download size={13} />
                       </a>
                       <button
                         onClick={(e) => handleDelete(item.id, e)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 hover:bg-red-950 border border-line text-ink-3 hover:text-white"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm hover:bg-danger-soft border border-line text-ink-3 hover:text-danger"
                         title="Delete"
                       >
                         <Trash2 size={13} />

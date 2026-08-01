@@ -180,7 +180,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/video"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold tabular-nums uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Video Studio
@@ -209,11 +209,11 @@ export default function VideoDetailClient({ id }: { id: string }) {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
-            <span className="text-xs font-mono uppercase tracking-wider">Loading Project…</span>
+            <span className="text-xs tabular-nums uppercase tracking-wider">Loading Project…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted">Video not found</p>
+          <div className="rounded-[28px] border border-line bg-surface py-20 text-center">
+            <p className="text-xs tabular-nums uppercase tracking-widest text-muted">Video not found</p>
           </div>
         ) : (
           <>
@@ -221,13 +221,13 @@ export default function VideoDetailClient({ id }: { id: string }) {
             {isRendering ? (
               <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background">
                 <div className="absolute -inset-[20px] opacity-40">
-                  <div className="absolute top-1/4 left-1/4 h-40 w-40 rounded-full bg-blue-600/15 blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
+                  <div className="absolute top-1/4 left-1/4 h-40 w-40 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
                   <div className="absolute bottom-1/4 right-1/4 h-44 w-44 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
                 </div>
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-2xl" />
+                <div className="absolute inset-0 bg-background/50 backdrop-blur-2xl" />
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center">
                   <Loader2 size={30} className="mb-4 animate-spin text-foreground" />
-                  <span className="mb-1 font-mono text-sm font-semibold uppercase tracking-wider text-foreground">Rendering Stream…</span>
+                  <span className="mb-1 tabular-nums text-sm font-semibold uppercase tracking-wider text-foreground">Rendering Stream…</span>
                   <p className="max-w-sm text-xs leading-normal text-ink-3">
                     The Optiq Video Engine is generating frames. This usually takes 1-3 minutes.
                   </p>
@@ -247,7 +247,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
               prompt={item.prompt}
               referenceImageUrls={refUrls}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
+                <span className="truncate tabular-nums text-[9px] uppercase tracking-wider text-faint">
                   {new Date(item.createdAt).toLocaleDateString()} · {item.id.slice(0, 10)}…
                 </span>
               }
@@ -258,8 +258,8 @@ export default function VideoDetailClient({ id }: { id: string }) {
             )}
 
             {/* 3 · OMNI REFINEMENT CONSOLE */}
-            <div className="rounded-[28px] border border-line bg-[#0a0f1d]/80 p-4 backdrop-blur">
-              <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
+            <div className="rounded-[28px] border border-line bg-surface/85 p-4 backdrop-blur">
+              <p className="text-[9px] font-bold tabular-nums uppercase tracking-widest text-muted">
                 Optiq Refinement Console
               </p>
               <p className="mt-1 text-[11px] leading-normal text-muted">
@@ -274,7 +274,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                       <img src={img.preview} alt="Reference" className="h-12 w-14 rounded-xl border border-line object-cover" />
                       <button
                         onClick={() => setImages((prev) => prev.filter((i) => i.id !== img.id))}
-                        className="absolute -right-1.5 -top-1.5 rounded-full border border-line bg-[#0a0f1d]/90 p-0.5 text-ink-3 opacity-0 hover:text-foreground group-hover:opacity-100 transition-opacity"
+                        className="absolute -right-1.5 -top-1.5 rounded-full border border-line bg-surface/90 p-0.5 text-ink-3 opacity-0 hover:text-foreground group-hover:opacity-100 transition-opacity"
                       >
                         <X size={10} />
                       </button>
@@ -291,7 +291,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                 </div>
               )}
 
-              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-line bg-[#0c152d]/60 p-2.5 focus-within:border-accent-line transition-colors">
+              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-line bg-surface p-2.5 focus-within:border-accent-line transition-colors">
                 <label className="cursor-pointer p-1.5 text-ink-3 hover:text-foreground transition-colors" title="Attach reference image">
                   <ImagePlus size={15} />
                   <input
@@ -333,7 +333,7 @@ export default function VideoDetailClient({ id }: { id: string }) {
                 <button
                   onClick={() => prompt.trim() && setConfirmOpen(true)}
                   disabled={editing || !prompt.trim() || isRendering}
-                  className="shrink-0 rounded-xl bg-accent px-4 py-1.5 text-xs font-bold text-white hover:bg-accent transition-colors disabled:opacity-40 shadow-lg shadow-blue-500/20"
+                  className="shrink-0 rounded-xl bg-accent px-4 py-1.5 text-xs font-bold text-white hover:bg-accent-hover transition-colors disabled:opacity-40 shadow-lg shadow-accent/15"
                 >
                   {editing ? "Editing…" : "Optiq Edit"}
                 </button>

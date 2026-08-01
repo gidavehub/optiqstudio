@@ -275,7 +275,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   return (
     <div className="flex h-full flex-col bg-background text-foreground overflow-hidden select-none">
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b border-line bg-[#0a0f1d]/95 px-4 py-2.5 backdrop-blur-md shrink-0">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={goHome}
@@ -287,10 +287,11 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           {/* Optiq Studio brand (the floating pills are hidden in this editor) */}
           <div className="hidden sm:flex items-center gap-2 shrink-0">
             <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-              <circle cx="16" cy="16" r="16" fill="white" />
-              <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+              {/* Inverted for the light shell: ink disc, canvas-coloured ring. */}
+              <circle cx="16" cy="16" r="16" className="fill-foreground" />
+              <circle cx="16" cy="16" r="8" fill="none" className="stroke-background" strokeWidth={4} />
             </svg>
-            <span className="font-mono text-[12px] font-bold tracking-tight lowercase text-foreground">
+            <span className="tabular-nums text-[12px] font-bold tracking-tight lowercase text-foreground">
               optiq studio
             </span>
           </div>
@@ -301,7 +302,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             <div className="flex items-center gap-2">
               <Film size={13} className="text-accent-ink shrink-0" />
               <h1 className="text-xs font-bold text-foreground truncate max-w-[110px] sm:max-w-[260px]">{project?.title || "Untitled Film"}</h1>
-              <span className="hidden sm:inline rounded-lg bg-surface border border-accent-line px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase tracking-wider text-accent-ink shrink-0">
+              <span className="hidden sm:inline rounded-lg bg-surface border border-accent-line px-1.5 py-0.5 text-[8px] tabular-nums font-bold uppercase tracking-wider text-accent-ink shrink-0">
                 Timeline Editor
               </span>
             </div>
@@ -309,7 +310,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`hidden sm:inline text-[9px] font-mono uppercase tracking-wider ${autosaver.isDirty ? "text-orange" : "text-faint"}`}>
+          <span className={`hidden sm:inline text-[9px] tabular-nums uppercase tracking-wider ${autosaver.isDirty ? "text-orange" : "text-faint"}`}>
             {autosaver.isDirty ? "● Saving…" : "● Saved"}
           </span>
           <button
@@ -323,7 +324,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             <a
               href={renderUrl}
               download={`${(project?.title || "film").replace(/\s+/g, "_")}.mp4`}
-              className="flex items-center gap-1.5 rounded-xl bg-emerald-600/20 border border-success px-3 py-1.5 text-[11px] font-bold text-success hover:bg-emerald-600/30 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-success-soft border border-success px-3 py-1.5 text-[11px] font-bold text-success hover:bg-success-soft transition-colors"
             >
               <Download size={11} /> Download Film
             </a>
@@ -331,7 +332,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           <button
             onClick={handleExport}
             disabled={rendering}
-            className="flex items-center gap-1.5 rounded-xl bg-accent hover:bg-accent disabled:opacity-50 px-4 py-1.5 text-[11px] font-bold text-white transition-colors shadow-lg shadow-blue-500/20"
+            className="flex items-center gap-1.5 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-50 px-4 py-1.5 text-[11px] font-bold text-white transition-colors shadow-lg shadow-accent/15"
           >
             {rendering ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
             {rendering ? "Rendering…" : "Export Film"}
@@ -360,7 +361,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           Mobile: just the preview — the bin becomes a filmstrip under it and
           properties becomes a sheet that rises when a clip is selected. */}
       {isMobile ? (
-        <div className="flex min-h-0 flex-1 flex-col bg-black/60">
+        <div className="flex min-h-0 flex-1 flex-col bg-surface">
           <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
         </div>
       ) : (
@@ -376,7 +377,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
               <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-accent group-active:bg-accent" />
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col bg-black/60">
+            <div className="flex min-w-0 flex-1 flex-col bg-surface">
               <PreviewStage engine={engine} onPlayer={handlePlayer} frame={frame} />
             </div>
 
@@ -451,7 +452,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           </ToolButton>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-[10px] text-muted">
+        <div className="flex items-center gap-2 tabular-nums text-[10px] text-muted">
           <span className="text-foreground font-bold">{formatTimecode(playhead, doc.fps)}</span>
           <span>/</span>
           <span>{formatTimecode(doc.duration, doc.fps)}</span>
@@ -467,7 +468,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             max={600}
             value={pps}
             onChange={(e) => setPps(clampZoom(Number(e.target.value)))}
-            className="w-28 accent-blue-500 h-1"
+            className="w-28 accent-accent h-1"
           />
           <ToolButton title="Zoom in (+)" onClick={() => setPps((p) => clampZoom(p * 1.3))}>
             <ZoomIn size={13} />

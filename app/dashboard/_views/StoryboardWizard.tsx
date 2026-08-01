@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Clapperboard, X, Mic, MicOff, Upload, Play, RefreshCw,
   ChevronRight, ChevronLeft, Check, Paperclip, AlertCircle, Zap,
@@ -65,6 +65,13 @@ export default function StoryboardWizard() {
     error, setStoryboardPayOpen,
   } = useEditorFlow();
 
+  // Past projects are video tiles; mounting every one of them is what made this
+  // screen crawl for accounts with a long history. Six at a time, more on tap.
+  const PROJECT_PAGE = 6;
+  const [visibleProjects, setVisibleProjects] = useState(PROJECT_PAGE);
+  const shownProjects = projects.slice(0, visibleProjects);
+  const remainingProjects = projects.length - shownProjects.length;
+
   const canContinue =
     wizardStep === 3 ? !!promptText.trim()
     : wizardStep === 5 ? !!brandName.trim()
@@ -90,7 +97,7 @@ export default function StoryboardWizard() {
             className="h-full w-full bg-cover bg-center bg-no-repeat"
             style={{ backgroundImage: "url('/media/storyboard_cinematic_bg.png')" }}
           />
-          <div className="absolute inset-0 bg-[#0a0f1d]/80 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-surface/85 backdrop-blur-[2px]" />
         </div>
       )}
 
@@ -109,7 +116,7 @@ export default function StoryboardWizard() {
             <span
               key={s}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                wizardStep === s ? "bg-foreground w-8" : s < wizardStep ? "bg-blue-500/70 w-4" : "bg-surface-2 w-4"
+                wizardStep === s ? "bg-foreground w-8" : s < wizardStep ? "bg-accent w-4" : "bg-surface-2 w-4"
               }`}
             />
           ))}
@@ -120,7 +127,7 @@ export default function StoryboardWizard() {
       <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6">
         {generating ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <div className="relative h-44 w-72 sm:h-52 sm:w-96 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_80px_rgba(0,0,0,0.7)]">
+            <div className="relative h-44 w-72 sm:h-52 sm:w-96 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_60px_rgba(16,24,40,0.12)]">
               <div className="aurora" aria-hidden />
               <div className="aurora-veil" aria-hidden />
             </div>
@@ -150,7 +157,7 @@ export default function StoryboardWizard() {
                     aria-hidden
                     className="absolute inset-0 h-full w-full scale-125 object-cover opacity-90 blur-[70px]"
                   />
-                  <div className="absolute inset-0 bg-black/35 group-hover:bg-black/25 transition-colors" />
+                  <div className="absolute inset-0 bg-background/30 group-hover:bg-background/15 transition-colors" />
 
                   <div className="relative flex flex-col items-center justify-center gap-3 px-6 py-14 sm:py-20 text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-3xl border border-line-2 bg-surface-2 text-foreground backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
@@ -167,22 +174,22 @@ export default function StoryboardWizard() {
 
                 {/* Past projects — full height, the page scrolls */}
                 <div className="pt-2">
-                  <h4 className="text-[10px] font-bold text-ink-3 uppercase tracking-widest font-mono flex items-center gap-1.5">
+                  <h4 className="text-[10px] font-bold text-ink-3 uppercase tracking-widest tabular-nums flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-surface-3 animate-pulse" />
                     Past Storyboard Projects
                   </h4>
                   {projectsLoading ? (
-                    <div className="flex items-center gap-2 py-8 justify-center text-xs text-muted font-mono uppercase tracking-wider">
+                    <div className="flex items-center gap-2 py-8 justify-center text-xs text-muted tabular-nums uppercase tracking-wider">
                       <RefreshCw size={12} className="animate-spin" /> Loading Projects...
                     </div>
                   ) : projects.length === 0 ? (
-                    <div className="mt-4 rounded-2xl border border-dashed border-line bg-[#0c152d]/20 py-8 px-4 text-center">
+                    <div className="mt-4 rounded-2xl border border-dashed border-line bg-surface py-8 px-4 text-center">
                       <Clapperboard size={18} className="text-faint mx-auto mb-1.5" />
-                      <p className="text-[10px] text-muted uppercase tracking-widest font-mono">No past projects yet</p>
+                      <p className="text-[10px] text-muted uppercase tracking-widest tabular-nums">No past projects yet</p>
                     </div>
                   ) : (
                     <div className="mt-4 grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3">
-                      {projects.map((proj) => {
+                      {shownProjects.map((proj) => {
                         const clipUrl =
                           proj.compileVideoUrl ||
                           (Object.values(proj.videoStatus || {}) as { url?: string }[])
@@ -210,17 +217,17 @@ export default function StoryboardWizard() {
                                 <Clapperboard size={18} className="text-faint" />
                               </div>
                             )}
-                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-[#0a0f1d]/65 backdrop-blur-md opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur-md opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                               <div className="rounded-full border border-line-2 bg-surface-2 p-2 scale-90 transition-all duration-300 group-hover:scale-100">
                                 <Play size={14} className="text-foreground" />
                               </div>
-                              <span className="rounded-xl bg-[#0c152d]/80 border border-line px-1.5 py-0.5 text-[8px] font-bold font-mono uppercase tracking-wider text-accent-ink">
+                              <span className="rounded-xl bg-surface/85 border border-line px-1.5 py-0.5 text-[8px] font-bold tabular-nums uppercase tracking-wider text-accent-ink">
                                 {proj.length}
                               </span>
                             </div>
                             <button
                               onClick={(e) => deleteProject(e, proj.id)}
-                              className="absolute top-2 right-2 z-20 rounded-full bg-[#0a0f1d]/70 border border-line p-1 text-ink-3 opacity-0 transition-all hover:text-danger group-hover:opacity-100"
+                              className="absolute top-2 right-2 z-20 rounded-full bg-background/75 border border-line p-1 text-ink-3 opacity-0 transition-all hover:text-danger group-hover:opacity-100"
                               title="Delete Storyboard Project"
                             >
                               <X size={11} />
@@ -228,6 +235,18 @@ export default function StoryboardWizard() {
                           </div>
                         );
                       })}
+
+                      {remainingProjects > 0 && (
+                        <div className="col-span-full flex justify-center pt-1">
+                          <button
+                            onClick={() => setVisibleProjects((v) => v + PROJECT_PAGE)}
+                            className="flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-2.5 text-xs font-bold text-foreground transition-all hover:border-accent hover:bg-background active:scale-95"
+                          >
+                            View more
+                            <span className="tabular-nums text-muted">{remainingProjects}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -276,13 +295,13 @@ export default function StoryboardWizard() {
             {/* STEP 3 — DIRECT YOUR VISION */}
             {wizardStep === 3 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-2xl">
-                <h1 className="text-3xl sm:text-5xl font-black tracking-widest text-foreground uppercase text-center select-none drop-shadow-2xl">
+                <h1 className="text-3xl sm:text-5xl font-black tracking-widest text-foreground uppercase text-center select-none drop-elevate-lg">
                   Direct Your Vision
                 </h1>
                 <p className="text-xs text-ink-3 text-center max-w-md -mt-3">
                   Tell us about the ad you want — the brand, the feeling, the audience. Our agents turn it into a story.
                 </p>
-                <div className="w-full rounded-[28px] border border-line bg-[#0e1630]/75 backdrop-blur-xl p-4 shadow-2xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
+                <div className="w-full rounded-[28px] border border-line bg-surface/80 backdrop-blur-xl p-4 elevate-lg transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
                   <textarea
                     value={promptText}
                     onChange={(e) => setPromptText(e.target.value)}
@@ -292,7 +311,7 @@ export default function StoryboardWizard() {
                   />
                   <div className="mt-2 border-t border-line pt-3 flex items-center justify-between">
                     <MicButton target="prompt" {...micProps} />
-                    <span className="text-[10px] text-muted font-mono">{length} · {length === "30s" ? 3 : length === "60s" ? 6 : 9} scenes</span>
+                    <span className="text-[10px] text-muted tabular-nums">{length} · {length === "30s" ? 3 : length === "60s" ? 6 : 9} scenes</span>
                   </div>
                 </div>
               </div>
@@ -328,7 +347,7 @@ export default function StoryboardWizard() {
                       onClick={() => setAspectRatio(opt.id)}
                       className={`relative flex flex-col items-center gap-3 rounded-3xl border px-4 py-6 sm:py-8 transition-all duration-300 ${
                         aspectRatio === opt.id
-                          ? "border-accent bg-surface text-foreground ring-2 ring-blue-500/25"
+                          ? "border-accent bg-surface text-foreground ring-2 ring-accent-line"
                           : "border-line bg-surface-2 text-muted hover:border-line hover:text-ink-2"
                       }`}
                     >
@@ -355,7 +374,7 @@ export default function StoryboardWizard() {
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">What is your brand called?</h1>
                   <p className="mt-1 text-xs text-muted">Your brand or company name, exactly as it should appear.</p>
                 </div>
-                <div className="w-full rounded-[28px] border border-line bg-[#0e1630]/75 backdrop-blur-xl p-4 shadow-2xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
+                <div className="w-full rounded-[28px] border border-line bg-surface/80 backdrop-blur-xl p-4 elevate-lg transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
                   <input
                     value={brandName}
                     onChange={(e) => setBrandName(e.target.value)}
@@ -377,7 +396,7 @@ export default function StoryboardWizard() {
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">What are you selling?</h1>
                   <p className="mt-1 text-xs text-muted">Your main product or service — the hero of the story.</p>
                 </div>
-                <div className="w-full rounded-[28px] border border-line bg-[#0e1630]/75 backdrop-blur-xl p-4 shadow-2xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
+                <div className="w-full rounded-[28px] border border-line bg-surface/80 backdrop-blur-xl p-4 elevate-lg transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
                   <textarea
                     value={product}
                     onChange={(e) => setProduct(e.target.value)}
@@ -416,7 +435,7 @@ export default function StoryboardWizard() {
                   }}
                   className={`w-full rounded-3xl border border-dashed p-6 sm:p-8 text-center transition-all duration-300 ${
                     isDragging
-                      ? "border-accent-line bg-[#0e1630]/50 shadow-lg scale-[1.01]"
+                      ? "border-accent-line bg-surface-2 shadow-lg scale-[1.01]"
                       : "border-line bg-surface hover:border-line-2"
                   }`}
                 >
@@ -458,10 +477,10 @@ export default function StoryboardWizard() {
                   </div>
                 )}
 
-                <div className="w-full rounded-2xl border border-orange bg-amber-500/5 px-4 py-3 flex gap-2.5 items-start">
+                <div className="w-full rounded-2xl border border-orange bg-orange-soft px-4 py-3 flex gap-2.5 items-start">
                   <AlertCircle size={14} className="shrink-0 mt-0.5 text-orange" />
-                  <p className="text-[11px] leading-relaxed text-amber-200/90">
-                    <strong className="text-amber-300">Please do not upload images of real people.</strong> Every person in your ad
+                  <p className="text-[11px] leading-relaxed text-orange">
+                    <strong className="text-orange">Please do not upload images of real people.</strong> Every person in your ad
                     is generated with AI — uploading someone&apos;s photo without consent violates our privacy policy. A person printed
                     on your own product&apos;s packaging is fine.
                   </p>
@@ -482,7 +501,7 @@ export default function StoryboardWizard() {
       {/* ── BOTTOM NAV (in-flow, so every step is exactly one viewport) ── */}
       {!generating && (
         <footer className="relative z-10 shrink-0 px-4 pb-4 pt-2 flex justify-center">
-          <div className="flex items-center gap-4 sm:gap-6 rounded-3xl border border-line bg-surface/85 backdrop-blur-xl px-4 sm:px-6 py-3 shadow-2xl shadow-black/95 w-full max-w-xl justify-between">
+          <div className="flex items-center gap-4 sm:gap-6 rounded-3xl border border-line bg-surface/85 backdrop-blur-xl px-4 sm:px-6 py-3 elevate-lg shadow-black/10 w-full max-w-xl justify-between">
             <button
               onClick={goBack}
               className="flex items-center gap-1.5 rounded-2xl bg-surface hover:bg-surface-2 px-4 py-2.5 text-xs font-semibold text-ink-2 transition-colors border border-line"
@@ -490,14 +509,14 @@ export default function StoryboardWizard() {
               <ChevronLeft size={13} /> Back
             </button>
 
-            <span className="text-[10px] font-mono text-muted uppercase tracking-widest hidden sm:block">
+            <span className="text-[10px] tabular-nums text-muted uppercase tracking-widest hidden sm:block">
               Step {wizardStep} / {STEP_COUNT}
             </span>
 
             {/* Step 1's call to action is the "Create new project" card
                 itself, so no duplicate Continue button competes with it. */}
             {wizardStep === 1 ? (
-              <span className="text-[10px] font-mono text-faint uppercase tracking-widest">
+              <span className="text-[10px] tabular-nums text-faint uppercase tracking-widest">
                 Pick up where you left off
               </span>
             ) : wizardStep < STEP_COUNT ? (

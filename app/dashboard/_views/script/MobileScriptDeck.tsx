@@ -3,28 +3,27 @@
 // MobileScriptDeck — the script editor on a phone.
 //
 // The desktop deck stacks every scene into one endless scroll. On a phone that
-// is unusable: each scene carries a video, four beat cards, a 500–2,000 word
-// prompt and a rewrite box, so nine scenes became a kilometre of column.
+// is unusable: each scene carries a video, a 500–2,000 word prompt and a rewrite
+// box, so nine scenes became a kilometre of column.
 //
 // So the phone gets one card per page, exactly like the creation wizard: chrome
 // and progress dots at the top, Back/Next at the bottom, and a 3D flip between
-// pages. Page 1 is the film-wide direction (locks, style, music); pages 2..n+1
+// pages. Page 1 is the storyline — what this film is, at a glance; pages 2..n+1
 // are the scenes, video first.
 
 import React, { useEffect, useRef, useState } from "react";
-import { Bot, ChevronLeft, ChevronRight, Sliders, Tv } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Film, Tv } from "lucide-react";
 import {
   Scene, SceneImage, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
-import DirectionPanel from "./DirectionPanel";
-import SceneBeats from "./SceneBeats";
+import SceneDialogue from "./SceneDialogue";
 import ScenePromptBlock from "./ScenePromptBlock";
 import SceneReferenceImages from "./SceneReferenceImages";
 import SceneRenderPanel, { SceneRenderStatus } from "./SceneRenderPanel";
+import SceneRewriteBar from "./SceneRewriteBar";
 
 interface MobileScriptDeckProps {
   storyboard: Storyboard;
-  setStoryboard: React.Dispatch<React.SetStateAction<Storyboard | null>>;
   videoStatus: VideoStatusMap;
   setVideoStatus: React.Dispatch<React.SetStateAction<VideoStatusMap>>;
   sceneImages: Record<number, SceneImage[]>;
@@ -49,7 +48,6 @@ interface MobileScriptDeckProps {
 
 export default function MobileScriptDeck({
   storyboard,
-  setStoryboard,
   videoStatus,
   setVideoStatus,
   sceneImages,
@@ -67,7 +65,7 @@ export default function MobileScriptDeck({
   onOpenAgent,
   agentRunning,
 }: MobileScriptDeckProps) {
-  // Page 0 is Direction; scene i lives on page i + 1.
+  // Page 0 is the storyline; scene i lives on page i + 1.
   const pageCount = storyboard.scenes.length + 1;
   const [page, setPage] = useState(0);
   const [direction, setDirection] = useState<"next" | "prev">("next");
@@ -98,8 +96,8 @@ export default function MobileScriptDeck({
       <header className="relative z-10 shrink-0 px-4 pb-2 pt-16">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <span className="block font-mono text-[9px] font-bold uppercase tracking-widest text-accent-ink">
-              {page === 0 ? "Direction" : `Scene ${scene?.sceneNumber ?? sceneIndex + 1} · 10s`}
+            <span className="block tabular-nums text-[9px] font-bold uppercase tracking-widest text-accent-ink">
+              {page === 0 ? "Storyline" : `Scene ${scene?.sceneNumber ?? sceneIndex + 1} · 10s`}
             </span>
             <h2 className="truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
           </div>
@@ -132,14 +130,14 @@ export default function MobileScriptDeck({
               <button
                 key={i}
                 onClick={() => go(i)}
-                aria-label={i === 0 ? "Direction" : `Scene ${i}`}
+                aria-label={i === 0 ? "Storyline" : `Scene ${i}`}
                 className={`h-1.5 shrink-0 rounded-full transition-all duration-300 ${
                   i === page
                     ? "w-8 bg-foreground"
                     : done
-                      ? "w-4 bg-emerald-500/70"
+                      ? "w-4 bg-success"
                       : i < page
-                        ? "w-4 bg-blue-500/70"
+                        ? "w-4 bg-accent"
                         : "w-4 bg-surface-2"
                 }`}
               />
@@ -158,15 +156,16 @@ export default function MobileScriptDeck({
             <div className="space-y-4 pt-1">
               <div className="rounded-[28px] border border-line bg-surface p-4">
                 <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-3">
-                  <Sliders size={11} className="text-accent-ink" /> Film-wide direction
+                  <Film size={11} className="text-accent-ink" /> What this film is
                 </span>
                 <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
                   {storyboard.concept}
                 </p>
               </div>
 
-              {/* The whole-storyline page. The fields below edit one lock at a
-                  time; this is where you change the film itself. */}
+              {/* The only way to change the film as a whole. The character,
+                  style and music locks used to be edited by hand right here —
+                  they're machinery, and this conversation handles them better. */}
               <button
                 onClick={onOpenAgent}
                 className="flex w-full items-center gap-3 rounded-3xl border border-accent-line bg-surface p-4 text-left transition-colors active:scale-[0.99]"
@@ -184,8 +183,6 @@ export default function MobileScriptDeck({
                 </span>
                 <ChevronRight size={15} className="shrink-0 text-accent-ink" />
               </button>
-
-              <DirectionPanel storyboard={storyboard} setStoryboard={setStoryboard} stacked />
             </div>
           ) : scene && status ? (
             <div className="space-y-4 pt-1">
@@ -202,14 +199,7 @@ export default function MobileScriptDeck({
                 compact
               />
 
-              <SceneBeats
-                scene={scene}
-                revisionInput={status.revisionInput || ""}
-                revising={!!status.revising}
-                onRevisionInput={(v) => patchStatus(sceneIndex, { revisionInput: v })}
-                onRevise={() => void reviseScenePrompt(sceneIndex)}
-                stacked
-              />
+              <SceneDialogue scene={scene} />
 
               <ScenePromptBlock
                 value={status.customPrompt || scene.fullPrompt}
@@ -224,6 +214,13 @@ export default function MobileScriptDeck({
                 onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, sceneIndex)}
                 copied={copiedIndex === sceneIndex}
                 collapsedClass="max-h-32"
+              />
+
+              <SceneRewriteBar
+                value={status.revisionInput || ""}
+                revising={!!status.revising}
+                onChange={(v) => patchStatus(sceneIndex, { revisionInput: v })}
+                onRevise={() => void reviseScenePrompt(sceneIndex)}
               />
 
               <SceneReferenceImages
@@ -245,7 +242,7 @@ export default function MobileScriptDeck({
 
       {/* ── BOTTOM NAV: exactly the wizard's, so the flow feels the same ── */}
       <footer className="relative z-10 flex shrink-0 justify-center px-4 pb-4 pt-2">
-        <div className="flex w-full max-w-xl items-center justify-between gap-4 rounded-3xl border border-line bg-surface/85 px-4 py-3 shadow-2xl shadow-black/95 backdrop-blur-xl">
+        <div className="flex w-full max-w-xl items-center justify-between gap-4 rounded-3xl border border-line bg-surface/85 px-4 py-3 elevate-lg shadow-black/10 backdrop-blur-xl">
           <button
             onClick={() => go(page - 1)}
             disabled={page === 0}
@@ -254,8 +251,8 @@ export default function MobileScriptDeck({
             <ChevronLeft size={13} /> Back
           </button>
 
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
-            {page === 0 ? "Direction" : `${page} / ${storyboard.scenes.length}`}
+          <span className="tabular-nums text-[10px] uppercase tracking-widest text-muted">
+            {page === 0 ? "Storyline" : `${page} / ${storyboard.scenes.length}`}
           </span>
 
           {page < pageCount - 1 ? (
@@ -268,7 +265,7 @@ export default function MobileScriptDeck({
           ) : (
             <button
               onClick={onOpenTimeline}
-              className="flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-accent"
+              className="flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-accent-hover"
             >
               <Tv size={13} /> Timeline
             </button>

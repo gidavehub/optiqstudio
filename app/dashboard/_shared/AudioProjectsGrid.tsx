@@ -72,8 +72,8 @@ function TrackCard({
 }) {
   const bars = useMemo(() => waveform(item.id), [item.id]);
   const [downloading, setDownloading] = useState(false);
-  const played = variant === "music" ? "bg-emerald-400" : "bg-blue-400";
-  const idle = "bg-white/15";
+  const played = variant === "music" ? "bg-success" : "bg-accent";
+  const idle = "bg-surface-3";
   const Icon = variant === "music" ? Music : Play;
 
   const isRendering =
@@ -165,15 +165,15 @@ function TrackCard({
           onClick={onToggle}
           disabled={isRendering}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-background transition-transform hover:scale-105 disabled:opacity-40 ${
-            variant === "music" ? "bg-emerald-400" : "bg-accent"
+            variant === "music" ? "bg-success" : "bg-accent"
           }`}
         >
           {isRendering ? (
             <Loader2 size={16} className="animate-spin text-ink-3" />
           ) : isPlaying ? (
-            <Pause size={16} fill="black" />
+            <Pause size={16} fill="currentColor" />
           ) : (
-            <Icon size={16} fill="black" className={variant === "music" ? "" : "translate-x-[1px]"} />
+            <Icon size={16} fill="currentColor" className={variant === "music" ? "" : "translate-x-[1px]"} />
           )}
         </button>
 

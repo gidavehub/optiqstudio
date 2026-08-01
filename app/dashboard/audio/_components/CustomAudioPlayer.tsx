@@ -68,11 +68,11 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
         onClick={togglePlay}
         className="flex h-11 w-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:bg-ink-2 transition-all shadow-md active:scale-95"
       >
-        {isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />}
+        {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
       </button>
 
       <div className="flex-1 flex flex-col gap-1">
-        <div className="flex items-center justify-between text-[11px] text-ink-3 font-mono">
+        <div className="flex items-center justify-between text-[11px] text-ink-3 tabular-nums">
           <span className="font-semibold text-foreground uppercase tracking-wider text-[9px]">MONITOR PLAYBACK</span>
           <span>
             {formatTime(currentTime)} / {formatTime(duration)}
@@ -88,7 +88,7 @@ export default function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
             onChange={handleSeek}
             className="w-full h-1 bg-surface-3 rounded-xl appearance-none cursor-pointer accent-accent hover:h-1.5 transition-all"
             style={{
-              background: `linear-gradient(to right, #ffffff ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(255, 255, 255, 0.2) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
+              background: `linear-gradient(to right, #1a73e8 ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(0, 0, 0, 0.12) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
             }}
           />
         </div>

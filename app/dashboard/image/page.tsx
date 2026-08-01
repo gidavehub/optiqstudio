@@ -181,7 +181,7 @@ function ImageWorkspace() {
         <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
           <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
             <div>
-              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
+              <span className="block tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
                 CREATIVE FLOW
               </span>
               <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Stills &amp; Artwork</h2>
@@ -189,6 +189,7 @@ function ImageWorkspace() {
           </div>
 
           <StudioProjectsGrid
+            pageSize={25}
             items={history.map((h) => ({
               id: h.id,
               status: h.status,

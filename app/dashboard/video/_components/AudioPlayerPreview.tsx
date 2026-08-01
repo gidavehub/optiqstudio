@@ -29,7 +29,7 @@ export default function AudioPlayerPreview({ audio }: { audio: { preview: string
       >
         {isPlaying ? <Pause size={10} /> : <Play size={10} />}
       </button>
-      <span className="text-[10px] text-ink-2 font-mono max-w-[120px] truncate" title={audio.name}>
+      <span className="text-[10px] text-ink-2 tabular-nums max-w-[120px] truncate" title={audio.name}>
         {audio.name}
       </span>
     </div>

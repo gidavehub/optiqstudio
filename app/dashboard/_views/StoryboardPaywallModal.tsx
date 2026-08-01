@@ -63,11 +63,11 @@ export default function StoryboardPaywallModal() {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-foreground/25 backdrop-blur-sm transition-opacity"
         onClick={() => setStoryboardPayOpen(false)}
       />
 
-      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-line bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.8)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-line bg-surface p-6 shadow-[0_24px_60px_rgba(16,24,40,0.16)] transition-all animate-in fade-in-50 zoom-in-95 duration-200">
         <div className="flex items-start justify-between">
           <h3 className="text-lg font-black tracking-tight text-foreground">
             {paywallStep === "choose" ? "How should we build it?" : "Ready to write"}
@@ -115,7 +115,7 @@ export default function StoryboardPaywallModal() {
                 setPaywallStep("pay");
                 await generateStoryboard("manual");
               }}
-              className="group flex items-center gap-4 rounded-3xl border border-line bg-white/[0.03] p-4 text-left transition-all hover:border-line-2 hover:bg-white/[0.06] active:scale-[0.98]"
+              className="group flex items-center gap-4 rounded-3xl border border-line bg-surface p-4 text-left transition-all hover:border-line-2 hover:bg-surface-2 active:scale-[0.98]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-foreground">
                 <Edit3 size={17} />

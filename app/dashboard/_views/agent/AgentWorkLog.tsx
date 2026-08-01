@@ -42,7 +42,7 @@ export default function AgentWorkLog({ steps, live }: { steps: AgentStep[]; live
     : `${steps.length} step${steps.length === 1 ? "" : "s"}${writes > 0 ? ` · ${writes} edit${writes === 1 ? "" : "s"}` : ""}${failed > 0 ? ` · ${failed} failed` : ""}`;
 
   return (
-    <div className="rounded-[28px] border border-line bg-white/[0.02]">
+    <div className="rounded-[28px] border border-line bg-surface">
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={live}
@@ -68,7 +68,7 @@ export default function AgentWorkLog({ steps, live }: { steps: AgentStep[]; live
                 <span
                   className={`mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border ${
                     step.status === "failed"
-                      ? "border-red-500/25 bg-danger-soft text-danger"
+                      ? "border-danger bg-danger-soft text-danger"
                       : step.writes
                         ? "border-accent-line bg-surface text-accent-ink"
                         : "border-line bg-surface text-muted"
@@ -85,7 +85,7 @@ export default function AgentWorkLog({ steps, live }: { steps: AgentStep[]; live
                     {step.label}
                   </span>
                   {step.detail && (
-                    <span className="mt-0.5 block font-mono text-[10px] leading-relaxed text-faint">
+                    <span className="mt-0.5 block tabular-nums text-[10px] leading-relaxed text-faint">
                       {step.detail}
                     </span>
                   )}

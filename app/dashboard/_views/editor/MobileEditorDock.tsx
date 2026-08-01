@@ -121,12 +121,12 @@ export default function MobileEditorDock({
           <button
             aria-label="Close"
             onClick={() => setSheet(null)}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-foreground/25 backdrop-blur-[2px]"
           />
           <div className="fixed inset-x-0 bottom-0 z-50 animate-slideUp">
-            <div className="max-h-[62dvh] overflow-y-auto rounded-t-3xl border-t border-line bg-[#0a0f1d]/95 shadow-[0_-20px_60px_rgba(0,0,0,0.8)] backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-[#0a0f1d]/95 px-4 py-2.5">
-                <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-ink-3">
+            <div className="glass-strong max-h-[62dvh] overflow-y-auto rounded-t-3xl border-x-0 border-b-0 shadow-[0_-20px_48px_rgba(16,24,40,0.14)] pb-[env(safe-area-inset-bottom)]">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface/90 px-4 py-2.5">
+                <span className="text-[10px] font-bold tabular-nums uppercase tracking-widest text-ink-3">
                   {sheet === "add" ? "Add Media" : "Clip Settings"}
                 </span>
                 <button

@@ -184,9 +184,9 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
   // add-at-playhead behaviour, just laid out for a thumb.
   if (variant === "strip") {
     return (
-      <div className="flex shrink-0 flex-col border-t border-line bg-[#0a0f1d]/80">
+      <div className="flex shrink-0 flex-col border-t border-line bg-surface/85">
         <div className="flex items-center justify-between px-3 pt-2">
-          <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
+          <span className="text-[9px] font-bold tabular-nums uppercase tracking-widest text-muted">
             Media
           </span>
           <button
@@ -226,7 +226,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                 ) : (
                   <video src={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover opacity-80" />
                 )}
-                <span className="absolute bottom-0.5 left-0.5 rounded-lg bg-black/70 px-1 text-[7px] font-bold font-mono uppercase text-white">
+                <span className="absolute bottom-0.5 left-0.5 rounded-lg bg-background/85 backdrop-blur-sm px-1 text-[7px] font-bold tabular-nums uppercase text-foreground">
                   {item.label}
                 </span>
               </button>
@@ -256,7 +256,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
   return (
     <aside
       style={{ width }}
-      className="flex shrink-0 flex-col border-r border-line bg-[#0a0f1d]/80"
+      className="flex shrink-0 flex-col border-r border-line bg-surface/85"
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -273,12 +273,12 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
       }}
     >
       <div className="flex items-center justify-between border-b border-line px-3 py-2">
-        <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
+        <span className="text-[9px] font-bold tabular-nums uppercase tracking-widest text-muted">
           Media Bin
         </span>
         <button
           onClick={() => setImportOpen(true)}
-          className="flex items-center gap-1 rounded-lg bg-accent-soft border border-accent-line px-2 py-1 text-[9px] font-bold text-accent-ink hover:bg-blue-600/30 transition-colors"
+          className="flex items-center gap-1 rounded-lg bg-accent-soft border border-accent-line px-2 py-1 text-[9px] font-bold text-accent-ink hover:bg-accent-soft transition-colors"
         >
           <Upload size={9} /> Import
         </button>
@@ -297,8 +297,8 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
       <div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         {dragOver && (
-          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-[#0c152d]/80 backdrop-blur-sm">
-            <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-accent-ink">
+          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/85 backdrop-blur-sm">
+            <span className="text-[10px] font-bold tabular-nums uppercase tracking-widest text-accent-ink">
               Drop to import
             </span>
           </div>
@@ -306,11 +306,11 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Upload progress */}
         {uploads.map((u) => (
-          <div key={u.name} className="rounded-2xl border border-accent-line bg-[#0c152d]/60 px-2.5 py-2">
+          <div key={u.name} className="rounded-2xl border border-accent-line bg-surface px-2.5 py-2">
             <div className="flex items-center gap-1.5">
               <Loader2 size={9} className="animate-spin text-accent-ink shrink-0" />
               <span className="truncate text-[9px] font-semibold text-ink-2">{u.name}</span>
-              <span className="ml-auto font-mono text-[8px] text-accent-ink">{u.pct}%</span>
+              <span className="ml-auto tabular-nums text-[8px] text-accent-ink">{u.pct}%</span>
             </div>
             <div className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-surface">
               <div className="h-full bg-accent transition-all" style={{ width: `${u.pct}%` }} />
@@ -325,7 +325,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Scene clips */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
             <Clapperboard size={10} className="text-accent-ink" /> Generated Scenes
           </p>
           {sceneClips.length === 0 ? (
@@ -347,7 +347,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                     preload="metadata"
                     className="pointer-events-none h-full w-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                   />
-                  <span className="absolute bottom-1 left-1 rounded-lg bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                  <span className="absolute bottom-1 left-1 rounded-lg bg-background/85 backdrop-blur-sm px-1 py-0.5 text-[7px] font-bold tabular-nums uppercase text-foreground">
                     {clip.label}
                   </span>
                   <button
@@ -357,7 +357,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                         kind: "video", url: clip.url, label: clip.label, duration: 10, sceneIndex: clip.sceneIndex,
                       })
                     }
-                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow group-hover:opacity-100 hover:bg-accent transition-all"
+                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow group-hover:opacity-100 hover:bg-accent-hover transition-all"
                   >
                     <Plus size={11} />
                   </button>
@@ -370,12 +370,12 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
         {/* Compiled legacy film */}
         {project?.compileVideoUrl && (
           <section>
-            <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+            <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
               <Film size={10} className="text-success" /> Compiled Film
             </p>
             <div
               {...dragProps({ kind: "video", url: project.compileVideoUrl, label: "Compiled Film" })}
-              className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-emerald-500/50 transition-colors active:cursor-grabbing"
+              className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-success transition-colors active:cursor-grabbing"
             >
               <video
                 src={project.compileVideoUrl}
@@ -397,13 +397,13 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Uploaded video / images */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
-            <ImageIcon size={10} className="text-purple-400" /> Project Media
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
+            <ImageIcon size={10} className="text-pink" /> Project Media
           </p>
           {visualMedia.length === 0 ? (
             <button
               onClick={() => setImportOpen(true)}
-              className="w-full rounded-xl border border-dashed border-line p-3 text-center text-[9px] text-faint hover:border-purple-500/40 hover:text-ink-3 transition-colors"
+              className="w-full rounded-xl border border-dashed border-line p-3 text-center text-[9px] text-faint hover:border-pink hover:text-ink-3 transition-colors"
             >
               Drop videos or images here, or click to import
             </button>
@@ -413,7 +413,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                 <div
                   key={m.id}
                   {...dragProps(m)}
-                  className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-purple-500/50 transition-colors active:cursor-grabbing"
+                  className="group relative aspect-video cursor-grab overflow-hidden rounded-xl border border-line bg-surface hover:border-pink transition-colors active:cursor-grabbing"
                 >
                   {m.kind === "video" ? (
                     <video
@@ -430,13 +430,13 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
                       className="pointer-events-none h-full w-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
                     />
                   )}
-                  <span className="absolute bottom-1 left-1 max-w-[85%] truncate rounded-lg bg-black/70 px-1 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                  <span className="absolute bottom-1 left-1 max-w-[85%] truncate rounded-lg bg-background/85 backdrop-blur-sm px-1 py-0.5 text-[7px] font-bold tabular-nums uppercase text-foreground">
                     {m.label || m.kind}
                   </span>
                   <button
                     title={`Add ${m.label ?? m.kind} at playhead`}
                     onClick={() => void addToTimeline(m)}
-                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-white opacity-0 shadow group-hover:opacity-100 hover:bg-purple-500 transition-all"
+                    className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-pink text-white opacity-0 shadow group-hover:opacity-100 hover:bg-pink transition-all"
                   >
                     <Plus size={11} />
                   </button>
@@ -448,7 +448,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Audio */}
         <section>
-          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+          <p className="mb-2 flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
             <Music size={10} className="text-success" /> Audio & Soundtracks
           </p>
           <div className="space-y-1.5">
@@ -464,12 +464,12 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
               <div
                 key={m.id}
                 {...dragProps(m)}
-                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-[#0c152d]/60 px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
+                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-surface px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
               >
                 <Music size={10} className="shrink-0 text-success" />
                 <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-ink-2">{m.label || "Audio"}</span>
                 {m.duration !== undefined && (
-                  <span className="shrink-0 font-mono text-[8px] text-faint">{Math.round(m.duration)}s</span>
+                  <span className="shrink-0 tabular-nums text-[8px] text-faint">{Math.round(m.duration)}s</span>
                 )}
                 <button
                   title={`Add ${m.label ?? "audio"} at playhead`}
@@ -483,7 +483,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
             {project?.musicUrl && !audioMedia.some((m) => m.url === project.musicUrl) && (
               <div
                 {...dragProps({ kind: "audio", url: project.musicUrl, label: "Project Music" })}
-                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-[#0c152d]/60 px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
+                className="group flex cursor-grab items-center justify-between gap-1.5 rounded-xl border border-line bg-surface px-2.5 py-2 hover:border-success transition-colors active:cursor-grabbing"
               >
                 <Music size={10} className="shrink-0 text-success" />
                 <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-ink-2">Project Music</span>
@@ -501,7 +501,7 @@ export default function MediaBin({ project, engine, doc, playhead, width, varian
 
         {/* Doc stats */}
         <section className="border-t border-line pt-3">
-          <div className="space-y-1 font-mono text-[8px] uppercase tracking-wider text-faint">
+          <div className="space-y-1 tabular-nums text-[8px] uppercase tracking-wider text-faint">
             <div className="flex justify-between"><span>Canvas</span><span className="text-ink-3">{doc.width}×{doc.height} @{doc.fps}fps</span></div>
             <div className="flex justify-between"><span>Tracks</span><span className="text-ink-3">{doc.tracks.length}</span></div>
             <div className="flex justify-between"><span>Clips</span><span className="text-ink-3">{doc.tracks.reduce((n, t) => n + t.clips.length, 0)}</span></div>

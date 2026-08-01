@@ -79,7 +79,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
   }, [src]);
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-2xl border border-line bg-background shadow-2xl">
+    <div className="group relative w-full overflow-hidden rounded-2xl border border-line bg-background elevate-lg">
       <video
         ref={videoRef}
         src={src}
@@ -94,7 +94,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
       />
 
       {/* Control overlay — stark monochrome glassmorphism */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/85 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
         {/* Progress seek bar */}
         <div className="flex items-center gap-2">
           <input
@@ -106,7 +106,7 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
             onChange={handleSeek}
             className="w-full h-1 bg-surface-3 rounded-xl appearance-none cursor-pointer accent-accent hover:h-1.5 transition-all"
             style={{
-              background: `linear-gradient(to right, #ffffff ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(255, 255, 255, 0.2) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
+              background: `linear-gradient(to right, #1a73e8 ${((currentTime / (duration || 1)) * 100).toFixed(2)}%, rgba(0, 0, 0, 0.12) ${((currentTime / (duration || 1)) * 100).toFixed(2)}%)`,
             }}
           />
         </div>
@@ -118,10 +118,10 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
               onClick={togglePlay}
               className="text-foreground hover:text-ink-2 transition-colors p-1 rounded-full hover:bg-surface-2"
             >
-              {isPlaying ? <Pause size={16} fill="white" /> : <Play size={16} fill="white" />}
+              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
             </button>
 
-            <span className="text-[11px] font-mono text-ink-2">
+            <span className="text-[11px] tabular-nums text-ink-2">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>

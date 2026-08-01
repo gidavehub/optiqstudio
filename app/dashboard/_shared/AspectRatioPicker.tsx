@@ -53,8 +53,8 @@ export default function AspectRatioPicker({
               aria-pressed={active}
               className={`group relative flex flex-col items-center justify-center gap-2 rounded-2xl border px-2 py-3.5 transition-all duration-300 ${
                 active
-                  ? "border-accent bg-surface shadow-[0_0_24px_-10px_rgba(59,130,246,0.6)]"
-                  : "border-line bg-background hover:border-line-2 hover:bg-white/[0.03]"
+                  ? "border-accent bg-surface shadow-[0_0_24px_-10px_rgba(26,115,232,0.45)]"
+                  : "border-line bg-background hover:border-line-2 hover:bg-surface"
               }`}
             >
               {active && (

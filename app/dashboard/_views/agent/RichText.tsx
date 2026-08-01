@@ -34,7 +34,7 @@ function inline(text: string, keyPrefix: string): React.ReactNode[] {
       parts.push(
         <code
           key={key}
-          className="rounded-xl border border-line bg-surface px-1 py-0.5 font-mono text-[0.92em] text-accent-ink"
+          className="rounded-xl border border-line bg-surface px-1 py-0.5 tabular-nums text-[0.92em] text-accent-ink"
         >
           {token.slice(1, -1)}
         </code>

@@ -90,7 +90,7 @@ function SpeakerRow({
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
           playing
             ? "border-accent bg-accent-soft text-accent-ink"
-            : "border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-white"
+            : "border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-foreground"
         }`}
       >
         {loading ? (
@@ -117,7 +117,7 @@ export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
     <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-72 sm:border-b-0 sm:border-r sm:pt-24">
       <Link
         href="/dashboard/audio"
-        className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
+        className="group flex w-fit items-center gap-1.5 tabular-nums text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
       >
         <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
         Back
@@ -131,7 +131,7 @@ export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
             if (group.length === 0) return null;
             return (
               <div key={region}>
-                <p className="mb-1.5 px-1 font-mono text-[9px] uppercase tracking-widest text-faint">{region}</p>
+                <p className="mb-1.5 px-1 tabular-nums text-[9px] uppercase tracking-widest text-faint">{region}</p>
                 <div className="space-y-1">
                   {group.map((p) => (
                     <SpeakerRow

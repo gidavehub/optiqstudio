@@ -20,11 +20,11 @@ import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import useIsMobile from "../_shared/useIsMobile";
 import EditorStudio from "./editor/EditorStudio";
-import DirectionPanel from "./script/DirectionPanel";
 import MobileScriptDeck from "./script/MobileScriptDeck";
-import SceneBeats from "./script/SceneBeats";
+import SceneDialogue from "./script/SceneDialogue";
 import ScenePromptBlock from "./script/ScenePromptBlock";
 import SceneReferenceImages from "./script/SceneReferenceImages";
+import SceneRewriteBar from "./script/SceneRewriteBar";
 import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
 
 /** Every storyboard scene renders as a 10-second clip. */
@@ -32,7 +32,7 @@ const SCENE_SECONDS = 10;
 
 export default function ProjectWorkspace() {
   const {
-    storyboard, setStoryboard, videoStatus, setVideoStatus,
+    storyboard, videoStatus, setVideoStatus,
     productionMode, setProductionMode,
     generating, error, setError, retryStoryboard, projectsLoading,
     pipelineStage, pipelineProgress,
@@ -151,14 +151,14 @@ export default function ProjectWorkspace() {
         <div className="mx-auto flex h-full max-w-lg flex-1 flex-col items-center justify-center p-12 text-center">
           {isCloudGenerating ? (
             <div className="space-y-6">
-              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_80px_rgba(0,0,0,0.7)] sm:h-52 sm:w-96">
+              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_60px_rgba(16,24,40,0.12)] sm:h-52 sm:w-96">
                 <div className="aurora" aria-hidden />
                 <div className="aurora-veil" aria-hidden />
               </div>
               <div className="space-y-1.5">
                 <h3 className="text-center text-sm font-bold tracking-tight text-foreground">{stageLabel}</h3>
                 {pipelineStage === "building" && pipelineProgress ? (
-                  <p className="text-center font-mono text-[11px] text-muted">
+                  <p className="text-center tabular-nums text-[11px] text-muted">
                     Scene {pipelineProgress.scenesDone} / {pipelineProgress.scenesTotal}
                   </p>
                 ) : (
@@ -171,10 +171,10 @@ export default function ProjectWorkspace() {
           ) : error ? (
             <div className="mx-auto max-w-md space-y-5 rounded-3xl border border-danger bg-danger-soft p-8">
               <AlertCircle size={36} className="mx-auto animate-pulse text-danger" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase tracking-wider text-foreground">
+              <h3 className="text-center tabular-nums text-sm font-bold uppercase tracking-wider text-foreground">
                 Generation Encountered an Issue
               </h3>
-              <p className="text-center text-xs leading-relaxed text-red-400/90">
+              <p className="text-center text-xs leading-relaxed text-danger">
                 {error || "Vertex AI rate limits or an internal timeout. Retrying is free — you were only charged once."}
               </p>
               <div className="flex justify-center pt-2">
@@ -192,12 +192,12 @@ export default function ProjectWorkspace() {
           ) : projectsLoading ? (
             <div className="space-y-4">
               <RefreshCw size={32} className="mx-auto animate-spin text-muted" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase text-ink-2">Loading Project…</h3>
+              <h3 className="text-center tabular-nums text-sm font-bold uppercase text-ink-2">Loading Project…</h3>
             </div>
           ) : (
             <div className="space-y-4">
               <AlertCircle size={32} className="mx-auto text-muted" />
-              <h3 className="text-center font-mono text-sm font-bold uppercase text-ink-2">Project Empty</h3>
+              <h3 className="text-center tabular-nums text-sm font-bold uppercase text-ink-2">Project Empty</h3>
               <p className="mx-auto max-w-sm text-center text-xs text-muted">
                 No storyboard specification has been initialized for this project.
               </p>
@@ -229,7 +229,7 @@ export default function ProjectWorkspace() {
         <div className="absolute left-0 right-0 top-16 z-10 flex items-center justify-between gap-2 px-4 py-4 sm:px-6">
           <h2 className="max-w-[40%] truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <span className="font-mono text-[11px] font-bold text-ink-3">
+            <span className="tabular-nums text-[11px] font-bold text-ink-3">
               {renderTally.done}
               <span className="text-faint"> / {sceneCount}</span>
             </span>
@@ -264,13 +264,13 @@ export default function ProjectWorkspace() {
               return (
                 <div
                   key={idx}
-                  className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-[0_16px_48px_rgba(0,0,0,0.7)]"
+                  className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-[0_16px_40px_rgba(16,24,40,0.10)]"
                 >
                   {ready ? (
                     <>
                       <video src={stat.url} autoPlay loop muted playsInline preload="auto" className="h-full w-full object-cover" />
                       <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-success text-background shadow-lg">
-                        <Play size={10} fill="black" className="translate-x-[1px]" />
+                        <Play size={10} fill="currentColor" className="translate-x-[1px]" />
                       </span>
                     </>
                   ) : failed ? (
@@ -295,7 +295,7 @@ export default function ProjectWorkspace() {
                       </div>
                     </>
                   )}
-                  <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 font-mono text-[9px] font-bold text-ink-2 backdrop-blur">
+                  <span className="absolute left-2 top-2 rounded-full bg-background/80 px-2 py-0.5 tabular-nums text-[9px] font-bold text-ink-2 backdrop-blur">
                     Scene {scene.sceneNumber}
                   </span>
                 </div>
@@ -305,7 +305,7 @@ export default function ProjectWorkspace() {
         </div>
 
         <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-2.5 px-4">
-          <p className="text-center font-mono text-[11px] text-muted">
+          <p className="text-center tabular-nums text-[11px] text-muted">
             {stalled
               ? `${renderTally.failed} scene${renderTally.failed === 1 ? "" : "s"} didn't render — retry above, or continue with what's ready`
               : `Crafting your scenes — ${percent}%`}
@@ -331,7 +331,6 @@ export default function ProjectWorkspace() {
       <>
         <MobileScriptDeck
           storyboard={storyboard}
-          setStoryboard={setStoryboard}
           videoStatus={videoStatus}
           setVideoStatus={setVideoStatus}
           sceneImages={sceneImages}
@@ -368,7 +367,7 @@ export default function ProjectWorkspace() {
             <p className="mt-1 text-xs leading-relaxed text-muted">{storyboard.concept}</p>
           </div>
           <div className="flex items-center gap-2 self-start">
-            <span className="rounded-3xl border border-line bg-surface px-3 py-2 font-mono text-[11px] font-bold text-ink-3">
+            <span className="rounded-3xl border border-line bg-surface px-3 py-2 tabular-nums text-[11px] font-bold text-ink-3">
               {renderTally.done}
               <span className="text-faint"> / {sceneCount}</span> rendered
             </span>
@@ -388,13 +387,11 @@ export default function ProjectWorkspace() {
           </div>
         </div>
 
-        {/* Film-wide locks */}
-        <div className="mt-6">
-          <DirectionPanel storyboard={storyboard} setStoryboard={setStoryboard} />
-        </div>
-
-        {/* Scene cards */}
-        <div className="mt-10 flex items-center gap-3 border-b border-line pb-3">
+        {/* Scene cards. The film-wide locks (character, style, music) used to sit
+            above this; they're machinery, not something a user came here to read,
+            so the storyline blurb in the header is all the film-level context the
+            page carries now. */}
+        <div className="mt-8 flex items-center gap-3 border-b border-line pb-3">
           <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-accent-line bg-surface text-accent-ink">
             <Tv size={12} />
           </span>
@@ -420,13 +417,7 @@ export default function ProjectWorkspace() {
                     </span>
                   </div>
 
-                  <SceneBeats
-                    scene={scene}
-                    revisionInput={status.revisionInput || ""}
-                    revising={!!status.revising}
-                    onRevisionInput={(v) => patchStatus({ revisionInput: v })}
-                    onRevise={() => void reviseScenePrompt(idx)}
-                  />
+                  <SceneDialogue scene={scene} />
 
                   <ScenePromptBlock
                     value={status.customPrompt || scene.fullPrompt}
@@ -440,6 +431,15 @@ export default function ProjectWorkspace() {
                     }
                     onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, idx)}
                     copied={copiedIndex === idx}
+                  />
+
+                  {/* Sits between the prompt and the references: you read the
+                      prompt, then say what to change about it. */}
+                  <SceneRewriteBar
+                    value={status.revisionInput || ""}
+                    revising={!!status.revising}
+                    onChange={(v) => patchStatus({ revisionInput: v })}
+                    onRevise={() => void reviseScenePrompt(idx)}
                   />
 
                   <SceneReferenceImages

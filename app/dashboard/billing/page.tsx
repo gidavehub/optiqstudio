@@ -130,7 +130,7 @@ function BillingInner() {
         </div>
 
         {status === "success" && (
-          <div className="mt-6 rounded-2xl border border-emerald-950 bg-success-soft px-4 py-3.5 text-xs text-success">
+          <div className="mt-6 rounded-2xl border border-success bg-success-soft px-4 py-3.5 text-xs text-success">
             Payment received — your balance updates within a few seconds of confirmation.
           </div>
         )}
@@ -141,7 +141,7 @@ function BillingInner() {
         )}
         {/* ── BALANCE + TOP UP ──────────────────────────────────────────── */}
         <div className="mt-8 rounded-3xl border border-line bg-surface p-6">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
+          <p className="tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
             Current balance
           </p>
           <p className="mt-2 font-display text-4xl font-extrabold tracking-tight tabular-nums text-foreground sm:text-5xl">
@@ -193,13 +193,13 @@ function BillingInner() {
               {AD_RATES.map((r) => (
                 <div
                   key={r.label}
-                  className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
+                  className="flex items-center justify-between border-b border-line pb-2.5 last:border-0"
                 >
                   <span className="text-xs text-foreground">
                     {r.label}
                     <span className="ml-1.5 text-[10px] text-muted">{r.detail}</span>
                   </span>
-                  <span className="font-mono text-xs font-bold text-foreground">
+                  <span className="tabular-nums text-xs font-bold text-foreground">
                     GMD {r.total.toLocaleString()}
                   </span>
                 </div>
@@ -216,13 +216,13 @@ function BillingInner() {
               {ASSET_RATES.map((r) => (
                 <div
                   key={`${r.label}-${r.detail}`}
-                  className="flex items-center justify-between border-b border-white/[0.04] pb-2.5 last:border-0"
+                  className="flex items-center justify-between border-b border-line pb-2.5 last:border-0"
                 >
                   <span className="text-xs text-foreground">
                     {r.label}
                     <span className="ml-1.5 text-[10px] text-muted">{r.detail}</span>
                   </span>
-                  <span className="font-mono text-xs font-bold text-foreground">{r.price}</span>
+                  <span className="tabular-nums text-xs font-bold text-foreground">{r.price}</span>
                 </div>
               ))}
             </div>
@@ -233,13 +233,13 @@ function BillingInner() {
         <div className="mt-12 border-t border-line pt-10">
           <div className="mb-4 flex items-center gap-2">
             <Receipt className="text-ink-3" size={15} />
-            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-ink-3">
+            <h3 className="tabular-nums text-xs font-bold uppercase tracking-widest text-ink-3">
               Payment history
             </h3>
           </div>
 
           {txLoading ? (
-            <div className="flex items-center justify-center gap-2 p-6 font-mono text-xs uppercase tracking-wider text-muted">
+            <div className="flex items-center justify-center gap-2 p-6 tabular-nums text-xs uppercase tracking-wider text-muted">
               <Loader2 className="animate-spin text-ink-3" size={14} />
               Loading…
             </div>
@@ -248,7 +248,7 @@ function BillingInner() {
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-line bg-background font-mono text-[9px] uppercase tracking-wider text-muted">
+                    <tr className="border-b border-line bg-background tabular-nums text-[9px] uppercase tracking-wider text-muted">
                       <th className="px-4 py-3 font-semibold">Date</th>
                       <th className="px-4 py-3 font-semibold">Description</th>
                       <th className="hidden px-4 py-3 font-semibold sm:table-cell">Method</th>
@@ -256,17 +256,17 @@ function BillingInner() {
                       <th className="px-4 py-3 text-right font-semibold">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.04] text-ink-2">
+                  <tbody className="divide-y divide-line text-ink-2">
                     {transactions.map((tx) => (
-                      <tr key={tx.id || tx.invoiceId} className="transition-colors hover:bg-white/[0.02]">
-                        <td className="whitespace-nowrap px-4 py-3 font-mono text-ink-3">{tx.date}</td>
+                      <tr key={tx.id || tx.invoiceId} className="transition-colors hover:bg-surface">
+                        <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink-3">{tx.date}</td>
                         <td className="px-4 py-3 font-medium text-foreground">{tx.description}</td>
                         <td className="hidden px-4 py-3 text-ink-3 sm:table-cell">{tx.method}</td>
                         <td className="hidden px-4 py-3 sm:table-cell">
                           <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[9px] font-bold uppercase ${
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 tabular-nums text-[9px] font-bold uppercase ${
                               tx.status?.toLowerCase() === "succeeded"
-                                ? "border border-emerald-900 bg-emerald-950/40 text-success"
+                                ? "border border-success bg-success-soft text-success"
                                 : "border border-line bg-background text-ink-3"
                             }`}
                           >
@@ -275,7 +275,7 @@ function BillingInner() {
                         </td>
                         {/* Amounts are already GMD — shown exactly as recorded */}
                         <td
-                          className={`whitespace-nowrap px-4 py-3 text-right font-mono font-bold ${
+                          className={`whitespace-nowrap px-4 py-3 text-right tabular-nums font-bold ${
                             tx.amount?.trim().startsWith("-") ? "text-ink-3" : "text-success"
                           }`}
                         >
@@ -289,7 +289,7 @@ function BillingInner() {
             </div>
           ) : (
             <div className="rounded-3xl border border-line bg-background p-8 text-center">
-              <p className="font-mono text-xs uppercase tracking-wider text-muted">No transactions yet</p>
+              <p className="tabular-nums text-xs uppercase tracking-wider text-muted">No transactions yet</p>
               <button
                 onClick={() => router.push("/plans")}
                 className="mt-3 text-xs font-bold text-accent-ink hover:underline"

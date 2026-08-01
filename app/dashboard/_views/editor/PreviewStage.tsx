@@ -101,7 +101,7 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
       <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto">
         <div className="flex min-h-full min-w-full items-center justify-center" style={{ width: "max-content", minWidth: "100%", minHeight: "100%" }}>
           <div
-            className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-background shadow-[0_10px_40px_rgba(0,0,0,0.9)]"
+            className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-background shadow-[0_10px_32px_rgba(16,24,40,0.14)]"
             style={{ width: stageW, height: stageH, margin: pad / 2 }}
           >
             <div ref={containerRef} className="absolute inset-0" />
@@ -109,9 +109,9 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
             {!playing && (
               <button
                 onClick={() => playerRef.current?.play()}
-                className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity"
+                className="absolute inset-0 z-20 flex items-center justify-center bg-background/40 opacity-0 hover:opacity-100 transition-opacity"
               >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0a0f1d]/80 border border-line-2 backdrop-blur-md shadow-xl">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-surface/85 border border-line-2 backdrop-blur-md shadow-xl">
                   <Play size={20} className="text-foreground fill-foreground translate-x-0.5" />
                 </span>
               </button>
@@ -120,13 +120,13 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
         </div>
 
         {/* Zoom chip */}
-        <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border border-line bg-[#0a0f1d]/80 px-2 py-0.5 font-mono text-[9px] font-bold text-ink-3 backdrop-blur-md">
+        <div className="pointer-events-none absolute right-3 top-3 z-30 rounded-full border border-line bg-surface/85 px-2 py-0.5 tabular-nums text-[9px] font-bold text-ink-3 backdrop-blur-md">
           {Math.round(zoom * 100)}%
         </div>
       </div>
 
       {/* Transport bar */}
-      <div className="flex items-center gap-3 border-t border-line bg-[#0a0f1d]/90 px-4 py-2 shrink-0">
+      <div className="flex items-center gap-3 border-t border-line bg-surface/90 px-4 py-2 shrink-0">
         <div className="flex items-center gap-1">
           <button
             onClick={() => playerRef.current?.seek(0)}
@@ -137,10 +137,10 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
           </button>
           <button
             onClick={() => playerRef.current?.toggle()}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background hover:bg-accent-soft transition-colors shadow-md"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background hover:bg-accent transition-colors shadow-md"
             title="Play / Pause (Space)"
           >
-            {playing ? <Pause size={14} fill="black" /> : <Play size={14} fill="black" className="ml-0.5" />}
+            {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
           </button>
           <button
             onClick={() => playerRef.current?.seek(duration)}
@@ -170,13 +170,13 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
           step={1 / doc.fps}
           value={time}
           onChange={(e) => playerRef.current?.seek(Number(e.target.value))}
-          className="flex-1 h-1 accent-blue-500 cursor-pointer"
+          className="flex-1 h-1 accent-accent cursor-pointer"
           style={{
-            background: `linear-gradient(to right, #3b82f6 ${(seekRatio * 100).toFixed(2)}%, rgba(255,255,255,0.12) ${(seekRatio * 100).toFixed(2)}%)`,
+            background: `linear-gradient(to right, #1a73e8 ${(seekRatio * 100).toFixed(2)}%, rgba(0,0,0,0.12) ${(seekRatio * 100).toFixed(2)}%)`,
           }}
         />
 
-        <span className="font-mono text-[10px] text-ink-3 shrink-0">
+        <span className="tabular-nums text-[10px] text-ink-3 shrink-0">
           <span className="text-foreground font-bold">{formatTimecode(time, doc.fps)}</span>
           <span className="text-faint"> / {formatTimecode(duration, doc.fps)}</span>
         </span>
@@ -192,7 +192,7 @@ export default function PreviewStage({ engine, onPlayer, frame }: PreviewStagePr
           </button>
           <button
             onClick={() => setZoom(1)}
-            className={`rounded-xl px-1.5 py-1 text-[9px] font-bold font-mono uppercase transition-colors ${
+            className={`rounded-xl px-1.5 py-1 text-[9px] font-bold tabular-nums uppercase transition-colors ${
               zoom === 1 ? "text-accent-ink" : "text-ink-3 hover:text-foreground hover:bg-surface"
             }`}
             title="Fit to viewport"

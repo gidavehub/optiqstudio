@@ -344,7 +344,7 @@ function VideoWorkspace() {
           {/* Header navigation bar */}
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-line">
             <div>
-              <span className="text-[10px] font-mono font-bold text-muted uppercase tracking-widest block">
+              <span className="text-[10px] tabular-nums font-bold text-muted uppercase tracking-widest block">
                 CREATIVE FLOW
               </span>
               <h2 className="text-[18px] font-bold tracking-tight text-foreground mt-1">All Projects &amp; Stills</h2>
@@ -352,6 +352,7 @@ function VideoWorkspace() {
           </div>
 
           <StudioProjectsGrid
+            pageSize={12}
             items={history.map((h) => ({
               id: h.id,
               status: h.status,

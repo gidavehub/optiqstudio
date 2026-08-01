@@ -85,9 +85,9 @@ export default function BottomPromptConsole({
         onDrop={handleDrop}
       >
         {isDragging && (
-          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-black/85 backdrop-blur-sm transition-all duration-300">
+          <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl border border-dashed border-line-2 bg-background/90 backdrop-blur-sm transition-all duration-300">
             <UploadCloud size={24} className="animate-pulse text-foreground" />
-            <span className="mt-2 font-mono text-xs uppercase tracking-widest text-foreground">Drop image</span>
+            <span className="mt-2 tabular-nums text-xs uppercase tracking-widest text-foreground">Drop image</span>
             <span className="mt-1 text-[10px] text-muted">Use as a style / composition reference</span>
           </div>
         )}
@@ -113,7 +113,7 @@ export default function BottomPromptConsole({
             className={`rounded-full p-1.5 transition-colors ${
               dictation.recording
                 ? "animate-pulse bg-danger-soft text-danger"
-                : "text-ink-3 hover:text-white"
+                : "text-ink-3 hover:text-foreground"
             }`}
           >
             {dictation.recording ? <MicOff size={17} /> : <Mic size={17} />}

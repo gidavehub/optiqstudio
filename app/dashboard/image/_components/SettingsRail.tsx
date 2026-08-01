@@ -16,7 +16,7 @@ export default function SettingsRail({ aspectRatio, setAspectRatio }: ImageSetti
     <aside className="hidden w-full shrink-0 space-y-7 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
       <Link
         href="/dashboard"
-        className="group flex w-fit items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
+        className="group flex w-fit items-center gap-1.5 tabular-nums text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
       >
         <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
         Back

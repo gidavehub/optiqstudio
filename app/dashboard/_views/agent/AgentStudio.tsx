@@ -80,7 +80,7 @@ export default function AgentStudio() {
       <header className="relative z-10 shrink-0 px-4 pb-3 pt-16 sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
           <div className="min-w-0">
-            <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-accent-ink">
+            <span className="flex items-center gap-1.5 tabular-nums text-[9px] font-bold uppercase tracking-widest text-accent-ink">
               <Bot size={11} /> Storyline Agent
             </span>
             <h2 className="truncate text-sm font-bold tracking-tight text-foreground">
@@ -143,7 +143,7 @@ export default function AgentStudio() {
       >
         <div className="mx-auto w-full max-w-3xl pb-6">
           {projectsLoading || loading ? (
-            <div className="flex items-center justify-center gap-2 py-24 font-mono text-[10px] uppercase tracking-widest text-muted">
+            <div className="flex items-center justify-center gap-2 py-24 tabular-nums text-[10px] uppercase tracking-widest text-muted">
               <Loader2 size={12} className="animate-spin" /> Opening the room…
             </div>
           ) : !hasScript ? (

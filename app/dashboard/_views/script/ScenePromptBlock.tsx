@@ -37,11 +37,11 @@ export default function ScenePromptBlock({
   const clampable = !editing && words > 70;
 
   return (
-    <div className="rounded-[28px] border border-line bg-white/[0.02] p-3.5">
+    <div className="rounded-[28px] border border-line bg-surface p-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
           Compiled prompt
-          <span className="ml-1.5 font-mono normal-case tracking-normal text-faint">
+          <span className="ml-1.5 tabular-nums normal-case tracking-normal text-faint">
             {words.toLocaleString()} words
           </span>
         </span>
@@ -68,12 +68,12 @@ export default function ScenePromptBlock({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={12}
-          className="mt-2.5 w-full resize-y rounded-2xl border border-accent-line bg-background p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none"
+          className="mt-2.5 w-full resize-y rounded-2xl border border-accent-line bg-background p-3 tabular-nums text-[11px] leading-relaxed text-foreground outline-none"
         />
       ) : (
         <div className="relative mt-2.5">
           <div
-            className={`overflow-y-auto whitespace-pre-line rounded-2xl border border-line bg-background p-3.5 font-mono text-[11px] leading-relaxed text-ink-3 ${
+            className={`overflow-y-auto whitespace-pre-line rounded-2xl border border-line bg-background p-3.5 tabular-nums text-[11px] leading-relaxed text-ink-3 ${
               clampable && !expanded ? collapsedClass : "max-h-[60vh]"
             }`}
           >

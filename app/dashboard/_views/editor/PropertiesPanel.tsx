@@ -33,13 +33,13 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
       className={
         isSheet
           ? "flex w-full flex-col bg-transparent"
-          : "flex shrink-0 flex-col border-l border-line bg-[#0a0f1d]/80"
+          : "flex shrink-0 flex-col border-l border-line bg-surface/85"
       }
     >
       {/* The sheet supplies its own header, so skip the panel one */}
       {!isSheet && (
         <div className="border-b border-line px-3 py-2">
-          <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-widest text-muted">
+          <span className="flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-widest text-muted">
             <SlidersHorizontal size={10} /> Clip Properties
           </span>
         </div>
@@ -66,9 +66,9 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
             return (
               <>
                 {/* Identity */}
-                <section className="rounded-2xl border border-line bg-[#0c152d]/60 p-2.5">
+                <section className="rounded-2xl border border-line bg-surface p-2.5">
                   <p className="truncate text-[10px] font-bold text-foreground">{clip.label || asset?.label || "Clip"}</p>
-                  <p className="mt-1 font-mono text-[8px] uppercase tracking-wider text-muted">
+                  <p className="mt-1 tabular-nums text-[8px] uppercase tracking-wider text-muted">
                     {track.name} · {clip.start.toFixed(2)}s → {clipEnd(clip).toFixed(2)}s · {clip.duration.toFixed(2)}s
                   </p>
                 </section>
@@ -77,7 +77,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {transform && (
                   <section className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+                      <span className="flex items-center gap-1.5 text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
                         <Move size={10} /> Size & Position
                       </span>
                       <button
@@ -90,57 +90,57 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Scale</span>
-                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.scale * 100)}%</span>
+                        <span className="text-[9px] tabular-nums uppercase tracking-wider text-muted">Scale</span>
+                        <span className="tabular-nums text-[9px] text-foreground">{Math.round(transform.scale * 100)}%</span>
                       </div>
                       <input
                         type="range" min={0.1} max={2} step={0.01} value={transform.scale}
                         onChange={(e) => setTransform({ scale: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Position X</span>
-                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.x * 100)}%</span>
+                        <span className="text-[9px] tabular-nums uppercase tracking-wider text-muted">Position X</span>
+                        <span className="tabular-nums text-[9px] text-foreground">{Math.round(transform.x * 100)}%</span>
                       </div>
                       <input
                         type="range" min={-0.5} max={0.5} step={0.01} value={transform.x}
                         onChange={(e) => setTransform({ x: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Position Y</span>
-                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.y * 100)}%</span>
+                        <span className="text-[9px] tabular-nums uppercase tracking-wider text-muted">Position Y</span>
+                        <span className="tabular-nums text-[9px] text-foreground">{Math.round(transform.y * 100)}%</span>
                       </div>
                       <input
                         type="range" min={-0.5} max={0.5} step={0.01} value={transform.y}
                         onChange={(e) => setTransform({ y: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Opacity</span>
-                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.opacity * 100)}%</span>
+                        <span className="text-[9px] tabular-nums uppercase tracking-wider text-muted">Opacity</span>
+                        <span className="tabular-nums text-[9px] text-foreground">{Math.round(transform.opacity * 100)}%</span>
                       </div>
                       <input
                         type="range" min={0} max={1} step={0.01} value={transform.opacity}
                         onChange={(e) => setTransform({ opacity: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                     <div>
                       <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-muted">Rotation</span>
-                        <span className="font-mono text-[9px] text-foreground">{Math.round(transform.rotation)}°</span>
+                        <span className="text-[9px] tabular-nums uppercase tracking-wider text-muted">Rotation</span>
+                        <span className="tabular-nums text-[9px] text-foreground">{Math.round(transform.rotation)}°</span>
                       </div>
                       <input
                         type="range" min={-180} max={180} step={1} value={transform.rotation}
                         onChange={(e) => setTransform({ rotation: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                   </section>
@@ -150,8 +150,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {!isImage && (
                   <section>
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Volume</span>
-                      <span className="font-mono text-[9px] text-foreground">{Math.round(clip.volume * 100)}%</span>
+                      <span className="text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">Volume</span>
+                      <span className="tabular-nums text-[9px] text-foreground">{Math.round(clip.volume * 100)}%</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -159,8 +159,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                         onClick={() => engine.setClipProps(clip.id, { muted: !clip.muted })}
                         className={`shrink-0 rounded-lg p-1.5 border transition-colors ${
                           clip.muted
-                            ? "border-red-500/40 bg-danger-soft text-danger"
-                            : "border-line bg-surface text-ink-3 hover:text-white"
+                            ? "border-danger bg-danger-soft text-danger"
+                            : "border-line bg-surface text-ink-3 hover:text-foreground"
                         }`}
                       >
                         {clip.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
@@ -172,7 +172,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                         step={0.05}
                         value={clip.volume}
                         onChange={(e) => engine.setClipProps(clip.id, { volume: Number(e.target.value) })}
-                        className="w-full accent-blue-500 h-1"
+                        className="w-full accent-accent h-1"
                       />
                     </div>
                   </section>
@@ -181,7 +181,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 {/* Speed */}
                 {!isImage && (
                   <section>
-                    <span className="mb-1.5 block text-[9px] font-bold font-mono uppercase tracking-wider text-muted">
+                    <span className="mb-1.5 block text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">
                       Playback Speed
                     </span>
                     <div className="grid grid-cols-4 gap-1">
@@ -206,8 +206,8 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                 <section className="space-y-3">
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Fade In</span>
-                      <span className="font-mono text-[9px] text-foreground">{clip.fadeIn.toFixed(1)}s</span>
+                      <span className="text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">Fade In</span>
+                      <span className="tabular-nums text-[9px] text-foreground">{clip.fadeIn.toFixed(1)}s</span>
                     </div>
                     <input
                       type="range"
@@ -216,13 +216,13 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                       step={0.1}
                       value={clip.fadeIn}
                       onChange={(e) => engine.setClipProps(clip.id, { fadeIn: Number(e.target.value) })}
-                      className="w-full accent-blue-500 h-1"
+                      className="w-full accent-accent h-1"
                     />
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-muted">Fade Out</span>
-                      <span className="font-mono text-[9px] text-foreground">{clip.fadeOut.toFixed(1)}s</span>
+                      <span className="text-[9px] font-bold tabular-nums uppercase tracking-wider text-muted">Fade Out</span>
+                      <span className="tabular-nums text-[9px] text-foreground">{clip.fadeOut.toFixed(1)}s</span>
                     </div>
                     <input
                       type="range"
@@ -231,7 +231,7 @@ export default function PropertiesPanel({ engine, doc, selectedClipId, onDeselec
                       step={0.1}
                       value={clip.fadeOut}
                       onChange={(e) => engine.setClipProps(clip.id, { fadeOut: Number(e.target.value) })}
-                      className="w-full accent-blue-500 h-1"
+                      className="w-full accent-accent h-1"
                     />
                   </div>
                 </section>

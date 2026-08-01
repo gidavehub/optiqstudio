@@ -389,7 +389,7 @@ export default function TimelinePanel({
                 <div key={tick.time} className="absolute top-0 h-full" style={{ left: tick.time * pps }}>
                   <div className={`w-px ${tick.major ? "h-full bg-surface-3" : "h-2 bg-surface-2 mt-auto absolute bottom-0"}`} />
                   {tick.major && tick.label && (
-                    <span className="absolute left-1 top-0.5 font-mono text-[8px] text-muted">{tick.label}</span>
+                    <span className="absolute left-1 top-0.5 tabular-nums text-[8px] text-muted">{tick.label}</span>
                   )}
                 </div>
               ))}
@@ -414,7 +414,7 @@ export default function TimelinePanel({
                     className="sticky left-0 z-20 flex shrink-0 items-center justify-center border-r border-line bg-background"
                     style={{ width: HEADER_W }}
                   >
-                    <span className="text-[8px] font-bold font-mono uppercase tracking-widest text-accent-ink">
+                    <span className="text-[8px] font-bold tabular-nums uppercase tracking-widest text-accent-ink">
                       New layer
                     </span>
                   </div>
@@ -422,7 +422,7 @@ export default function TimelinePanel({
                     <div className="absolute inset-x-1 inset-y-1 rounded-lg border border-dashed border-accent-line" />
                     {slotOpen && (
                       <div
-                        className="absolute top-1 bottom-1 rounded-lg border border-accent bg-blue-500/25 shadow-[0_0_14px_rgba(59,130,246,0.5)]"
+                        className="absolute top-1 bottom-1 rounded-lg border border-accent bg-accent-soft shadow-[0_0_14px_rgba(26,115,232,0.4)]"
                         style={{ left: activeSlotStart * pps, width: Math.max(activeSlotWidth, 12) }}
                       />
                     )}
@@ -430,7 +430,7 @@ export default function TimelinePanel({
                 </div>
 
                 {/* Track row */}
-                <div className="flex border-b border-white/[0.04]" style={{ height: ROW_H }}>
+                <div className="flex border-b border-line" style={{ height: ROW_H }}>
                   {/* Header */}
                   <div
                     className="sticky left-0 z-20 flex shrink-0 items-center justify-between gap-1 border-r border-line bg-background px-2"
@@ -442,7 +442,7 @@ export default function TimelinePanel({
                       ) : (
                         <Music size={11} className="text-success shrink-0" />
                       )}
-                      <span className="truncate text-[9px] font-bold font-mono uppercase tracking-wider text-ink-3">
+                      <span className="truncate text-[9px] font-bold tabular-nums uppercase tracking-wider text-ink-3">
                         {track.name}
                       </span>
                     </div>
@@ -497,13 +497,13 @@ export default function TimelinePanel({
                             tool === "razor" ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
                           } ${lifted ? "opacity-30" : ""} ${
                             selected
-                              ? "border-accent ring-1 ring-blue-400/60 shadow-[0_0_14px_rgba(59,130,246,0.35)] z-10"
+                              ? "border-accent ring-1 ring-accent shadow-[0_0_14px_rgba(26,115,232,0.3)] z-10"
                               : "border-line hover:border-line-2"
                           } ${
                             isAudio
-                              ? "bg-emerald-950/80"
+                              ? "bg-success-soft"
                               : isImage
-                                ? "bg-purple-950/70"
+                                ? "bg-pink-soft"
                                 : "bg-surface-2"
                           }`}
                           style={{ left: clip.start * pps, width: Math.max(clip.duration * pps, 6) }}
@@ -537,7 +537,7 @@ export default function TimelinePanel({
                             />
                           )}
                           {/* Label */}
-                          <span className="pointer-events-none absolute left-2 top-1 z-10 flex max-w-[85%] items-center gap-1 truncate text-[8px] font-bold font-mono uppercase tracking-wider text-foreground drop-shadow">
+                          <span className="pointer-events-none absolute left-2 top-1 z-10 flex max-w-[85%] items-center gap-1 truncate text-[8px] font-bold tabular-nums uppercase tracking-wider text-foreground drop-shadow">
                             {isImage && <ImageIcon size={8} className="shrink-0" />}
                             {clip.label || asset?.label || (isAudio ? "Audio" : isImage ? "Image" : "Clip")}
                             {clip.speed !== 1 && <span className="text-accent-ink">{clip.speed}x</span>}
@@ -558,7 +558,7 @@ export default function TimelinePanel({
           {/* Empty-state hint */}
           {doc.tracks.every((t) => t.clips.length === 0) && (
             <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex justify-center" style={{ paddingLeft: HEADER_W }}>
-              <span className="rounded-full border border-dashed border-line bg-[#0a0f1d]/80 px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest text-muted">
+              <span className="rounded-full border border-dashed border-line bg-surface/85 px-4 py-1.5 text-[10px] tabular-nums uppercase tracking-widest text-muted">
                 Drag clips, images, or audio from the media bin
               </span>
             </div>
@@ -567,12 +567,12 @@ export default function TimelinePanel({
           {/* ── Ghost clip riding the pointer ── */}
           {ghost && (
             <div
-              className={`pointer-events-none absolute z-40 flex items-center overflow-hidden rounded-lg border px-2 shadow-2xl ${
+              className={`pointer-events-none absolute z-40 flex items-center overflow-hidden rounded-lg border px-2 elevate-lg ${
                 ghost.target
                   ? ghost.trackKind === "audio"
-                    ? "border-emerald-400/80 bg-emerald-900/80"
-                    : "border-accent bg-[#12224a]/90"
-                  : "border-red-500/60 bg-red-950/60"
+                    ? "border-success bg-success-soft"
+                    : "border-accent bg-accent-soft"
+                  : "border-danger bg-danger-soft"
               }`}
               style={{
                 left: HEADER_W + ghost.x,
@@ -581,7 +581,7 @@ export default function TimelinePanel({
                 height: ROW_H - 8,
               }}
             >
-              <span className="truncate text-[8px] font-bold font-mono uppercase tracking-wider text-foreground">
+              <span className="truncate text-[8px] font-bold tabular-nums uppercase tracking-wider text-foreground">
                 {ghost.label}
               </span>
             </div>
@@ -593,7 +593,7 @@ export default function TimelinePanel({
             style={{ left: HEADER_W + playhead * pps }}
           >
             <div className="absolute -left-[5px] top-[14px] h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-blue-400" />
-            <div className="h-full w-px bg-accent shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+            <div className="h-full w-px bg-accent shadow-[0_0_8px_rgba(26,115,232,0.6)]" />
           </div>
         </div>
       </div>

@@ -52,12 +52,12 @@ export default function SceneRenderPanel({
   if (status === "succeeded" && url) {
     return (
       <div className="space-y-3">
-        <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-2xl">
+        <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background elevate-lg">
           <video src={url} controls playsInline className="h-full w-full object-cover" />
         </div>
 
         {canSwitch && (
-          <div className="flex items-center gap-2 rounded-2xl border border-line bg-white/[0.02] px-2 py-1.5">
+          <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-2 py-1.5">
             <button
               onClick={() => onSelectTake!(activeTake - 1)}
               disabled={activeTake === 0}
@@ -76,7 +76,7 @@ export default function SceneRenderPanel({
                   className={`shrink-0 rounded-xl px-2.5 py-1 text-[10px] font-bold transition-colors ${
                     i === activeTake
                       ? "bg-accent text-white"
-                      : "bg-surface text-ink-3 hover:bg-surface-2 hover:text-white"
+                      : "bg-surface text-ink-3 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   Take {i + 1}
@@ -96,7 +96,7 @@ export default function SceneRenderPanel({
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 rounded-full border border-success bg-emerald-500/5 px-2.5 py-0.5 text-[11px] font-bold text-success">
+          <span className="flex items-center gap-1.5 rounded-full border border-success bg-success-soft px-2.5 py-0.5 text-[11px] font-bold text-success">
             <CheckCircle size={11} />
             {canSwitch ? `Take ${activeTake + 1} of ${takes.length}` : "Rendered"}
           </span>
@@ -113,7 +113,7 @@ export default function SceneRenderPanel({
 
   if (status === "rendering") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-3xl border border-accent-line bg-[#0c152d]/40 text-center ${pad}`}>
+      <div className={`flex flex-col items-center justify-center rounded-3xl border border-accent-line bg-surface text-center ${pad}`}>
         <RefreshCw size={26} className="animate-spin text-accent-ink" />
         <h4 className="mt-3 text-xs font-bold text-foreground">Generating clip…</h4>
         <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-muted">
@@ -125,7 +125,7 @@ export default function SceneRenderPanel({
 
   if (status === "failed") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-red-500/[0.03] text-center ${pad}`}>
+      <div className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-danger-soft text-center ${pad}`}>
         <AlertCircle size={24} className="text-danger" />
         <h4 className="mt-2.5 text-xs font-bold text-foreground">Generation failed</h4>
         <p className="mt-1 max-w-xs text-[10px] leading-normal text-danger">
@@ -142,7 +142,7 @@ export default function SceneRenderPanel({
   }
 
   return (
-    <div className={`flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-white/[0.01] text-center ${pad}`}>
+    <div className={`flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-surface text-center ${pad}`}>
       <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-muted">
         <Video size={16} />
       </span>
@@ -152,9 +152,9 @@ export default function SceneRenderPanel({
       </p>
       <button
         onClick={onRender}
-        className="mt-4 flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-accent"
+        className="mt-4 flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2 text-xs font-bold text-white shadow-lg shadow-accent/15 transition-all hover:bg-accent-hover"
       >
-        <Play size={11} fill="white" /> Generate · {priceLabel}
+        <Play size={11} fill="currentColor" /> Generate · {priceLabel}
       </button>
     </div>
   );

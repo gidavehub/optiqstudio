@@ -68,7 +68,7 @@ export default function AudioConsole({
           className={`shrink-0 rounded-full p-1.5 transition-colors ${
             dictation.recording
               ? "animate-pulse bg-danger-soft text-danger"
-              : "text-ink-3 hover:text-white"
+              : "text-ink-3 hover:text-foreground"
           }`}
         >
           {dictation.recording ? <MicOff size={16} /> : <Mic size={16} />}
@@ -95,7 +95,7 @@ export default function AudioConsole({
         </button>
       </div>
 
-      <div className="mt-1.5 flex justify-between px-1 font-mono text-[10px] text-faint">
+      <div className="mt-1.5 flex justify-between px-1 tabular-nums text-[10px] text-faint">
         <span>
           {value.length.toLocaleString()} / {maxLength.toLocaleString()}
         </span>

@@ -124,7 +124,7 @@ export default function VoiceEngineStudio() {
         <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
           <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
             <div>
-              <span className="block font-mono text-[10px] font-bold uppercase tracking-widest text-muted">
+              <span className="block tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
                 OPTIQ VOICE ENGINE
               </span>
               <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Voiceover Takes</h2>

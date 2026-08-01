@@ -55,13 +55,13 @@ export default function AgentComposer({
       {activity && (
         <div className="mb-2 flex items-center gap-2 px-1">
           <Loader2 size={11} className="shrink-0 animate-spin text-accent-ink" />
-          <span className="truncate font-mono text-[10px] uppercase tracking-widest text-muted">
+          <span className="truncate tabular-nums text-[10px] uppercase tracking-widest text-muted">
             {activity}
           </span>
         </div>
       )}
 
-      <div className="rounded-[28px] border border-line bg-[#0e1630]/75 p-3 shadow-2xl backdrop-blur-xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
+      <div className="rounded-[28px] border border-line bg-surface/80 p-3 elevate-lg backdrop-blur-xl transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -94,7 +94,7 @@ export default function AgentComposer({
             className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-[11px] font-bold transition-all disabled:opacity-40 ${
               dictation.recording
                 ? "animate-pulse border-danger bg-danger-soft text-danger"
-                : "border-line bg-surface text-ink-3 hover:border-line hover:text-white"
+                : "border-line bg-surface text-ink-3 hover:border-line hover:text-foreground"
             }`}
           >
             {dictation.recording ? <MicOff size={12} /> : <Mic size={12} className="text-accent-ink" />}
@@ -102,7 +102,7 @@ export default function AgentComposer({
           </button>
 
           <div className="flex items-center gap-3">
-            <span className="hidden font-mono text-[10px] uppercase tracking-widest text-faint sm:block">
+            <span className="hidden tabular-nums text-[10px] uppercase tracking-widest text-faint sm:block">
               {busy ? "Working" : "Enter to send"}
             </span>
             <button

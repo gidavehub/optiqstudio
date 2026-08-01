@@ -70,7 +70,7 @@ export default function ImageDetailClient({ id }: { id: string }) {
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/image"
-            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold font-mono uppercase tracking-wider text-muted hover:text-foreground transition-colors"
+            className="group flex w-fit items-center gap-1.5 text-[11px] font-bold tabular-nums uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
             Image Studio
@@ -99,16 +99,16 @@ export default function ImageDetailClient({ id }: { id: string }) {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-muted">
             <Loader2 size={24} className="animate-spin mb-3" />
-            <span className="text-xs font-mono uppercase tracking-wider">Loading Still…</span>
+            <span className="text-xs tabular-nums uppercase tracking-wider">Loading Still…</span>
           </div>
         ) : !item ? (
-          <div className="rounded-[28px] border border-line bg-[#0c152d]/40 py-20 text-center">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted">Image not found</p>
+          <div className="rounded-[28px] border border-line bg-surface py-20 text-center">
+            <p className="text-xs tabular-nums uppercase tracking-widest text-muted">Image not found</p>
           </div>
         ) : (
           <>
             {/* 1 · THE STILL */}
-            <div className="group relative overflow-hidden rounded-3xl border border-line bg-background shadow-2xl">
+            <div className="group relative overflow-hidden rounded-3xl border border-line bg-background elevate-lg">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={item.imageUrl} alt={item.prompt} className="mx-auto max-h-[70vh] w-auto object-contain" />
               {/* Hover actions */}
@@ -119,7 +119,7 @@ export default function ImageDetailClient({ id }: { id: string }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Download image"
-                  className="flex items-center justify-center rounded-xl border border-line bg-black/80 p-2.5 text-white hover:bg-accent transition-colors"
+                  className="flex items-center justify-center rounded-xl border border-line bg-background/85 backdrop-blur-sm p-2.5 text-foreground hover:bg-accent transition-colors"
                 >
                   <Download size={15} />
                 </a>
@@ -131,7 +131,7 @@ export default function ImageDetailClient({ id }: { id: string }) {
               prompt={item.prompt}
               referenceImageUrls={refUrls}
               meta={
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-faint">
+                <span className="truncate tabular-nums text-[9px] uppercase tracking-wider text-faint">
                   {new Date(item.createdAt).toLocaleDateString()} · {item.id.slice(0, 10)}…
                 </span>
               }

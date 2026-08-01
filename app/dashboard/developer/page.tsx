@@ -439,7 +439,7 @@ Response Example:
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="text-[13px] font-medium text-ink-2">{key.name}</p>
-                            <p className="mt-1 font-mono text-[11px] text-muted">{masked}</p>
+                            <p className="mt-1 tabular-nums text-[11px] text-muted">{masked}</p>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -507,7 +507,7 @@ Response Example:
               <p className="mt-3 text-[13px] leading-relaxed text-ink-3">
                 All developer APIs use secure endpoints deployed in region <code className="font-mono text-ink-2">us-east4</code>. Request parameters are passed via standard JSON, and authentication is fulfilled via bearer tokens:
               </p>
-              <div className="mt-4 rounded-lg bg-background border border-line px-4 py-3 font-mono text-[12px] text-ink-2">
+              <div className="mt-4 rounded-lg bg-background border border-line px-4 py-3 tabular-nums text-[12px] text-ink-2">
                 Authorization: Bearer <span className="text-ink-3 font-bold">optiq_live_YOUR_API_KEY</span>
               </div>
               
@@ -528,7 +528,7 @@ Response Example:
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-3 text-center font-mono text-[11px] tracking-wider uppercase border-b-2 transition-all ${
+                    className={`flex-1 py-3 text-center tabular-nums text-[11px] tracking-wider uppercase border-b-2 transition-all ${
                       activeTab === tab
                         ? "border-line-2 text-foreground bg-surface font-semibold"
                         : "border-transparent text-muted hover:text-foreground"
@@ -545,7 +545,7 @@ Response Example:
                 {activeTab === "image" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
+                      <h4 className="tabular-nums text-[12px] font-bold text-ink-2">
                         POST /apiGenerateImage
                       </h4>
                       <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
@@ -557,7 +557,7 @@ Response Example:
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
+                      <div className="flex items-center justify-between bg-surface-2 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlImage, "curl-image")}
@@ -583,7 +583,7 @@ Response Example:
                       <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema (200 OK)
                       </p>
-                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
+                      <pre className="overflow-x-auto rounded-lg bg-surface p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseImage}
                       </pre>
                     </div>
@@ -593,7 +593,7 @@ Response Example:
                 {activeTab === "video" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
+                      <h4 className="tabular-nums text-[12px] font-bold text-ink-2">
                         POST /apiGenerateVideo
                       </h4>
                       <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
@@ -605,7 +605,7 @@ Response Example:
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
+                      <div className="flex items-center justify-between bg-surface-2 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlVideo, "curl-video")}
@@ -631,14 +631,14 @@ Response Example:
                       <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema
                       </p>
-                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
+                      <pre className="overflow-x-auto rounded-lg bg-surface p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseVideo}
                       </pre>
                     </div>
 
                     <div className="border-t border-line pt-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-mono text-[12px] font-bold text-ink-2">
+                        <h4 className="tabular-nums text-[12px] font-bold text-ink-2">
                           GET /apiGetVideoStatus
                         </h4>
                         <span className="text-[10px] text-muted">
@@ -650,7 +650,7 @@ Response Example:
                       </p>
 
                       <div>
-                        <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
+                        <div className="flex items-center justify-between bg-surface-2 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                           <span>CURL STATUS COMMAND</span>
                           <button
                             onClick={() => handleCopyText(curlVideoStatus, "curl-video-status")}
@@ -676,7 +676,7 @@ Response Example:
                         <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                           Status Schema (Succeeded)
                         </p>
-                        <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
+                        <pre className="overflow-x-auto rounded-lg bg-surface p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                           {responseVideoStatus}
                         </pre>
                       </div>
@@ -687,7 +687,7 @@ Response Example:
                 {activeTab === "tts" && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-mono text-[12px] font-bold text-ink-2">
+                      <h4 className="tabular-nums text-[12px] font-bold text-ink-2">
                         POST /apiGenerateTTS
                       </h4>
                       <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[10px] text-ink-2 font-medium">
@@ -699,7 +699,7 @@ Response Example:
                     </p>
 
                     <div>
-                      <div className="flex items-center justify-between bg-black/60 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
+                      <div className="flex items-center justify-between bg-surface-2 px-4 py-2 border-t border-x border-line rounded-t-lg text-[11px] text-muted">
                         <span>CURL COMMAND</span>
                         <button
                           onClick={() => handleCopyText(curlTts, "curl-tts")}
@@ -725,7 +725,7 @@ Response Example:
                       <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2">
                         Response Schema
                       </p>
-                      <pre className="overflow-x-auto rounded-lg bg-black/40 p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
+                      <pre className="overflow-x-auto rounded-lg bg-surface p-4 font-mono text-[11px] text-ink-2 leading-normal border border-line">
                         {responseTts}
                       </pre>
                     </div>

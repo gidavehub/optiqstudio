@@ -147,15 +147,15 @@ export default function ImportMediaModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-foreground/25 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative flex h-[min(640px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-accent bg-[#070e24]/95 shadow-2xl backdrop-blur-2xl animate-in fade-in-50 zoom-in-95 duration-200">
+      <div className="glass-strong relative flex h-[min(640px,90vh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl animate-in fade-in-50 zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-foreground">
             <div className="flex items-center gap-1 shrink-0">
               <div className="h-1.5 w-1.5 rounded-full bg-accent" />
-              <div className="h-1.5 w-1.5 rounded-full border border-blue-400/40 bg-transparent" />
+              <div className="h-1.5 w-1.5 rounded-full border border-accent-line bg-transparent" />
               <div className="h-1.5 w-1.5 rounded-full bg-accent" />
             </div>
             Import Media
@@ -180,8 +180,8 @@ export default function ImportMediaModal({
               onClick={() => setTab(id)}
               className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-bold transition-all ${
                 tab === id
-                  ? "border-accent bg-surface text-foreground shadow-lg shadow-blue-500/10"
-                  : "border-line bg-white/[0.03] text-ink-3 hover:border-line hover:text-foreground"
+                  ? "border-accent bg-surface text-foreground shadow-lg shadow-accent/10"
+                  : "border-line bg-surface text-ink-3 hover:border-line hover:text-foreground"
               }`}
             >
               <Icon size={12} className={tab === id ? "text-accent-ink" : ""} /> {label}
@@ -196,7 +196,7 @@ export default function ImportMediaModal({
                   onClick={() => setKindFilter(chip.id)}
                   className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-all ${
                     kindFilter === chip.id
-                      ? "bg-blue-600/30 text-accent-ink border border-accent-line"
+                      ? "bg-accent-soft text-accent-ink border border-accent-line"
                       : "border border-transparent text-muted hover:text-ink-2"
                   }`}
                 >
@@ -223,8 +223,8 @@ export default function ImportMediaModal({
               }}
               className={`flex h-full min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed text-center transition-all ${
                 dragOver
-                  ? "border-blue-500/70 bg-[#0c152d]/70 scale-[1.005]"
-                  : "border-line bg-white/[0.02] hover:border-accent-line"
+                  ? "border-accent bg-surface/80 scale-[1.005]"
+                  : "border-line bg-surface hover:border-accent-line"
               }`}
             >
               <input
@@ -247,11 +247,11 @@ export default function ImportMediaModal({
               {uploads.length > 0 && (
                 <div className="mt-5 w-full max-w-xs space-y-2">
                   {uploads.map((u) => (
-                    <div key={u.name} className="rounded-2xl border border-accent-line bg-[#0c152d]/60 px-3 py-2">
+                    <div key={u.name} className="rounded-2xl border border-accent-line bg-surface px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         <Loader2 size={10} className="shrink-0 animate-spin text-accent-ink" />
                         <span className="truncate text-[10px] font-semibold text-ink-2">{u.name}</span>
-                        <span className="ml-auto font-mono text-[9px] text-accent-ink">{u.pct}%</span>
+                        <span className="ml-auto tabular-nums text-[9px] text-accent-ink">{u.pct}%</span>
                       </div>
                     </div>
                   ))}
@@ -292,7 +292,7 @@ export default function ImportMediaModal({
                       alreadyAdded
                         ? "cursor-default border-line opacity-35"
                         : isSelected
-                        ? "border-accent ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
+                        ? "border-accent ring-2 ring-accent-line shadow-lg shadow-accent/10"
                         : "border-line hover:border-accent-line"
                     }`}
                   >
@@ -310,10 +310,10 @@ export default function ImportMediaModal({
                         <img src={m.url} alt={m.label} className="pointer-events-none h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
-                          <Music size={20} className="text-emerald-400/70" />
+                          <Music size={20} className="text-success" />
                         </div>
                       )}
-                      <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded-lg bg-black/70 px-1.5 py-0.5 text-[7px] font-bold font-mono uppercase text-white">
+                      <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded-lg bg-background/85 backdrop-blur-sm px-1.5 py-0.5 text-[7px] font-bold tabular-nums uppercase text-foreground">
                         {m.kind === "video" ? <Video size={7} /> : m.kind === "image" ? <ImageIcon size={7} /> : <Music size={7} />}
                         {m.kind}
                       </span>
@@ -340,7 +340,7 @@ export default function ImportMediaModal({
         {/* Footer */}
         {tab !== "upload" && (
           <div className="flex items-center justify-between border-t border-line px-5 py-3.5">
-            <span className="font-mono text-[10px] text-muted">
+            <span className="tabular-nums text-[10px] text-muted">
               {selectedCount > 0 ? `${selectedCount} selected` : "Tap items to select"}
             </span>
             <button
@@ -349,7 +349,7 @@ export default function ImportMediaModal({
               className={`flex items-center gap-1.5 rounded-2xl px-5 py-2.5 text-xs font-bold transition-all ${
                 selectedCount === 0 || importing
                   ? "cursor-not-allowed bg-surface text-faint"
-                  : "bg-accent text-white shadow-lg shadow-blue-500/20 hover:bg-accent"
+                  : "bg-accent text-white shadow-lg shadow-accent/15 hover:bg-accent-hover"
               }`}
             >
               {importing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}

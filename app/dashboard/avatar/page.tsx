@@ -55,7 +55,7 @@ export default function AvatarStudioPage() {
     <div className="flex h-full flex-col bg-background text-foreground relative">
       {/* Toast Alert */}
       {errorToast && (
-        <div className="absolute top-4 right-4 z-50 flex items-center gap-2.5 bg-red-950/80 border border-danger px-4 py-3 rounded-2xl text-red-200 text-xs backdrop-blur-md shadow-lg animate-in slide-in-from-top duration-300">
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2.5 bg-danger-soft border border-danger px-4 py-3 rounded-2xl text-danger text-xs backdrop-blur-md shadow-lg animate-in slide-in-from-top duration-300">
           <AlertCircle size={15} className="text-danger shrink-0" />
           <span>{errorToast}</span>
         </div>
@@ -83,7 +83,7 @@ export default function AvatarStudioPage() {
                       className={`flex items-start gap-3 rounded-2xl border p-3 text-left transition-all ${
                         active
                           ? "bg-surface-2 border-line-2 text-foreground"
-                          : "bg-white/[0.02] border-line text-ink-3 hover:border-line hover:text-foreground"
+                          : "bg-surface border-line text-ink-3 hover:border-line hover:text-foreground"
                       }`}
                     >
                       <div className={`mt-0.5 rounded-xl p-1.5 ${active ? "bg-surface-2 text-foreground" : "bg-surface text-muted"}`}>
@@ -107,7 +107,7 @@ export default function AvatarStudioPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe your presenter's features, clothing, expressions, and posture... e.g., 'A professional corporate presenter with friendly features, wearing a sleek navy blazer, seated in a high-tech studio office, warm bokeh lighting...'"
                 rows={4}
-                className="w-full rounded-2xl border border-line bg-white/[0.02] p-3 text-[11px] text-foreground placeholder-faint focus:border-line-2 focus:outline-none focus:ring-1 focus:ring-line transition-all leading-normal resize-none"
+                className="w-full rounded-2xl border border-line bg-surface p-3 text-[11px] text-foreground placeholder-faint focus:border-line-2 focus:outline-none focus:ring-1 focus:ring-line transition-all leading-normal resize-none"
               />
             </div>
 
@@ -126,7 +126,7 @@ export default function AvatarStudioPage() {
                       className={`flex flex-col gap-0.5 rounded-2xl border p-3 text-left transition-all ${
                         active
                           ? "bg-surface-2 border-line-2 text-foreground"
-                          : "bg-white/[0.02] border-line text-ink-3 hover:border-line hover:text-foreground"
+                          : "bg-surface border-line text-ink-3 hover:border-line hover:text-foreground"
                       }`}
                     >
                       <span className="text-[11px] font-medium">{voice.label}</span>
@@ -137,7 +137,7 @@ export default function AvatarStudioPage() {
               </div>
 
               {selectedVoice === "Custom" && (
-                <div className="mt-1 flex items-center justify-center border border-dashed border-line hover:border-line rounded-2xl p-4 bg-white/[0.01] transition-all cursor-pointer" onClick={() => setShowUpgradeModal(true)}>
+                <div className="mt-1 flex items-center justify-center border border-dashed border-line hover:border-line rounded-2xl p-4 bg-surface transition-all cursor-pointer" onClick={() => setShowUpgradeModal(true)}>
                   <div className="flex flex-col items-center gap-1.5 text-muted">
                     <Upload size={14} className="text-faint" />
                     <span className="text-[10px] font-medium">Upload audio reference (.wav, .mp3)</span>
@@ -161,7 +161,7 @@ export default function AvatarStudioPage() {
         <main className="flex-1 bg-background flex flex-col p-6 items-center justify-center relative">
           
           {/* Main Visual Dashboard Status Banner */}
-          <div className="max-w-[620px] w-full bg-surface border border-line rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl relative overflow-hidden backdrop-blur-md">
+          <div className="max-w-[620px] w-full bg-surface border border-line rounded-3xl p-6 md:p-8 flex flex-col gap-6 elevate-lg relative overflow-hidden backdrop-blur-md">
             
             {/* Visual glow accents */}
             <div className="absolute top-0 left-1/4 w-40 h-40 bg-surface-2 rounded-full blur-[60px]" />
@@ -191,14 +191,14 @@ export default function AvatarStudioPage() {
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-1.5">
-                <div className="bg-white/[0.01] border border-line rounded-2xl p-3 flex gap-2.5 items-start">
+                <div className="bg-surface border border-line rounded-2xl p-3 flex gap-2.5 items-start">
                   <Cpu size={14} className="text-ink-3 mt-0.5 shrink-0" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] font-bold text-foreground">Next-Gen Audio-to-Lip Models</span>
                     <span className="text-[10px] text-muted">Integrating state-of-the-art MuseTalk and LatentSync pipelines for flawless phoneme alignment.</span>
                   </div>
                 </div>
-                <div className="bg-white/[0.01] border border-line rounded-2xl p-3 flex gap-2.5 items-start">
+                <div className="bg-surface border border-line rounded-2xl p-3 flex gap-2.5 items-start">
                   <Zap size={14} className="text-ink-2 mt-0.5 shrink-0" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] font-bold text-foreground">Zero-Latency Neural Rendering</span>
@@ -233,8 +233,8 @@ export default function AvatarStudioPage() {
 
       {/* Full Premium Upgrade Overlay Modal */}
       {showUpgradeModal && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-          <div className="max-w-[500px] w-full bg-surface border border-line rounded-3xl p-6 flex flex-col gap-5 shadow-2xl relative animate-scale-up">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-foreground/25 backdrop-blur-md p-4 animate-fade-in">
+          <div className="max-w-[500px] w-full bg-surface border border-line rounded-3xl p-6 flex flex-col gap-5 elevate-lg relative animate-scale-up">
             
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -262,7 +262,7 @@ export default function AvatarStudioPage() {
                 We are performing an architecturally complex infrastructure upgrade on our real-time video presenter model. Our engineers are deploying specialized deep-learning nodes configured specifically for high-temporal-consistency lip-syncing.
               </p>
               
-              <div className="bg-white/[0.01] border border-line rounded-2xl p-3.5 flex flex-col gap-2">
+              <div className="bg-surface border border-line rounded-2xl p-3.5 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-semibold text-ink-3">DEPLOYMENT METRICS</span>
                   <span className="rounded-full bg-surface-2 border border-line-2 px-2 py-0.5 text-[8px] font-bold text-ink-2 uppercase">
@@ -273,15 +273,15 @@ export default function AvatarStudioPage() {
                   <div className="bg-surface-3 h-full w-[78%] rounded-full" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-1.5 text-[9px] text-muted text-center">
-                  <div className="flex flex-col bg-white/[0.01] p-1.5 rounded-xl border border-line">
+                  <div className="flex flex-col bg-surface p-1.5 rounded-xl border border-line">
                     <span className="font-bold text-ink-2">A100 Nodes</span>
                     <span>Active & Syncing</span>
                   </div>
-                  <div className="flex flex-col bg-white/[0.01] p-1.5 rounded-xl border border-line">
+                  <div className="flex flex-col bg-surface p-1.5 rounded-xl border border-line">
                     <span className="font-bold text-ink-2">MuseTalk API</span>
                     <span>Latency Match</span>
                   </div>
-                  <div className="flex flex-col bg-white/[0.01] p-1.5 rounded-xl border border-line">
+                  <div className="flex flex-col bg-surface p-1.5 rounded-xl border border-line">
                     <span className="font-bold text-ink-2">RT-Rendering</span>
                     <span>Calibrating</span>
                   </div>
