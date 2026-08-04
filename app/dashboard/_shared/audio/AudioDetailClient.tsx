@@ -1,6 +1,6 @@
 "use client";
 
-// AudioDetailClient — /dashboard/audio/[id]. Single-column redesign: the take
+// AudioDetailClient — /dashboard/voice/[id]. Single-column redesign: the take
 // monitor player on top, the narration script directly beneath (clamped +
 // tap-to-expand + copy), and quick actions (reuse script, delete).
 
@@ -69,7 +69,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
     } catch {
       /* optimistic */
     }
-    router.push("/dashboard/audio");
+    router.push("/dashboard/voice");
   };
 
   return (
@@ -78,7 +78,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
         {/* Back + actions */}
         <div className="flex items-center justify-between">
           <Link
-            href="/dashboard/audio"
+            href="/dashboard/voice"
             className="group flex w-fit items-center gap-1.5 text-[11px] font-bold tabular-nums uppercase tracking-wider text-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
@@ -87,7 +87,7 @@ export default function AudioDetailClient({ id }: { id: string }) {
           {item && (
             <div className="flex items-center gap-2">
               <Link
-                href={`/dashboard/audio`}
+                href={`/dashboard/voice`}
                 className="flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-3 py-1.5 text-[10px] font-semibold text-accent-ink hover:bg-surface-2 transition-colors"
               >
                 <RefreshCw size={11} /> New Take

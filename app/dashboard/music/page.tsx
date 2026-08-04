@@ -4,15 +4,14 @@
 // tracks, and a docked brief console. Backed by Lyria via /api/music/generate.
 
 import React, { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, X } from "lucide-react";
-import { useAuth } from "../../../../components/AuthProvider";
-import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
-import AudioConsole from "../_components/AudioConsole";
-import AudioProjectsGrid from "../../_shared/AudioProjectsGrid";
-import { useGenerationHistory } from "../../_shared/useGenerationHistory";
-import { useReusePrompt } from "../../_shared/useReusePrompt";
-import { AudioItem } from "../_components/types";
+import { X } from "lucide-react";
+import { useAuth } from "../../../components/AuthProvider";
+import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import AudioConsole from "../_shared/audio/AudioConsole";
+import AudioProjectsGrid from "../_shared/AudioProjectsGrid";
+import { useGenerationHistory } from "../_shared/useGenerationHistory";
+import { useReusePrompt } from "../_shared/useReusePrompt";
+import { AudioItem } from "../_shared/audio/types";
 
 const MAX_CHARS = 2000;
 
@@ -146,13 +145,6 @@ export default function MusicStudio() {
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
       {/* Mood rail (desktop) */}
       <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
-        <Link
-          href="/dashboard/audio"
-          className="group flex w-fit items-center gap-1.5 tabular-nums text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
-        >
-          <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
-          Back
-        </Link>
         <div>
           <p className="eyebrow mb-3">Mood &amp; genre</p>
           <div className="flex flex-wrap gap-1.5">

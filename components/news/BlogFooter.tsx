@@ -7,7 +7,8 @@ const COLUMNS = [
     links: [
       { label: "Make an ad", href: "/dashboard/create" },
       { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Audio Studio", href: "/dashboard/audio" },
+      { label: "Voice Studio", href: "/dashboard/voice" },
+      { label: "Music Studio", href: "/dashboard/music" },
       { label: "Image Studio", href: "/dashboard/image" },
       { label: "Developer API", href: "/api-docs" },
     ],

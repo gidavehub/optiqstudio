@@ -23,7 +23,7 @@ const navItems = (
 const HERO_LINKS = [
   { label: "OPTIQ STUDIO STORYBOARD", href: "/dashboard/create" },
   { label: "CREATIVE ADS & CAMPAIGNS", href: "#worlds" },
-  { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/audio" },
+  { label: "VOICE AND AUDIO PRODUCTION", href: "/dashboard/voice" },
   { label: "OPTIQ STUDIO ENTERPRISE", href: "/enterprise" },
 ];
 
@@ -40,7 +40,7 @@ const WORLD_CARDS = [
     media: "/media/card-robotics.jpg",
     title: "Optiq Voice: Studio-Grade Voiceovers",
     body: "Sixteen real African, diaspora and international voices — natural narrations that sit perfectly under your ads.",
-    href: "/dashboard/audio",
+    href: "/dashboard/voice",
   },
   {
     media: "/media/card-worlds.jpg",
@@ -78,7 +78,8 @@ const FOOTER_COLS: { heading: string; links: { label: string; href: string }[] }
     links: [
       { label: "Our Tools", href: "/dashboard" },
       { label: "Video Studio", href: "/dashboard/video" },
-      { label: "Audio Studio", href: "/dashboard/audio" },
+      { label: "Voice Studio", href: "/dashboard/voice" },
+      { label: "Music Studio", href: "/dashboard/music" },
       { label: "Optiq Studio Enterprise", href: "/enterprise" },
       { label: "Image Studio", href: "/dashboard/image" },
       { label: "Pricing", href: "/dashboard/billing" },

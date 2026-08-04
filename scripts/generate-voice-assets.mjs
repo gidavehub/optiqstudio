@@ -13,7 +13,7 @@
  *   public/media/voice-faces/<id>.jpg      ← Gemini image (gemini-3.1-flash-image)
  *
  * The id → voice mapping MUST stay in sync with
- *   app/dashboard/audio/_components/voiceProfiles.ts
+ *   app/dashboard/_shared/audio/voiceProfiles.ts
  *
  * Prereq: service-account or ADC auth for davelabs-tools, e.g.
  *   set GOOGLE_APPLICATION_CREDENTIALS=C:\Projects\optiq\secrets\davelabs-tools-sa.json

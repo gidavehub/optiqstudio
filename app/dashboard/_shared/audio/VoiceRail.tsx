@@ -6,8 +6,7 @@
 // voice page renders its own compact face strip on mobile.
 
 import React, { useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Loader2, Pause, Play } from "lucide-react";
+import { Loader2, Pause, Play } from "lucide-react";
 import { VOICE_PROFILES, VOICE_REGIONS, VoiceProfile } from "./voiceProfiles";
 
 // /media/* is served with an immutable 1-year cache (see next.config.ts), so a
@@ -115,13 +114,6 @@ export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
 
   return (
     <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-72 sm:border-b-0 sm:border-r sm:pt-24">
-      <Link
-        href="/dashboard/audio"
-        className="group flex w-fit items-center gap-1.5 tabular-nums text-[11px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-foreground"
-      >
-        <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-0.5" />
-        Back
-      </Link>
 
       <div>
         <p className="eyebrow mb-3">Speaker</p>

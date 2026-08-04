@@ -6,15 +6,15 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { useAuth } from "../../../../components/AuthProvider";
-import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
-import VoiceRail from "../_components/VoiceRail";
-import AudioConsole from "../_components/AudioConsole";
-import AudioProjectsGrid from "../../_shared/AudioProjectsGrid";
-import { useGenerationHistory } from "../../_shared/useGenerationHistory";
-import { useReusePrompt } from "../../_shared/useReusePrompt";
-import { VOICE_PROFILES } from "../_components/voiceProfiles";
-import { AudioItem } from "../_components/types";
+import { useAuth } from "../../../components/AuthProvider";
+import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
+import VoiceRail from "../_shared/audio/VoiceRail";
+import AudioConsole from "../_shared/audio/AudioConsole";
+import AudioProjectsGrid from "../_shared/AudioProjectsGrid";
+import { useGenerationHistory } from "../_shared/useGenerationHistory";
+import { useReusePrompt } from "../_shared/useReusePrompt";
+import { VOICE_PROFILES } from "../_shared/audio/voiceProfiles";
+import { AudioItem } from "../_shared/audio/types";
 
 const MAX_CHARS = 4000;
 
