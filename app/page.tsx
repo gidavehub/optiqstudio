@@ -129,9 +129,12 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-white">
         <nav className="relative mx-auto flex h-14 max-w-[1440px] items-center px-4">
           <Link href="/" className="text-[26px] font-bold lowercase tracking-tight leading-none flex items-center gap-3 select-none">
+            {/* The dashboard mark — ink disc, knocked-out ring. The white-disc
+                version needed a grey hairline to exist on a white header; this
+                one holds its own shape, so the outline goes. */}
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 rounded-full">
-              <circle cx="16" cy="16" r="16" fill="white" stroke="#e5e5e5" strokeWidth={1} />
-              <circle cx="16" cy="16" r="8" fill="none" stroke="black" strokeWidth={4} />
+              <circle cx="16" cy="16" r="16" fill="#171a1f" />
+              <circle cx="16" cy="16" r="8" fill="none" stroke="#ffffff" strokeWidth={4} />
             </svg>
             <span>optiq studio</span>
           </Link>

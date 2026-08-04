@@ -1,6 +1,9 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Bigger White Circular Background -->
-  <circle cx="16" cy="16" r="16" fill="white" />
-  <!-- Round Black "O" Circle Ring -->
-  <circle cx="16" cy="16" r="8" fill="none" stroke="black" stroke-width="4" />
+  <!-- The dashboard mark: solid ink disc with the "O" knocked out of it.
+       Colours are the app's own foreground and background tokens, hardcoded
+       because a favicon cannot read CSS variables.
+       (Do not write a double hyphen in here: it is illegal inside XML
+       comments and takes the whole file down with it.) -->
+  <circle cx="16" cy="16" r="16" fill="#171a1f" />
+  <circle cx="16" cy="16" r="8" fill="none" stroke="#ffffff" stroke-width="4" />
 </svg>
