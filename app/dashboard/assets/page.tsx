@@ -49,7 +49,9 @@ export default function AssetsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-6xl px-8 py-10">
+      {/* pt-20/24 clears the floating chrome — the logo pill was sitting on the
+          "Assets" heading. Same clearance the portal and the detail views use. */}
+      <div className="mx-auto max-w-6xl px-8 pb-10 pt-20 sm:pt-24">
       <h1 className="text-[26px] font-semibold tracking-tight">Assets</h1>
       <p className="mt-1 text-[13px] text-muted">
         Everything you&apos;ve generated, stored in your library.
