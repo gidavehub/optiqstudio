@@ -268,11 +268,11 @@ export default function EnterprisePage() {
                 </p>
                 <div className="mt-7 flex items-baseline gap-3 border-y border-[#e8eaed] py-6">
                   <span className="text-[40px] font-normal leading-none tracking-[-0.03em]">
-                    $100–$200
+                    $100–$500
                   </span>
                   <span className="text-[15px] text-[#5f6368]">per video ad</span>
                 </div>
-                <p className="mt-3 text-[13px] text-[#5f6368]">D6,500 – D13,000</p>
+                <p className="mt-3 text-[13px] text-[#5f6368]">D6,500 – D32,500</p>
                 <ul className="mt-7 flex flex-1 flex-col gap-3.5">
                   {TIER_ONE.map((item) => (
                     <li key={item} className="flex items-start gap-3 text-[15px] leading-[1.6]">

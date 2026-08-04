@@ -123,8 +123,8 @@ SECTION 6: PRODUCT 3 — OPTIQ STUDIO ENTERPRISE & CAMPAIGN ENGINE
 Web Domain: https://optiq.studio/enterprise
 Target Audience: Growing brands, established organizations, and institutions needing custom execution and guaranteed business growth.
 
-Tier 1 — Custom Video Production ($100 – $200 / D6,500 – D13,000 per video ad):
-A done-with-you custom production service. For a flat fee between $100 and $200 per video ad, the DaveLabs in-house creative team works directly with the business. Our creative directors handle full scriptwriting, storyboarding, directing, custom sound design, and color-graded 4K finishing.
+Tier 1 — Custom Video Production ($100 – $500 / D6,500 – D32,500 per video ad):
+A done-with-you custom production service. For a flat fee between $100 and $500 per video ad, depending on the scope of the production, the DaveLabs in-house creative team works directly with the business. Our creative directors handle full scriptwriting, storyboarding, directing, custom sound design, and color-graded 4K finishing.
 
 Tier 2 — Enterprise Campaign Engine (Custom Cycle):
 An outcome-driven, performance-based marketing engine for select organizations.

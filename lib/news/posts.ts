@@ -314,7 +314,7 @@ export const POSTS: Post[] = [
       { t: "h2", text: "Tier one — Custom Video Production" },
       {
         t: "p",
-        text: "A flat fee of **$100 to $200 per video ad** (D6,500 to D13,000). Our in-house creative team works directly with your business: scriptwriting, storyboarding, directing, custom sound design and colour-graded 4K finishing.",
+        text: "A flat fee of **$100 to $500 per video ad** (D6,500 to D32,500), depending on the scope of the production. Our in-house creative team works directly with your business: scriptwriting, storyboarding, directing, custom sound design and colour-graded 4K finishing.",
       },
       {
         t: "list",
@@ -338,7 +338,7 @@ export const POSTS: Post[] = [
       {
         t: "stats",
         items: [
-          { value: "$100–$200", label: "Per custom-produced video ad" },
+          { value: "$100–$500", label: "Per custom-produced video ad" },
           { value: "5", label: "Organisations accepted per campaign cycle" },
           { value: "329+", label: "Industries mapped in our demographic models" },
         ],
