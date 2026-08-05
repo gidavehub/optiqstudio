@@ -258,6 +258,9 @@ function VideoWorkspace() {
       status: "rendering",
       prompt: prompt,
       videoUrl: null,
+      // Carried on the optimistic card so the placeholder is already the shape
+      // of the shot being made, instead of snapping from 16:9 when it lands.
+      aspectRatio: aspect,
       createdAt: new Date().toISOString(),
     } as HistoryItem);
 
@@ -358,6 +361,7 @@ function VideoWorkspace() {
               status: h.status,
               prompt: h.prompt,
               mediaUrl: h.videoUrl,
+              aspectRatio: h.aspectRatio,
               createdAt: h.createdAt,
             }))}
             mediaType="video"

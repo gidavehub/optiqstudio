@@ -6,6 +6,9 @@ export interface GenerationItem {
   prompt: string;
   imageUrl: string;
   createdAt: string;
+  /** What the still was generated at — "1:1", "9:16", … Only written since
+   *  aspect-correct cards landed, so older stills have nothing here. */
+  aspectRatio?: string | null;
   cost?: number;
   /** Reference images attached at generation time (Storage paths). */
   images?: { path?: string; mimeType?: string }[];

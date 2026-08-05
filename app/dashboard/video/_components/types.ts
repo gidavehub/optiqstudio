@@ -6,6 +6,9 @@ export interface HistoryItem {
   prompt: string;
   videoUrl: string | null;
   createdAt: string;
+  /** What the shot was generated at — "16:9" or "9:16". Drives the shape of
+   *  its card and its detail view, so portrait never sits letterboxed. */
+  aspectRatio?: string | null;
   /** Reference images attached at generation time (Storage paths). */
   images?: { path?: string; mimeType?: string }[];
 }

@@ -128,6 +128,8 @@ function ImageWorkspace() {
       status: "rendering",
       prompt: originalPrompt,
       imageUrl: "",
+      // Same reason as the video studio: shape the placeholder up front.
+      aspectRatio,
       createdAt: new Date().toISOString(),
     } as GenerationItem);
     setPrompt("");
@@ -195,6 +197,7 @@ function ImageWorkspace() {
               status: h.status,
               prompt: h.prompt,
               mediaUrl: h.imageUrl || null,
+              aspectRatio: h.aspectRatio,
               createdAt: h.createdAt,
             }))}
             mediaType="image"

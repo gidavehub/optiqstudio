@@ -9,6 +9,7 @@ import {
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { LENGTH_PRICING_GMD, ProjectLength, DictationTarget } from "../_flow/types";
 import HoverPreviewVideo from "../_shared/HoverPreviewVideo";
+import { gridBox } from "../_shared/aspect";
 import StoryboardPaywallModal from "./StoryboardPaywallModal";
 
 const STEP_COUNT = 7;
@@ -200,7 +201,8 @@ export default function StoryboardWizard() {
                           <div
                             key={proj.id}
                             onClick={() => openProject(proj)}
-                            className="group relative aspect-video overflow-hidden rounded-2xl border border-line bg-surface cursor-pointer transition-all duration-300 hover:border-accent shadow-lg"
+                            style={gridBox(proj.aspectRatio).style}
+                            className={`group relative overflow-hidden rounded-2xl border border-line bg-surface cursor-pointer transition-all duration-300 hover:border-accent shadow-lg ${gridBox(proj.aspectRatio).className}`}
                           >
                             {clipUrl ? (
                               <HoverPreviewVideo

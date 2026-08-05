@@ -44,9 +44,12 @@ interface MobileScriptDeckProps {
   onOpenAgent: () => void;
   /** True while an agent turn is rewriting this film server-side. */
   agentRunning: boolean;
+  /** The ad's shape, forwarded to every scene panel in the deck. */
+  aspect?: string | null;
 }
 
 export default function MobileScriptDeck({
+  aspect,
   storyboard,
   videoStatus,
   setVideoStatus,
@@ -196,6 +199,7 @@ export default function MobileScriptDeck({
                 takes={sceneTakes(status)}
                 activeTake={activeTakeIndex(status)}
                 onSelectTake={(take) => onSelectTake(sceneIndex, take)}
+                aspect={aspect}
                 compact
               />
 

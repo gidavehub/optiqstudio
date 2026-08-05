@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Download, FolderOpen, Mic, Trash2 } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
+import { gridBox, recordAspect } from "../_shared/aspect";
 
 interface AssetItem {
   id: string;
@@ -13,6 +14,8 @@ interface AssetItem {
   imageUrl: string | null;
   audioUrl: string | null;
   createdAt: string;
+  /** Shape the asset was generated at, so its tile is cut to match. */
+  aspectRatio?: string | null;
 }
 
 const FILTERS = ["All", "Video", "Image", "Character", "Audio"] as const;
@@ -81,15 +84,17 @@ export default function AssetsPage() {
           </p>
         </div>
       ) : (
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+        // items-start so a portrait tile does not stretch its landscape row-mates
+        <div className="mt-8 grid grid-cols-2 items-start gap-4 md:grid-cols-3 xl:grid-cols-4">
           {items.map((item) => {
             const url = item.videoUrl || item.imageUrl || item.audioUrl;
+            const box = gridBox(recordAspect(item));
             return (
               <div
                 key={item.id}
                 className="group overflow-hidden rounded-2xl border border-line bg-surface"
               >
-                <div className="relative aspect-video bg-background">
+                <div className={`relative bg-background ${box.className}`} style={box.style}>
                   {item.videoUrl ? (
                     <video
                       src={item.videoUrl}

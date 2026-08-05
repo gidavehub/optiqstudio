@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
 import PromptCard from "../../_shared/PromptCard";
+import { aspectStyle } from "../../_shared/aspect";
 import { useReferenceImages } from "../../_shared/useReferenceImages";
 import { useReusePrompt } from "../../_shared/useReusePrompt";
 import { stashPromptHandoff } from "../../_shared/promptHandoff";
@@ -144,7 +145,9 @@ export default function VideoDetailClient({ id }: { id: string }) {
         body: JSON.stringify({
           prompt: `Modify video: ${prompt}. Context base: ${item.prompt}`,
           model: "omni",
-          aspectRatio: "16:9",
+          // Inherit the source shot's shape — a refinement of a portrait clip
+          // was coming back landscape because this was pinned to 16:9.
+          aspectRatio: item.aspectRatio === "9:16" ? "9:16" : "16:9",
           durationSeconds: 10,
           generateAudio: true,
           images: images.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
@@ -219,7 +222,15 @@ export default function VideoDetailClient({ id }: { id: string }) {
           <>
             {/* 1 · PLAYER */}
             {isRendering ? (
-              <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background">
+              // The waiting state is the shape of what is coming, so the panel
+              // doesn't jump from 16:9 to portrait the moment the render lands.
+              <div
+                style={{
+                  ...aspectStyle(item.aspectRatio),
+                  ...(item.aspectRatio === "9:16" ? { maxWidth: "min(100%, calc(72vh * 9 / 16))" } : {}),
+                }}
+                className="relative mx-auto w-full overflow-hidden rounded-3xl border border-line bg-background"
+              >
                 <div className="absolute -inset-[20px] opacity-40">
                   <div className="absolute top-1/4 left-1/4 h-40 w-40 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
                   <div className="absolute bottom-1/4 right-1/4 h-44 w-44 rounded-full bg-accent-soft blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
@@ -236,7 +247,8 @@ export default function VideoDetailClient({ id }: { id: string }) {
             ) : (
               <CustomVideoPlayer
                 src={item.videoUrl!}
-                aspect="16:9"
+                // Was pinned to 16:9, which letterboxed every portrait shot.
+                aspect={item.aspectRatio === "9:16" ? "9:16" : "16:9"}
                 downloadUrl={item.videoUrl!}
                 downloadName={`optiq_${item.id}.mp4`}
               />

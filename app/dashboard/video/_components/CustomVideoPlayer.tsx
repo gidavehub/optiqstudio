@@ -79,7 +79,13 @@ export default function CustomVideoPlayer({ src, aspect, downloadUrl, downloadNa
   }, [src]);
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-2xl border border-line bg-background elevate-lg">
+    // A 9:16 at full column width is taller than the viewport, so portrait is
+    // capped by height and the width follows from the ratio. Landscape is
+    // unaffected — it never gets near the cap.
+    <div
+      className="group relative mx-auto w-full overflow-hidden rounded-2xl border border-line bg-background elevate-lg"
+      style={aspect === "9:16" ? { maxWidth: "min(100%, calc(72vh * 9 / 16))" } : undefined}
+    >
       <video
         ref={videoRef}
         src={src}

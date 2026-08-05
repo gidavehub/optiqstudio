@@ -12,7 +12,7 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  RefreshCw, Edit3, AlertCircle, Undo2, Tv, Play, Bot,
+  RefreshCw, AlertCircle, Tv, Play,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { activeTakeIndex, sceneTakes } from "../_flow/types";
@@ -26,6 +26,8 @@ import ScenePromptBlock from "./script/ScenePromptBlock";
 import SceneReferenceImages from "./script/SceneReferenceImages";
 import SceneRewriteBar from "./script/SceneRewriteBar";
 import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
+import WorkspaceModeBar from "./script/WorkspaceModeBar";
+import { gridBox, previewBox } from "../_shared/aspect";
 
 /** Every storyboard scene renders as a 10-second clip. */
 const SCENE_SECONDS = 10;
@@ -41,6 +43,9 @@ export default function ProjectWorkspace() {
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     goHome, projects, activeProjectId, agentRunning,
+    // The ad's shape. Every preview box below is cut to it, so a vertical ad
+    // previews vertical instead of sitting letterboxed in a 16:9 frame.
+    aspectRatio,
   } = useEditorFlow();
   const { profile, pricing } = useAuth();
   const isMobile = useIsMobile();
@@ -98,6 +103,12 @@ export default function ProjectWorkspace() {
     }
   };
 
+  // Scene clips sit in a grid, so they use the grid rule: landscape fills the
+  // column, portrait is height-capped and centred. The generating screen is a
+  // single hero, so it gets the more generous preview cap.
+  const sceneBox = gridBox(aspectRatio);
+  const heroBox = previewBox(aspectRatio);
+
   const sceneCount = storyboard?.scenes.length ?? 0;
   const renderTally = useMemo(() => {
     let done = 0;
@@ -126,23 +137,8 @@ export default function ProjectWorkspace() {
     />
   );
 
-  // The way into the storyline agent, carried by every face of the workspace.
-  // Pulses while a turn is running server-side, so a rewrite kicked off from
-  // the chat is visible even from the timeline.
-  const agentButton = (
-    <button
-      onClick={openAgent}
-      title="Work on the whole storyline with the agent"
-      className={`flex items-center gap-1.5 rounded-2xl border px-3.5 py-2 text-xs font-semibold transition-colors active:scale-95 ${
-        agentRunning
-          ? "animate-pulse border-accent bg-surface-2 text-accent-ink"
-          : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-accent-ink"
-      }`}
-    >
-      <Bot size={13} />
-      <span className="hidden sm:inline">{agentRunning ? "Agent working…" : "Agent"}</span>
-    </button>
-  );
+  // The way into the storyline agent now lives in WorkspaceModeBar alongside
+  // the other two faces, so this face-local button is gone.
 
   // ── EMPTY / GENERATING / ERROR STATES ──────────────────────────────────
   if (!storyboard) {
@@ -151,7 +147,16 @@ export default function ProjectWorkspace() {
         <div className="mx-auto flex h-full max-w-lg flex-1 flex-col items-center justify-center p-12 text-center">
           {isCloudGenerating ? (
             <div className="space-y-6">
-              <div className="relative mx-auto h-44 w-72 overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_60px_rgba(16,24,40,0.12)] sm:h-52 sm:w-96">
+              {/* Was a fixed landscape rectangle whatever you were making. It
+                  is the shape of the ad now, so a vertical film says so while
+                  it is still being written — and portrait is bounded by height
+                  so it stays a comparable size to the landscape version. */}
+              <div
+                style={heroBox.style}
+                className={`relative mx-auto overflow-hidden rounded-[28px] border border-line bg-background shadow-[0_24px_60px_rgba(16,24,40,0.12)] ${
+                  heroBox.className === "w-full" ? "w-72 sm:w-96" : heroBox.className
+                }`}
+              >
                 <div className="aurora" aria-hidden />
                 <div className="aurora-veil" aria-hidden />
               </div>
@@ -225,28 +230,23 @@ export default function ProjectWorkspace() {
 
     return (
       <div className="flex h-full flex-col bg-background text-foreground">
-        {/* Minimal chrome, top corners only */}
-        <div className="absolute left-0 right-0 top-16 z-10 flex items-center justify-between gap-2 px-4 py-4 sm:px-6">
-          <h2 className="max-w-[40%] truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <span className="tabular-nums text-[11px] font-bold text-ink-3">
-              {renderTally.done}
-              <span className="text-faint"> / {sceneCount}</span>
-            </span>
-            {agentButton}
-            <button
-              onClick={() => setProductionMode("manual")}
-              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-surface-2 hover:text-accent-ink"
-            >
-              <Edit3 size={12} /> Script Editor
-            </button>
-            <button
-              onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-3.5 py-2 text-xs font-semibold transition-colors hover:bg-surface-2"
-            >
-              <Undo2 size={12} /> Reset
-            </button>
-          </div>
+        {/* Where you are, and the way to the other two faces — centred at the
+            top, in the gap between the logo and account pills. */}
+        <WorkspaceModeBar
+          current="auto-merge"
+          onAgent={openAgent}
+          onScript={() => setProductionMode("manual")}
+          onTimeline={() => setProductionMode("auto-merge")}
+          onReset={resetDraft}
+          agentRunning={agentRunning}
+          done={renderTally.done}
+          total={sceneCount}
+        />
+
+        {/* The film's title sits under the bar rather than beside it, so a long
+            one no longer competes with the controls for the same row. */}
+        <div className="absolute left-0 right-0 top-16 z-10 flex items-center justify-center px-4 py-4 sm:px-6">
+          <h2 className="max-w-full truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
         </div>
 
         {/* Clips — top-aligned + scrollable so the very first scene is always
@@ -264,7 +264,8 @@ export default function ProjectWorkspace() {
               return (
                 <div
                   key={idx}
-                  className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background shadow-[0_16px_40px_rgba(16,24,40,0.10)]"
+                  style={sceneBox.style}
+                  className={`relative overflow-hidden rounded-3xl border border-line bg-background shadow-[0_16px_40px_rgba(16,24,40,0.10)] ${sceneBox.className}`}
                 >
                   {ready ? (
                     <>
@@ -330,6 +331,7 @@ export default function ProjectWorkspace() {
     return (
       <>
         <MobileScriptDeck
+          aspect={aspectRatio}
           storyboard={storyboard}
           videoStatus={videoStatus}
           setVideoStatus={setVideoStatus}
@@ -356,35 +358,29 @@ export default function ProjectWorkspace() {
   // ── SCRIPT FACE — DESKTOP ──────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 pb-6 pt-20 sm:px-6 sm:pt-24">
-        {/* Header controls */}
-        <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <span className="rounded-full border border-accent-line bg-surface px-2.5 py-0.5 text-[10px] font-bold uppercase text-accent-ink">
-              Script Engineering
-            </span>
-            <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">{storyboard.title}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted">{storyboard.concept}</p>
-          </div>
-          <div className="flex items-center gap-2 self-start">
-            <span className="rounded-3xl border border-line bg-surface px-3 py-2 tabular-nums text-[11px] font-bold text-ink-3">
-              {renderTally.done}
-              <span className="text-faint"> / {sceneCount}</span> rendered
-            </span>
-            {agentButton}
-            <button
-              onClick={() => setProductionMode("auto-merge")}
-              className="flex items-center gap-1.5 rounded-2xl border border-accent-line bg-surface px-4 py-2 text-xs font-semibold text-accent-ink transition-colors hover:border-accent hover:bg-surface-2"
-            >
-              <Tv size={12} /> Open Timeline Editor
-            </button>
-            <button
-              onClick={resetDraft}
-              className="flex items-center gap-1.5 rounded-2xl border border-line bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2"
-            >
-              <Undo2 size={12} /> Reset Draft
-            </button>
-          </div>
+      {/* Same bar as the timeline face — one control cluster, one position, and
+          the current face is filled in so it is obvious where you are. */}
+      <WorkspaceModeBar
+        current="manual"
+        onAgent={openAgent}
+        onScript={() => setProductionMode("manual")}
+        onTimeline={() => setProductionMode("auto-merge")}
+        onReset={resetDraft}
+        agentRunning={agentRunning}
+        done={renderTally.done}
+        total={sceneCount}
+      />
+
+      {/* pt-28 clears the floating bar, which the old inline button row did not
+          have to account for. */}
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-y-auto px-4 pb-6 pt-28 sm:px-6 sm:pt-32">
+        {/* The header is now only the film — the controls left for the bar. */}
+        <div className="border-b border-line pb-5">
+          <span className="rounded-full border border-accent-line bg-surface px-2.5 py-0.5 text-[10px] font-bold uppercase text-accent-ink">
+            Script Engineering
+          </span>
+          <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">{storyboard.title}</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">{storyboard.concept}</p>
         </div>
 
         {/* Scene cards. The film-wide locks (character, style, music) used to sit
@@ -467,6 +463,7 @@ export default function ProjectWorkspace() {
                     takes={sceneTakes(videoStatus[idx])}
                     activeTake={activeTakeIndex(videoStatus[idx])}
                     onSelectTake={(take) => selectSceneTake(idx, take)}
+                    aspect={aspectRatio}
                   />
                 </div>
               </div>

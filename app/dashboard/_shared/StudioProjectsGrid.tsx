@@ -18,6 +18,7 @@
 import React, { useState } from "react";
 import { ImageIcon, Loader2, MoreVertical, Play, RotateCcw, Trash2 } from "lucide-react";
 import HoverPreviewVideo from "./HoverPreviewVideo";
+import { gridBox, recordAspect } from "./aspect";
 
 export interface StudioGridItem {
   id: string;
@@ -25,6 +26,14 @@ export interface StudioGridItem {
   prompt: string;
   mediaUrl: string | null;
   createdAt: string;
+  /** What the generation was made at — "16:9", "9:16", "1:1", … Cards are cut
+   *  to this, so a portrait shot is a portrait card rather than a letterboxed
+   *  16:9 one. Missing on records written before it was stored. */
+  aspectRatio?: string | null;
+  /** Measured pixel size, when a path recorded it. Beats aspectRatio, since
+   *  it is what the file actually is rather than what was asked for. */
+  width?: number | null;
+  height?: number | null;
 }
 
 interface StudioProjectsGridProps {
@@ -77,7 +86,10 @@ export default function StudioProjectsGrid({
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+    // items-start matters: grid items stretch by default, so once cards carry
+    // their own aspect ratio a 16:9 sitting beside a 9:16 would be pulled to
+    // the tall one's height and letterboxed again by the back door.
+    <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-2 lg:grid-cols-3 sm:gap-6">
       {shown.map((item, idx) => {
         const isRendering =
           item.status === "rendering" ||
@@ -87,11 +99,19 @@ export default function StudioProjectsGrid({
           !item.mediaUrl;
         const isDeleting = deletingIds.has(item.id);
         const isFresh = freshIds?.has(item.id);
+        // Landscape fills the column; portrait is height-capped so it does not
+        // tower over the cards beside it. See gridBox.
+        const box = gridBox(recordAspect(item));
         return (
           <div
             key={item.id}
             onClick={() => !isDeleting && onOpen(item)}
-            className={`group relative flex aspect-video cursor-pointer flex-col justify-between overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition-all duration-300 hover:border-line hover:bg-background ${
+            // The shape is data, so it is an inline style — a runtime
+            // `aspect-[..]` class never reaches Tailwind's compiler. While the
+            // card is still rendering this is the REQUESTED ratio, so the
+            // placeholder is already the shape of what is coming.
+            style={box.style}
+            className={`group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-3xl border border-line bg-surface shadow-sm transition-all duration-300 hover:border-line hover:bg-background ${box.className} ${
               isDeleting ? "scale-[0.94] opacity-0 blur-[2px] pointer-events-none" : "scale-100 opacity-100"
             } ${isFresh && !isDeleting ? "animate-card-pop" : ""} ${
               idx >= batchFrom ? "animate-rise" : ""

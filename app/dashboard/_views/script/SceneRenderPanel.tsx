@@ -15,6 +15,7 @@
 import React from "react";
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Play, RefreshCw, Video } from "lucide-react";
 import { SceneTake } from "../../_flow/types";
+import { previewBox } from "../../_shared/aspect";
 
 export type SceneRenderStatus = "idle" | "rendering" | "succeeded" | "failed";
 
@@ -32,6 +33,11 @@ interface SceneRenderPanelProps {
   onSelectTake?: (takeIndex: number) => void;
   /** Tighter padding for the mobile deck. */
   compact?: boolean;
+  /** The ad's shape — "16:9" or "9:16". The clip, the waiting state, the
+   *  failure state and the idle state are all cut to it, so a vertical ad
+   *  never previews letterboxed and the panel doesn't resize when a render
+   *  lands. */
+  aspect?: string | null;
 }
 
 export default function SceneRenderPanel({
@@ -44,15 +50,20 @@ export default function SceneRenderPanel({
   activeTake = -1,
   onSelectTake,
   compact = false,
+  aspect,
 }: SceneRenderPanelProps) {
-  const pad = compact ? "px-5 py-10" : "px-6 py-14";
+  // Portrait is capped by height rather than filling the column — at the same
+  // width a 9:16 panel would be roughly three times the height of a 16:9 one.
+  const box = previewBox(aspect);
+  // Height comes from the aspect ratio, so this is horizontal padding only.
+  const pad = compact ? "px-5" : "px-6";
   const priceLabel = cost > 0 ? `GMD ${cost.toLocaleString()}` : "Included";
   const canSwitch = !!onSelectTake && takes.length > 1 && activeTake >= 0;
 
   if (status === "succeeded" && url) {
     return (
       <div className="space-y-3">
-        <div className="relative aspect-video overflow-hidden rounded-3xl border border-line bg-background elevate-lg">
+        <div style={box.style} className={`relative overflow-hidden rounded-3xl border border-line bg-background elevate-lg ${box.className}`}>
           <video src={url} controls playsInline className="h-full w-full object-cover" />
         </div>
 
@@ -113,7 +124,7 @@ export default function SceneRenderPanel({
 
   if (status === "rendering") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-3xl border border-accent-line bg-surface text-center ${pad}`}>
+      <div style={box.style} className={`flex flex-col items-center justify-center rounded-3xl border border-accent-line bg-surface text-center overflow-hidden ${box.className} ${pad}`}>
         <RefreshCw size={26} className="animate-spin text-accent-ink" />
         <h4 className="mt-3 text-xs font-bold text-foreground">Generating clip…</h4>
         <p className="mt-2 max-w-xs text-[10px] leading-relaxed text-muted">
@@ -125,7 +136,7 @@ export default function SceneRenderPanel({
 
   if (status === "failed") {
     return (
-      <div className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-danger-soft text-center ${pad}`}>
+      <div style={box.style} className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-danger-soft text-center overflow-hidden ${box.className} ${pad}`}>
         <AlertCircle size={24} className="text-danger" />
         <h4 className="mt-2.5 text-xs font-bold text-foreground">Generation failed</h4>
         <p className="mt-1 max-w-xs text-[10px] leading-normal text-danger">
@@ -142,7 +153,7 @@ export default function SceneRenderPanel({
   }
 
   return (
-    <div className={`flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-surface text-center ${pad}`}>
+    <div style={box.style} className={`flex flex-col items-center justify-center rounded-3xl border border-dashed border-line bg-surface text-center overflow-hidden ${box.className} ${pad}`}>
       <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-muted">
         <Video size={16} />
       </span>
