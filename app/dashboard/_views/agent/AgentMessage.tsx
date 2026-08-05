@@ -11,15 +11,55 @@ import React from "react";
 import { AlertCircle, Bot, PenLine } from "lucide-react";
 import AgentWorkLog from "./AgentWorkLog";
 import RichText from "./RichText";
+import { useReferenceImages } from "../../_shared/useReferenceImages";
 import { AgentChatMessage } from "./types";
 
 export default function AgentMessage({ message }: { message: AgentChatMessage }) {
+  // Called before the role branch below, because hooks cannot sit behind an
+  // early return. Assistant turns carry no attachments, so it resolves to [].
+  // Paths are resolved with getDownloadURL rather than assembled by hand: these
+  // objects are uploaded by the browser SDK and are not public, so a
+  // storage.googleapis.com URL built from the path would 403.
+  const attachmentUrls = useReferenceImages(message.images);
+
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-3xl rounded-br-md border border-accent-line bg-surface px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
-          {message.text}
-        </div>
+      <div className="flex flex-col items-end gap-1.5">
+        {/* What was attached, so reopening the thread still shows what the
+            agent was looking at. Served straight from the bucket the client
+            uploaded to. */}
+        {attachmentUrls.length > 0 && (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {attachmentUrls.map((url) =>
+              // Decided from the URL rather than by pairing back to
+              // message.images by index: useReferenceImages drops any path it
+              // fails to resolve, so the two lists can fall out of step.
+              /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url) ? (
+                <video
+                  key={url}
+                  src={url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-20 w-20 rounded-2xl border border-line object-cover"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={url}
+                  src={url}
+                  alt="Attached reference"
+                  className="h-20 w-20 rounded-2xl border border-line object-cover"
+                />
+              )
+            )}
+          </div>
+        )}
+        {message.text && (
+          <div className="max-w-[85%] rounded-3xl rounded-br-md border border-accent-line bg-surface px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
+            {message.text}
+          </div>
+        )}
       </div>
     );
   }

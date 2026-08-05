@@ -21,8 +21,9 @@ import {
   query,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../../../../lib/firebase";
-import { AgentChatMessage } from "./types";
+import { ref as storageRef, uploadString } from "firebase/storage";
+import { db, storage } from "../../../../lib/firebase";
+import { AgentChatMessage, AgentAttachment } from "./types";
 
 export interface AgentChat {
   messages: AgentChatMessage[];
@@ -31,7 +32,7 @@ export interface AgentChat {
   busy: boolean;
   /** The step the agent is on right now, for the live status line. */
   activity: string | null;
-  send: (text: string) => Promise<void>;
+  send: (text: string, images?: AgentAttachment[]) => Promise<void>;
   clear: () => Promise<void>;
 }
 
@@ -101,18 +102,40 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
   }, [busy, last]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, images: AgentAttachment[] = []) => {
       const body = text.trim();
-      if (!body || !projectId || !uid) return;
+      if ((!body && images.length === 0) || !projectId || !uid) return;
 
       const chat = collection(db, "projects", projectId, "agentChat");
       const now = Date.now();
       const userRef = doc(chat);
       const replyRef = doc(chat);
 
+      // Attachments go to Storage first and only their paths go into Firestore.
+      // A document is capped at 1MB and one still is bigger than that, so
+      // writing base64 inline would reject the whole message. storylineAgent
+      // reads these back and hands them to the model as inlineData parts.
+      const uploaded: { path: string; mimeType: string }[] = [];
+      for (const [i, img] of images.entries()) {
+        // The extension is read back off the URL when the thread is reopened,
+        // to decide between an <img> and a <video>, so it has to be truthful.
+        const ext =
+          img.kind === "video"
+            ? img.mimeType.includes("webm") ? "webm" : img.mimeType.includes("quicktime") ? "mov" : "mp4"
+            : img.mimeType.includes("png") ? "png" : img.mimeType.includes("webp") ? "webp" : "jpg";
+        const path = `projects/${projectId}/agentUploads/${userRef.id}/${i}.${ext}`;
+        await uploadString(storageRef(storage, path), img.base64, "base64", {
+          contentType: img.mimeType,
+        });
+        uploaded.push({ path, mimeType: img.mimeType });
+      }
+
       await setDoc(userRef, {
         role: "user",
         text: body,
+        // Kept on the message too, so the bubble can show what was attached
+        // when the thread is reopened.
+        images: uploaded,
         status: "done",
         createdAt: new Date(now).toISOString(),
       });
@@ -131,6 +154,8 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
         projectId,
         replyTo: replyRef.id,
         text: body,
+        // The trigger reads these paths back out of Storage.
+        images: uploaded,
         status: "queued",
         createdAt: new Date().toISOString(),
       });

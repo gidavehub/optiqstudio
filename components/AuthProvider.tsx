@@ -361,6 +361,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/modemPayReconcile";
       } else if (path === "/api/enhance") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/enhancePrompt";
+      } else if (path === "/api/transcribe") {
+        functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/transcribeAudio";
       } else if (path === "/api/image/generate") {
         functionUrl = "https://us-east4-davelabs-tools.cloudfunctions.net/imageGenerate";
       } else if (path === "/api/voice/generate") {

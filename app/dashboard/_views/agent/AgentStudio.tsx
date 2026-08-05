@@ -10,7 +10,7 @@
 // Layout follows the creator route exactly — one column, chrome at the top,
 // the prompt surface at the bottom, nothing competing in between.
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Clapperboard, Edit3, Loader2, Sliders, Trash2 } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
@@ -18,6 +18,7 @@ import { useEditorFlow } from "../../_flow/EditorFlowProvider";
 import AgentComposer from "./AgentComposer";
 import AgentMessage from "./AgentMessage";
 import useAgentChat from "./useAgentChat";
+import { AgentAttachment } from "./types";
 
 // Openers that show the agent's range without making the director invent one.
 const SUGGESTIONS = [
@@ -29,7 +30,7 @@ const SUGGESTIONS = [
 
 export default function AgentStudio() {
   const { storyboard, activeProjectId, projects, projectsLoading, videoStatus } = useEditorFlow();
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
   const router = useRouter();
 
   const [draft, setDraft] = useState("");
@@ -55,12 +56,86 @@ export default function AgentStudio() {
     atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
+  // Reference stills staged for the next message. Read as base64 up front, the
+  // same way the Image and Video studio consoles do it, so send() only has to
+  // push bytes to Storage.
+  const [images, setImages] = useState<AgentAttachment[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+
+  // Vertex carries an attachment as base64 inside the request body, and the
+  // request itself has a payload ceiling around 20MB. Base64 inflates a file by
+  // roughly a third, so anything much past 14MB raw will be rejected by the API
+  // rather than by us — better to say so at the point of attaching.
+  const MAX_ATTACHMENT_BYTES = 14 * 1024 * 1024;
+
+  const attachImages = (files: FileList | null) => {
+    for (const file of Array.from(files || [])) {
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
+      if (!isImage && !isVideo) continue;
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachError(
+          `"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB — attachments have to stay under 14MB.`
+        );
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setAttachError(null);
+        setImages((prev) => [
+          ...prev,
+          {
+            id: Math.random().toString(36).slice(2, 9),
+            base64: dataUrl.split(",")[1],
+            mimeType: file.type,
+            preview: dataUrl,
+            kind: isVideo ? "video" : "image",
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // The names this film actually contains, handed to the transcriber so it
+  // spells them instead of guessing. This is the fix for the one weakness the
+  // round-trip probe found: "Banjul" came back "banjo" and "Amaka" came back
+  // "Omaka" with no context. Brand, product and every character name.
+  const spellingHints = useMemo(() => {
+    const names = new Set<string>();
+    if (project?.brandName) names.add(String(project.brandName));
+    if (project?.product) names.add(String(project.product));
+    if (storyboard?.title) names.add(storyboard.title);
+    // The cast is film-wide, held on the storyboard's characterLock rather than
+    // per scene.
+    if (storyboard?.characterLock?.name) names.add(storyboard.characterLock.name);
+    return Array.from(names).filter((n) => n.trim().length > 1);
+    // Depends on `project` and `storyboard` wholesale rather than the individual
+    // fields: the React compiler infers the coarser dependency and refuses to
+    // optimize the component when the two disagree.
+  }, [project, storyboard]);
+
+  const transcribe = useCallback(
+    async (audioBase64: string, mimeType: string) => {
+      const res = await apiFetch<{ text: string }>("/api/transcribe", {
+        method: "POST",
+        body: JSON.stringify({ audioBase64, mimeType, hints: spellingHints }),
+      });
+      return res.text || "";
+    },
+    [apiFetch, spellingHints]
+  );
+
   const submit = () => {
     const body = draft.trim();
-    if (!body) return;
+    // An attachment on its own is a valid turn.
+    if (!body && images.length === 0) return;
+    const attached = images;
     setDraft("");
+    setImages([]);
     atBottomRef.current = true;
-    void send(body);
+    void send(body, attached);
   };
 
   const appendToDraft = (text: string) =>
@@ -196,6 +271,11 @@ export default function AgentStudio() {
           busy={busy}
           activity={activity}
           disabled={!hasScript}
+          images={images}
+          onAttach={attachImages}
+          onRemoveImage={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
+          attachError={attachError}
+          transcribe={transcribe}
         />
       </footer>
     </div>
