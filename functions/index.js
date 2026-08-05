@@ -19,7 +19,8 @@ const { defineSecret } = require("firebase-functions/params");
 const { GoogleAuth } = require("google-auth-library");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { callVertexWithRetry } = require("./vertexQuota");
+const { callVertexWithRetry, withSdkRetry } = require("./vertexQuota");
+const { GoogleGenAI } = require("@google/genai");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -32,7 +33,11 @@ const db = admin.firestore();
  *   • Video — per generated second (a 10s clip is 150).
  *   • Image — flat per still.
  *   • Voice — per CHARACTER of script, with a floor.
- *   • Music — per generated second (Lyria returns ~30s → 60).
+ *   • Music — flat 60. musicCost() is always called with no argument, so the
+ *     "per second" shape is nominal: 30 x 2 is just how 60 is spelled. That
+ *     matters now that Lyria 3 Pro returns a VARIABLE length (measured 64s and
+ *     114s on two runs of the same prompt) — the charge is fixed, so a longer
+ *     track costs the user nothing extra and only moves our own margin.
  *
  * NOTE: costs are intentionally NOT read from the RTDB `pricing` node any more.
  * That node still carries a much older cost model (image 50, TTS per-100-chars)
@@ -428,96 +433,14 @@ exports.sweepRateLimits = onSchedule(
 /**
  * Cloud Function to generate an image using Vertex AI gemini-3.1-flash-image with no fallbacks.
  */
-exports.generateImage = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120 },
-  async (req, res) => {
-    try {
-      const { prompt, aspect } = req.body;
-      if (!prompt) {
-        return res.status(400).json({ error: "Missing prompt" });
-      }
+// NOTE: exports.generateImage and exports.generateVideo used to live here.
+// They were superseded by imageGenerate/videoGenerate (which the app calls)
+// and apiGenerateImage/apiGenerateVideo (which the developer docs publish),
+// and nothing referenced them any more. They were deleted on 2026-08-05 to
+// free Cloud Run CPU quota in us-east4, which had run out and was blocking
+// every other function from deploying. Do not re-add them without checking
+// that quota first: each one reserved maxInstances(10) x 1 CPU.
 
-      const auth = new GoogleAuth({ scopes: "https://www.googleapis.com/auth/cloud-platform" });
-      const client = await auth.getClient();
-      const accessToken = (await client.getAccessToken()).token;
-      const projectId = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
-      const model = "gemini-3.1-flash-image";
-
-      console.log(`Starting image generation with model: ${model}`);
-      const url = `https://aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/global/publishers/google/models/${model}:generateContent`;
-      
-      const body = {
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"],
-          imageConfig: { aspectRatio: aspect || "1:1" }
-        }
-      };
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "x-goog-user-project": projectId
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Status ${response.status}: ${errText}`);
-      }
-
-      const result = await response.json();
-      const part = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      if (part && part.inlineData && part.inlineData.data) {
-        console.log(`Successfully generated image with model: ${model}`);
-        return res.status(200).json({
-          success: true,
-          model: model,
-          base64: part.inlineData.data,
-          mimeType: part.inlineData.mimeType || "image/jpeg"
-        });
-      } else {
-        throw new Error("No inline image data in candidates response");
-      }
-    } catch (error) {
-      console.error("generateImage error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  }
-);
-
-/**
- * Cloud Function to generate a video using Vertex AI gemini-omni-flash-preview with no fallbacks.
- */
-exports.generateVideo = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 300 },
-  async (req, res) => {
-    try {
-      const { prompt } = req.body;
-      if (!prompt) {
-        return res.status(400).json({ error: "Missing prompt" });
-      }
-
-      const model = "gemini-omni-flash-preview";
-      console.log(`Starting video generation with model: ${model} via Interactions API`);
-
-      const video = await generateOmniVideo(prompt);
-      console.log(`Successfully generated video with model: ${model}`);
-      return res.status(200).json({
-        success: true,
-        model: model,
-        base64: video.base64,
-        mimeType: video.mimeType,
-      });
-    } catch (error) {
-      console.error("generateVideo error:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  }
-);
 
 /**
  * Cloud Function to create a ModemPay Payment Intent.
@@ -838,6 +761,32 @@ async function downloadInputMedia(path) {
   return buf.toString("base64");
 }
 
+/**
+ * Turns the storage refs on an agent job into the { base64, mimeType } pairs
+ * runStorylineAgent expects.
+ *
+ * The client writes paths, not bytes: an agent message is a plain Firestore
+ * write, and Firestore caps a document at 1MB, which a single still blows
+ * through. One unreadable image must not cost the director their whole turn, so
+ * a failed read is logged and dropped rather than thrown.
+ */
+async function rehydrateAgentMedia(refs) {
+  if (!Array.isArray(refs) || refs.length === 0) return [];
+  const out = [];
+  for (const ref of refs) {
+    if (!ref?.path) continue;
+    try {
+      out.push({
+        base64: await downloadInputMedia(ref.path),
+        mimeType: ref.mimeType || "image/png",
+      });
+    } catch (e) {
+      console.error(`[agent] could not read attachment ${ref.path}: ${e.message}`);
+    }
+  }
+  return out;
+}
+
 // Persists any inline reference media from the request body to Storage and
 // returns the fields (paths + mime types) to write on the generation doc.
 async function persistReferenceMedia(uid, docId, body) {
@@ -966,6 +915,74 @@ function pcmToWav(pcmBase64, sampleRate) {
   return Buffer.concat([header, pcm]).toString("base64");
 }
 
+// ── Transcription ───────────────────────────────────────────────────────────
+// The storyline agent's mic records a real audio packet and sends it here,
+// rather than using the browser's Web Speech API. Web Speech is a different
+// engine per browser, needs a network round trip to whoever the vendor uses,
+// and mangles exactly the words that matter here — brand names and Gambian /
+// Nigerian proper nouns. gemini-3.5-flash takes the audio as an inlineData part
+// and transcribes it directly (verified by scripts/probe-transcribe.mjs).
+//
+// `hints` is the fix for the one weakness the probe found: a round-trip of
+// "land the Banjul tub before Amaka turns to camera" came back with "banjo" and
+// "Omaka". Feeding the model the brand and character names it should expect
+// turns those from guesses into matches. Free, like enhancePrompt — it's one
+// short text call and charging for the mic would discourage using it.
+exports.transcribeAudio = onRequest(
+  // maxInstances is deliberately low. A 2nd-gen function is a Cloud Run service
+  // and reserves maxInstances x cpu against the project's per-region CPU quota,
+  // which us-east4 is already close to — adding this at the usual 10 pushed the
+  // project over and failed five other functions' rollouts. Transcription is a
+  // short call on a mic press, so 3 concurrent is plenty.
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 120 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      await requireAuth(req);
+      const { audioBase64, mimeType, hints } = req.body;
+      if (!audioBase64) return res.status(400).json({ error: "Missing audio" });
+
+      const names = Array.isArray(hints) ? hints.filter(Boolean).slice(0, 40) : [];
+      const spellings = names.length
+        ? `\n\nThese names may appear — spell them exactly this way if you hear them: ${names.join(", ")}.`
+        : "";
+
+      const response = await vertexFetch(
+        `/publishers/google/models/gemini-3.5-flash:generateContent`,
+        {
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { inlineData: { mimeType: mimeType || "audio/webm", data: audioBase64 } },
+                {
+                  text:
+                    "Transcribe this audio verbatim. Return ONLY the transcript — no preamble, " +
+                    "no quotation marks, no commentary, no apology. If there is no speech at all, " +
+                    "return an empty string." +
+                    spellings,
+                },
+              ],
+            },
+          ],
+          // Transcription is not a creative task; keep it from embellishing.
+          generationConfig: { temperature: 0 },
+        }
+      );
+
+      const text = (response.candidates?.[0]?.content?.parts || [])
+        .map((p) => p.text || "")
+        .join("")
+        .trim();
+
+      return res.status(200).json({ text });
+    } catch (err) {
+      console.error("transcribeAudio error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 exports.enhancePrompt = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
@@ -1062,6 +1079,10 @@ exports.imageGenerate = onRequest(
         status: "succeeded",
         prompt,
         imageUrl: url,
+        // Stored so the wall and the detail view can draw a box the shape of
+        // the still. Video has always recorded this; image never did, so
+        // every portrait or square image was displayed letterboxed in 16:9.
+        aspectRatio: aspectRatio || "1:1",
         cost,
         createdAt: new Date().toISOString(),
       });
@@ -1210,38 +1231,55 @@ exports.voiceGenerate = onRequest(
   }
 );
 
-// ── Optiq Music (Lyria) ─────────────────────────────────────────────────────
-// Lyria is served ONLY at us-central1 via :predict — not the us-east4/global
-// routing vertexFetch() uses — so it gets its own call, still wrapped in the
-// quota manager. Returns a base64-encoded WAV (~30s clip). Exported so the
-// storyboard flow can score an ad from its musicSpec with the same engine.
-const LYRIA_MODEL = "lyria-002";
+// ── Optiq Music (Lyria 3 Pro) ───────────────────────────────────────────────
+// Lyria 3 is NOT on the :predict surface. Its ids appear in the us-central1
+// publisher catalog, but :predict 404s there and in every other region, on both
+// v1 and v1beta1 — the catalog entry lists `openGenerationAiStudio` as its only
+// action, which reads like "AI Studio only" and is what sent us down the wrong
+// path first. It isn't. The SDK's own types are the ground truth: both Lyria 3
+// ids sit in the model union for the INTERACTIONS API (`Model_2` in
+// @google/genai dist/node/node.d.ts, right beside the gemini-3 ids), and
+// Interaction carries `output_audio`. Same move Google made with omni video.
+//
+// Two differences from lyria-002 that matter downstream:
+//   • it returns MP3 (audio/mpeg), not WAV — so callers must not hardcode .wav
+//   • it returns ~64s, not ~30s (see musicCost / COSTS.musicDefaultSeconds)
+// Unlike omni video it rejects background:true ("does not support background
+// interactions"), so this is a blocking create — fine at ~55s against the
+// 240s function timeout.
+//
+// Re-verify with `node scripts/probe-lyria3.mjs`.
+const LYRIA_MODEL = "lyria-3-pro-preview";
+const lyriaAi = new GoogleGenAI({ vertexai: true, project: "davelabs-tools", location: "global" });
 // Rich, vibey default when a project has no usable music spec — genre-appropriate
 // for the brand ads and specific enough to avoid a bland, plain loop.
 const DEFAULT_AD_MUSIC =
   "An upbeat, vibey, cinematic brand-advert instrumental with rich layered percussion, a memorable melodic hook on kora or guitar, warm bass, uplifting brass and evolving dynamics — energetic, emotional and modern. NOT a plain repetitive loop or a bare drum beat. No vocals, no lyrics.";
+// Returns { base64, mimeType, ext }. The Interactions API has no structured
+// negative-prompt field the way :predict did, so an exclusion is folded into
+// the prompt text.
 async function lyriaGenerateOnce(prompt, negativePrompt = null) {
-  const projectId = "davelabs-tools";
-  const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/${LYRIA_MODEL}:predict`;
-  const instance = { prompt };
-  if (negativePrompt) instance.negative_prompt = negativePrompt;
+  const input = negativePrompt ? `${prompt}\n\nAvoid: ${negativePrompt}.` : prompt;
 
-  const res = await callVertexWithRetry({
+  const interaction = await withSdkRetry({
     db,
     model: LYRIA_MODEL,
-    doFetch: async () => {
-      const token = await getAccessToken();
-      return fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ instances: [instance], parameters: { sample_count: 1 } }),
-      });
-    },
+    fn: () => lyriaAi.interactions.create({ model: LYRIA_MODEL, input }),
   });
-  const json = await res.json();
-  const b64 = json.predictions?.[0]?.bytesBase64Encoded;
-  if (!b64) throw new Error("Optiq Music returned no audio");
-  return b64; // a complete WAV file
+
+  if (interaction.status !== "completed") {
+    const said = interaction.output_text ? `: ${String(interaction.output_text).slice(0, 200)}` : "";
+    throw new Error(`Optiq Music ${interaction.status}${said}`);
+  }
+
+  const audio = interaction.output_audio;
+  if (!audio?.data) throw new Error("Optiq Music returned no audio");
+
+  // Lyria 3 answers audio/mpeg today. Derive the extension rather than assuming,
+  // so a format change shows up as the right file rather than a broken one.
+  const mimeType = audio.mime_type || "audio/mpeg";
+  const ext = mimeType.includes("wav") ? "wav" : mimeType.includes("mpeg") ? "mp3" : "bin";
+  return { base64: audio.data, mimeType, ext };
 }
 
 // Lyria's safety filter intermittently blocks a prompt ("All responses were
@@ -1370,16 +1408,20 @@ exports.musicGenerate = onRequest(
         return res.status(402).json({ error: e.message || "Insufficient credits" });
       }
 
-      let base64Wav;
+      let track;
       try {
-        base64Wav = await lyriaGenerate(prompt, negativePrompt);
+        track = await lyriaGenerate(prompt, negativePrompt);
       } catch (err) {
         await refundCredits(user.uid, cost, "optiq music failed").catch(() => {});
         throw err;
       }
 
       const doc = db.collection("generations").doc();
-      const url = await uploadBase64(base64Wav, `generations/${user.uid}/${doc.id}.wav`, "audio/wav");
+      const url = await uploadBase64(
+        track.base64,
+        `generations/${user.uid}/${doc.id}.${track.ext}`,
+        track.mimeType
+      );
 
       await doc.set({
         uid: user.uid,
@@ -1691,6 +1733,8 @@ exports.apiGenerateImage = onRequest(
         status: "succeeded",
         prompt,
         imageUrl: url,
+        // Same reason as the first-party path above — see imageGenerate.
+        aspectRatio: aspectRatio || "1:1",
         cost,
         viaApi: true,
         createdAt: new Date().toISOString(),
@@ -2203,6 +2247,11 @@ exports.storylineAgent = onDocumentCreated(
         },
         history,
         message: job.text,
+        // Stills the director attached to THIS message. They ride to Storage
+        // from the client (a Firestore doc can't carry base64 past 1MB) and are
+        // rehydrated here, the same offload the video path uses. A failed read
+        // must not sink the turn — the words still stand on their own.
+        images: await rehydrateAgentMedia(job.images),
         onSteps: (steps) => publish({ steps }),
         onText: (text) => publish({ text }),
       });
@@ -2278,8 +2327,12 @@ async function ensureProjectAudio(projectRef, projectId) {
   if (!musicUrl) {
     try {
       const prompt = musicPromptFromSpec(pd.musicSpec) || DEFAULT_AD_MUSIC;
-      const wav = await lyriaGenerate(prompt);
-      musicUrl = await uploadBase64(wav, `projects/${projectId}/score.wav`, "audio/wav");
+      const track = await lyriaGenerate(prompt);
+      musicUrl = await uploadBase64(
+        track.base64,
+        `projects/${projectId}/score.${track.ext}`,
+        track.mimeType
+      );
       patch.musicUrl = musicUrl;
       console.log(`[audio ${projectId}] generated Optiq Music`);
     } catch (e) {
@@ -2318,7 +2371,14 @@ async function ensureProjectAudio(projectRef, projectId) {
 async function composeAdAudio({ inPath, outPath, workDir, audio, musicVolume = 0.6, totalDuration, tag, download, run }) {
   const path = require("path");
   const assets = [];
-  if (audio.musicUrl) { const p = path.join(workDir, "cmp_bgm.wav"); await download(audio.musicUrl, p); assets.push({ kind: "music", path: p }); }
+  // The score is .mp3 since Lyria 3 Pro, but projects scored before that still
+  // hold a .wav — so the local name follows the URL rather than assuming either.
+  if (audio.musicUrl) {
+    const ext = /\.mp3(\?|$)/i.test(audio.musicUrl) ? "mp3" : "wav";
+    const p = path.join(workDir, `cmp_bgm.${ext}`);
+    await download(audio.musicUrl, p);
+    assets.push({ kind: "music", path: p });
+  }
   if (audio.voiceoverUrl) { const p = path.join(workDir, "cmp_vo.wav"); await download(audio.voiceoverUrl, p); assets.push({ kind: "voiceover", path: p }); }
   if (audio.taglineUrl) { const p = path.join(workDir, "cmp_tag.wav"); await download(audio.taglineUrl, p); assets.push({ kind: "tagline", path: p }); }
   if (assets.length === 0) return false;

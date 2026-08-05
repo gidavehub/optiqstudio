@@ -159,11 +159,14 @@ function describeResult(result) {
  * @param {Function} opts.saveProject  async (patch) => void — persists + merges into `project`.
  * @param {Array}    opts.history      Prior chat turns: [{ role: "user"|"assistant", text }].
  * @param {string}   opts.message      What the director just said.
+ * @param {Array}    opts.images       Reference stills attached to THIS message:
+ *                                    [{ base64, mimeType }]. Same inlineData
+ *                                    shape the Image/Video studios send.
  * @param {Function} opts.onSteps      async (steps) => void — called whenever the work log changes.
  * @param {Function} opts.onText       async (text) => void — called as prose lands.
  * @returns {Promise<{ text: string, steps: Array, touchedFilm: boolean }>}
  */
-async function runStorylineAgent({ vertexFetch, project, saveProject, history, message, onSteps, onText }) {
+async function runStorylineAgent({ vertexFetch, project, saveProject, history, message, images = [], onSteps, onText }) {
   const steps = [];
   let touchedFilm = false;
   const publishSteps = async () => {
@@ -194,7 +197,17 @@ async function runStorylineAgent({ vertexFetch, project, saveProject, history, m
       role: turn.role === "assistant" ? "model" : "user",
       parts: [{ text: turn.text }],
     })),
-    { role: "user", parts: [{ text: message }] },
+    {
+      role: "user",
+      // Images lead, text follows — the same part ordering imageGenerate and
+      // videoGenerate use. The model reads the stills as context for the
+      // instruction that comes after them, so a director can point at a
+      // reference and say "match this grade" and be understood.
+      parts: [
+        ...images.map((img) => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
+        { text: message },
+      ],
+    },
   ];
 
   const system = systemPrompt(project);

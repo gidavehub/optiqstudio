@@ -52,7 +52,7 @@ export const CREDIT_PACKS = [
  *   • Video  — per generated second. A 10s clip is 150.
  *   • Image  — flat, per still.
  *   • Voice  — per CHARACTER, with a floor so a two-word take isn't free.
- *   • Music  — per generated second, same idea as video. Lyria returns ~30s.
+ *   • Music  — flat 60. See the note on musicPerSecond below.
  */
 export const COSTS = {
   videoPerSecond: { omni: 15, "omni-fast": 15 } as Record<string, number>,
@@ -61,7 +61,13 @@ export const COSTS = {
   /** Voice is billed per character of script. */
   ttsPerCharacter: 0.05,
   ttsMinimum: 5,
-  /** Music is billed per generated second (Lyria returns a ~30s clip → 60). */
+  /**
+   * Music is a FLAT 60 in practice — musicCost() is always called without a
+   * seconds argument, so 30 x 2 is only how 60 is spelled. Keep it that way:
+   * Lyria 3 Pro returns a variable-length track (64s and 114s on two runs of
+   * the same prompt), and billing that per real second would quote one price
+   * and charge another.
+   */
   musicPerSecond: 2,
   musicDefaultSeconds: 30,
   promptEnhance: 0,

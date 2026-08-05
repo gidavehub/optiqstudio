@@ -51,3 +51,8 @@ secrets/
 .claude/
 
 
+
+# Local audio/video test artifacts from scripts/test-*.mjs and probe-*.mjs
+test-music.*
+tmp-lyria3/
+probe-speech.wav
