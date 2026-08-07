@@ -40,7 +40,8 @@ import {
   Storyboard,
   VideoStatusMap,
   VideoTypeId,
-  WizardStep,
+  WizardStepId,
+  FIRST_WIZARD_STEP,
   DEFAULT_VIDEO_TYPE,
   defaultLengthFor,
   recordTake,
@@ -85,8 +86,8 @@ interface EditorFlowValue {
   musicVolume: number; setMusicVolume: (v: number) => void;
 
   // Wizard
-  wizardStep: WizardStep;
-  setWizardStep: (v: WizardStep) => void;
+  wizardStep: WizardStepId;
+  setWizardStep: (v: WizardStepId) => void;
   length: ProjectLength; setLength: (v: ProjectLength) => void;
   /** Which of the three kinds of film. Decides the run-times on offer AND how
    * the finished cut is scored and narrated. */
@@ -219,7 +220,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [musicVolume, setMusicVolume] = useState<number>(0.6);
 
   // Wizard
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+  const [wizardStep, setWizardStep] = useState<WizardStepId>(FIRST_WIZARD_STEP);
   const [length, setLength] = useState<ProjectLength>("30s");
   const [videoTypeId, setVideoTypeId] = useState<VideoTypeId>(DEFAULT_VIDEO_TYPE);
   const [promptText, setPromptText] = useState("");
@@ -350,7 +351,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     setProduct("");
     setBrandMaterials([]);
     setProductionMode(null);
-    setWizardStep(1);
+    setWizardStep(FIRST_WIZARD_STEP);
     router.push("/dashboard/create");
   }, [router]);
   const openProject = useCallback(
@@ -939,6 +940,14 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     setPipelineStage("queued");
     setPipelineProgress(null);
 
+    // An original story has no brand and no product, and the wizard never asked
+    // for them. Writing the usual placeholders here would hand the story swarm a
+    // company called "Client" selling a thing called "Product offering", and it
+    // would faithfully write a film about them.
+    const branded = videoType(videoTypeId).branded;
+    const filmBrandName = branded ? brandName || "Client" : null;
+    const filmProduct = branded ? product || "Product offering" : null;
+
     try {
       // 1. Create the project doc up front so it appears in "past projects" and
       //    the workspace can start showing progress immediately.
@@ -948,8 +957,8 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         concept: promptText,
         length,
         videoType: videoTypeId,
-        brandName: brandName || "Client",
-        product: product || "Product offering",
+        brandName: filmBrandName,
+        product: filmProduct,
         aspectRatio,
         scenes: [],
         styleHeader: "",
@@ -982,9 +991,11 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         projectId,
         prompt: promptText,
         length,
+        // The one field the server routes on: "short-film-story" goes to
+        // functions/optiqStory, everything else to functions/optiqSkills.
         videoType: videoTypeId,
-        brandName: brandName || "Client",
-        product: product || "Product offering",
+        brandName: filmBrandName,
+        product: filmProduct,
         aspectRatio,
         productionMode: runMode,
         materialPaths: uploadedMaterials,
@@ -1081,8 +1092,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         prompt: promptText,
         length,
         videoType: videoTypeId,
-        brandName: brandName || "Client",
-        product: product || "Product offering",
+        // Same rule as the first attempt: a story retry must not acquire a brand
+        // it never had. See generateStoryboard.
+        brandName: videoType(videoTypeId).branded ? brandName || "Client" : null,
+        product: videoType(videoTypeId).branded ? product || "Product offering" : null,
         aspectRatio,
         productionMode: productionMode || "manual",
         materialPaths: projectMaterials,

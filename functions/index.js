@@ -1859,6 +1859,30 @@ exports.apiGenerateTTS = onRequest(
 
 const { runOptiqSkillsPipeline, reviseScene } = require("./optiqSkills/pipeline");
 
+// ─── THE TWO SWARMS ─────────────────────────────────────────────────────────
+//
+// Optiq runs two completely separate storyboard systems, in two separate boxes
+// that share no code:
+//
+//   functions/optiqSkills/ → ADS. The short-film ad, the dialogue ad and the
+//                            narrated ad. This is the system that earns, it is
+//                            tuned, and nothing outside it may change it.
+//   functions/optiqStory/  → ORIGINAL STORIES. Entertainment short films with no
+//                            brand, no product and nothing being sold. Its own
+//                            doctrine, its own concept room, its own gates.
+//
+// This file is the ONLY place they meet, and all it does is choose. Everything
+// below routes on videoType and never mixes the two.
+const {
+  runOptiqStoryPipeline,
+  reviseStoryScene,
+  STORY_KIND,
+  STORY_VIDEO_TYPE,
+} = require("./optiqStory/pipeline");
+
+/** True when a project belongs to the story sandbox rather than the ad swarm. */
+const isStoryFilm = (videoType) => videoType === STORY_VIDEO_TYPE;
+
 exports.storyGenerate = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
@@ -1961,10 +1985,15 @@ exports.storyboardGenerate = onDocumentCreated(
       }
       const logo = materials[0]?.data || null;
 
-      const storyboard = await runOptiqSkillsPipeline({
+      // Which box builds this film. An original story goes to the story sandbox
+      // and never touches the ad swarm; everything else runs exactly the code it
+      // always has.
+      const buildFilm = isStoryFilm(job.videoType) ? runOptiqStoryPipeline : runOptiqSkillsPipeline;
+      const storyboard = await buildFilm({
         vertexFetch,
         prompt: job.prompt,
         length: job.length,
+        // Ignored by the story pipeline, which has no brand and no product.
         brandName: job.brandName,
         product: job.product,
         aspectRatio: job.aspectRatio,
@@ -2079,6 +2108,11 @@ exports.storyboardGenerate = onDocumentCreated(
         // still gets the same faces.
         characterRefs: storyboard.characterRefs ?? [],
         storyArc: storyboard.storyArc ?? null,
+        // Story-sandbox extras. Absent on ads, which is why they are nullable:
+        // the story agent and the script editor read them to keep a film's spine
+        // in view while it is being reworked.
+        whatIsAtStake: storyboard.whatIsAtStake ?? null,
+        theEnding: storyboard.theEnding ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
         videoStatus,
@@ -2118,17 +2152,31 @@ exports.storyRevise = onRequest(
       } = req.body;
       if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
 
-      const revisedPrompt = await reviseScene({
-        vertexFetch,
-        scenePrompt,
-        revisionRequest,
-        characterLock,
-        styleHeader,
-        previousScenePrompt,
-        nextScenePrompt,
-        musicSpec,
-        videoType,
-      });
+      // An original story is revised by its own reviser, which knows there is
+      // nothing to sell and refuses to write a brand back in. Every other kind
+      // of film goes through the ad swarm's reviser, unchanged.
+      const revisedPrompt = isStoryFilm(videoType)
+        ? await reviseStoryScene({
+            vertexFetch,
+            scenePrompt,
+            revisionRequest,
+            characterLock,
+            styleHeader,
+            previousScenePrompt,
+            nextScenePrompt,
+            musicSpec,
+          })
+        : await reviseScene({
+            vertexFetch,
+            scenePrompt,
+            revisionRequest,
+            characterLock,
+            styleHeader,
+            previousScenePrompt,
+            nextScenePrompt,
+            musicSpec,
+            videoType,
+          });
       return res.status(200).json({ revisedPrompt });
     } catch (err) {
       console.error("storyRevise error:", err);
@@ -2150,6 +2198,10 @@ exports.storyRevise = onRequest(
 // at-least-once duplicate delivery can't run the same turn twice.
 
 const { runStorylineAgent } = require("./optiqSkills/agent");
+// The story sandbox's own agent — same loop and the same tool names, but its
+// system prompt knows the film sells nothing and its tools refuse to write a
+// brand back in. Aliased on import so the two never shadow each other.
+const { runStorylineAgent: runStoryAgent } = require("./optiqStory/agent");
 
 // How much of the thread the agent carries into a turn. Reads of the film go
 // through tools, so this only has to hold the conversation.
@@ -2264,7 +2316,11 @@ exports.storylineAgent = onDocumentCreated(
         flushTimer = setTimeout(() => void flush(), wait);
       };
 
-      const result = await runStorylineAgent({
+      // Which agent is on the other end of this chat. Decided per project, so a
+      // director working on a story talks to the story agent and a director
+      // working on an ad talks to exactly the agent they always have.
+      const runAgent = isStoryFilm(project.videoType) ? runStoryAgent : runStorylineAgent;
+      const result = await runAgent({
         vertexFetch,
         project,
         saveProject: async (patch) => {
@@ -2843,7 +2899,12 @@ exports.audioPost = onDocumentCreated(
         engineApi: { canvasForAspect, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD },
         project,
         projectId: job.projectId,
-        filmKind: filmKind(project.videoType),
+        // Audio post reads three fields off this: the noun it calls the film in
+        // the Lyria prompt, whether the footage carries speech (footage gain),
+        // and whether a voiceover has to be written. A story is a talking film
+        // with no narration, and `filmKind` cannot resolve its id — it belongs to
+        // the other box — so the story sandbox supplies its own.
+        filmKind: isStoryFilm(project.videoType) ? STORY_KIND : filmKind(project.videoType),
         // The pass runs for minutes. This is how it sees the project as it is by
         // the time it has something to place, instead of laying the score onto a
         // snapshot taken before any of the work happened.

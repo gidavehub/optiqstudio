@@ -83,14 +83,14 @@ export default function HomePortal() {
               </span>
               <h2 className="mt-8 text-2xl font-bold text-white tracking-tight">Storyboard</h2>
               <span className="mt-2.5 inline-flex text-[11px] font-bold tracking-wider text-white bg-white/15 border border-white/30 backdrop-blur-md rounded-full px-3 py-0.5 uppercase">
-                The Whole Ad
+                The Whole Film
               </span>
               <p className="mt-4 text-[13px] font-semibold text-white leading-relaxed max-w-xs">
-                Tell us the brand. Our agents write the script, cast the faces, shoot every scene and lay the
-                voiceover — and hand you a finished ad, not a prompt.
+                An advert, or a story told for its own sake. Our agents write the script, cast the faces and shoot
+                every scene — and hand you a finished film, not a prompt.
               </p>
               <span className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-accent hover:bg-accent-hover text-sm font-bold text-white px-7 py-3.5 transition-all duration-300 shadow-lg shadow-accent/25 border border-accent-line group-hover:scale-[1.03] active:scale-[0.98] [text-shadow:none]">
-                Create your ad <ChevronRight size={15} />
+                Create your film <ChevronRight size={15} />
               </span>
             </div>
           </button>

@@ -125,15 +125,47 @@ export type ProjectLength = "30s" | "60s" | "90s" | "120s" | "150s" | "180s";
 export type ProductionMode = "manual" | "auto-merge" | null;
 export type DashboardView = "home" | "wizard" | "storyboard";
 
-/** The storyboard wizard is a full-screen, one-question-at-a-time flow:
- * 1 projects (create new / reopen) → 2 video type → 3 run-time →
- * 4 vision prompt → 5 orientation → 6 brand name → 7 product/service →
- * 8 brand materials + generate.
+/**
+ * The storyboard wizard is a full-screen, one-question-at-a-time flow.
  *
- * Step 1 exists purely so the type choice gets a screen of its own with
- * nothing else competing for attention. Type comes before run-time because it
- * decides which run-times are on offer. */
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+ * Steps are IDENTIFIED, not numbered. They used to be `1 | 2 | … | 8` and the
+ * numbers were written into every branch, which is why this file used to carry
+ * the comment "steps shifted by one when the video-type screen was inserted at
+ * 2" — every insertion re-numbered the whole flow by hand. It also cannot express
+ * what the flow now actually is: an original story skips three steps, because it
+ * has no brand, no product and no materials to collect.
+ *
+ * The order and the membership both come from `wizardStepsFor`.
+ */
+export type WizardStepId =
+  | "projects"   // create new / reopen. Its own screen, nothing competing.
+  | "type"       // what kind of film. First, because it decides everything below.
+  | "mode"       // short film only: advert or original story.
+  | "length"     // run-time. After type, which decides the run-times on offer.
+  | "vision"     // the prompt.
+  | "canvas"     // orientation.
+  | "brand"      // ads only.
+  | "product"    // ads only.
+  | "materials"; // ads only, and the step that generates.
+
+/** Where a fresh wizard starts. */
+export const FIRST_WIZARD_STEP: WizardStepId = "projects";
+
+/**
+ * The steps this kind of film actually asks for, in order.
+ *
+ * An ORIGINAL STORY has no brand, no product and no logo to upload, so it is not
+ * asked for any of them — a wizard that collects a brand name for a film with no
+ * brand is collecting a placeholder, and the swarm downstream would dutifully
+ * write a film selling "Client".
+ */
+export function wizardStepsFor(id: VideoTypeId): WizardStepId[] {
+  const steps: WizardStepId[] = ["projects", "type"];
+  if (isShortFilm(id)) steps.push("mode");
+  steps.push("length", "vision", "canvas");
+  if (videoType(id).branded) steps.push("brand", "product", "materials");
+  return steps;
+}
 
 /** Fields that support voice dictation in the wizard. */
 export type DictationTarget = "prompt" | "brand" | "product";
@@ -187,7 +219,7 @@ export const LENGTH_PRICING_GMD: Record<ProjectLength, number> = {
 // between them is only where the VOICE comes from — see
 // functions/optiqSkills/knowledge/13-sound-policy.md.
 
-export type VideoTypeId = "short-film" | "dialogue-ad" | "voiceover-ad";
+export type VideoTypeId = "short-film" | "short-film-story" | "dialogue-ad" | "voiceover-ad";
 
 export interface VideoType {
   id: VideoTypeId;
@@ -204,6 +236,23 @@ export interface VideoType {
   ttsVoiceover: boolean;
   /** Audio treatment, spelled out once on the payment confirmation. */
   audioLabel: string;
+  /**
+   * Does this type get its own card on "What are we making?"
+   *
+   * The original story does not: it is reached by picking Short film and then
+   * choosing between an advert and a story. Three cards is the picker's whole
+   * design — a fourth would push it off a phone — and the ad/story choice is a
+   * different question from the format anyway.
+   */
+  card: boolean;
+  /**
+   * Is this film selling something?
+   *
+   * The one flag that decides which of the two storyboard systems builds it:
+   * `true` → functions/optiqSkills (the ad swarm), `false` → functions/optiqStory.
+   * It also decides whether the wizard collects a brand brief at all.
+   */
+  branded: boolean;
 }
 
 /**
@@ -222,6 +271,8 @@ export const VIDEO_TYPES: VideoType[] = [
     dialogueInVideo: true,
     ttsVoiceover: false,
     audioLabel: "Dialogue + composed score",
+    card: true,
+    branded: true,
   },
   {
     id: "voiceover-ad",
@@ -231,6 +282,8 @@ export const VIDEO_TYPES: VideoType[] = [
     dialogueInVideo: false,
     ttsVoiceover: true,
     audioLabel: "Voiceover + composed score",
+    card: true,
+    branded: true,
   },
   {
     id: "dialogue-ad",
@@ -240,6 +293,59 @@ export const VIDEO_TYPES: VideoType[] = [
     dialogueInVideo: true,
     ttsVoiceover: false,
     audioLabel: "Dialogue + composed score",
+    card: true,
+    branded: true,
+  },
+  {
+    // The only unbranded type, and the only one built by functions/optiqStory.
+    // Not a card: it lives behind Short film, on its own screen.
+    id: "short-film-story",
+    title: "Original story",
+    lengths: ["60s", "90s", "120s", "150s", "180s"],
+    clip: "/media/mode-short-film-story.mp4",
+    dialogueInVideo: true,
+    ttsVoiceover: false,
+    audioLabel: "Dialogue + composed score",
+    card: false,
+    branded: false,
+  },
+];
+
+/** The types that appear on "What are we making?" — three, across at any width. */
+export const VIDEO_TYPE_CARDS: VideoType[] = VIDEO_TYPES.filter((t) => t.card);
+
+/** Both halves of the short-film choice: an advert, or a story told for itself. */
+export function isShortFilm(id?: VideoTypeId | string | null): boolean {
+  return id === "short-film" || id === "short-film-story";
+}
+
+/**
+ * The two things a short film can be, in the order they are shown.
+ *
+ * The ADVERT comes first and is what picking "Short film" already means, so a
+ * director who wants what this platform has always made does not have to choose
+ * anything — they press Continue.
+ */
+export interface ShortFilmMode {
+  id: VideoTypeId;
+  title: string;
+  /** One line. The cover clip is the explanation; this only confirms it. */
+  blurb: string;
+  clip: string;
+}
+
+export const SHORT_FILM_MODES: ShortFilmMode[] = [
+  {
+    id: "short-film",
+    title: "Advert",
+    blurb: "Your product, told as a film.",
+    clip: "/media/mode-short-film-ad.mp4",
+  },
+  {
+    id: "short-film-story",
+    title: "Original story",
+    blurb: "A story for its own sake. No brand, no pitch.",
+    clip: "/media/mode-short-film-story.mp4",
   },
 ];
 

@@ -1,11 +1,22 @@
 /**
  * VIDEO-TYPE COVER CLIPS
  *
- * Generates the three looping cover clips for the wizard's "What are we making?"
- * step (StoryboardWizard step 2):
+ * Generates the looping cover clips for the wizard's two picker screens.
+ *
+ * "What are we making?" — the three format cards:
  *   public/media/type-short-film.mp4
  *   public/media/type-dialogue-ad.mp4
  *   public/media/type-voiceover-ad.mp4
+ *
+ * "What is this film for?" — the two short-film modes, shown only after Short
+ * film is picked. These two have ONE job: make the difference between an advert
+ * and an original story legible in about six seconds, muted, on a small card.
+ * So they are deliberately a matched pair — same room-quality, same light, same
+ * kind of people — differing in the one thing that actually differs: the advert
+ * has a product in the frame and a transaction happening, the story has neither
+ * and carries a private moment between two people instead.
+ *   public/media/mode-short-film-ad.mp4
+ *   public/media/mode-short-film-story.mp4
  *
  * Run: node scripts/generate-type-clips.mjs [--force] [only-id ...]
  *   --force        regenerate even if the file already exists
@@ -105,6 +116,39 @@ const CLIPS = [
       "subject, dead centre. Bright white daylight, a glass jar with a coral label just behind her " +
       "hands, everything tactile and appetising. The picture tells the whole thing on its own, with " +
       "no words at all.",
+  },
+
+  // ── THE SHORT-FILM MODE PAIR ──────────────────────────────────────────────
+  // Matched on purpose: same bright room-quality, same daylight, same kind of
+  // people. The ONLY difference is the one the director is being asked about.
+  {
+    id: "mode-short-film-ad",
+    file: "mode-short-film-ad.mp4",
+    prompt:
+      STYLE +
+      "MOTION: a smooth push-in that settles on the two of them across the counter. " +
+      "ACTION: A bright, sunlit Gambian shop interior with white-painted walls and daylight pouring through a wide " +
+      "doorway. A shopkeeper in her forties with warm golden-brown skin and a bright coral headwrap slides a clean " +
+      "glass jar of golden paste across a pale wooden counter toward a younger customer with deep dark-brown skin " +
+      "in a teal shirt. He picks the jar up, turns it once in his hand to look at it properly, and nods; she is " +
+      "already reaching for a second one. Both are centred in frame, the jar clearly between them. Neat stacked " +
+      "shelves of colourful goods behind her, everything bright, clean and appetising. It reads unmistakably as a " +
+      "polished advert: there is a PRODUCT in the frame and it is changing hands.",
+  },
+  {
+    id: "mode-short-film-story",
+    file: "mode-short-film-story.mp4",
+    prompt:
+      STYLE +
+      "MOTION: a slow, steady handheld hold — no push, no orbit. The camera simply watches. " +
+      "ACTION: A bright whitewashed Gambian living room flooded with late-morning daylight from a big window. A " +
+      "teenage girl with very deep dark skin and long twists, in a faded yellow dress, stands still in the doorway " +
+      "holding a dented old tin with both hands, looking straight at her mother. The mother, in her forties with " +
+      "light caramel-brown skin and a teal patterned wrapper, stops halfway through folding a cloth, and her hands " +
+      "go still. Neither of them speaks. The girl sets the tin down on the table between them and does not let go " +
+      "of it. Both are centred in frame, the tin dead centre between them. NO product, NO packaging, NO label, NO " +
+      "logo anywhere in the shot — just two people and something unsaid. It reads unmistakably as a scene from a " +
+      "real film, caught mid-story at the moment something changes.",
   },
 ];
 

@@ -8,14 +8,13 @@ import {
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import {
-  LENGTH_PRICING_GMD, DictationTarget,
-  VIDEO_TYPES, scenesForLength, videoType, formatRunTime, formatRunTimeRange,
+  LENGTH_PRICING_GMD, DictationTarget, WizardStepId,
+  VIDEO_TYPE_CARDS, SHORT_FILM_MODES, isShortFilm, wizardStepsFor,
+  scenesForLength, videoType, formatRunTime, formatRunTimeRange,
 } from "../_flow/types";
 import HoverPreviewVideo from "../_shared/HoverPreviewVideo";
 import { gridBox } from "../_shared/aspect";
 import StoryboardPaywallModal from "./StoryboardPaywallModal";
-
-const STEP_COUNT = 8;
 
 // One mic pipeline for every text field in the flow. Declared outside the
 // wizard so it isn't re-created (and state-reset) on every render.
@@ -77,21 +76,30 @@ export default function StoryboardWizard() {
   const shownProjects = projects.slice(0, visibleProjects);
   const remainingProjects = projects.length - shownProjects.length;
 
-  // Steps shifted by one when the video-type screen was inserted at 2.
+  const chosenType = videoType(videoTypeId);
+  /** A film with nothing to sell: no brand, no product, no materials to upload. */
+  const isStory = !chosenType.branded;
+
+  // The flow is a LIST, not a count. An original story is three screens shorter
+  // than an ad, and the short-film types carry an extra one — so "step 4" is not
+  // a stable idea and the wizard no longer pretends it is.
+  const steps = wizardStepsFor(videoTypeId);
+  const stepIndex = Math.max(0, steps.indexOf(wizardStep));
+  const isLastStep = stepIndex === steps.length - 1;
+  const at = (id: WizardStepId) => wizardStep === id;
+
   const canContinue =
-    wizardStep === 4 ? !!promptText.trim()
-    : wizardStep === 6 ? !!brandName.trim()
-    : wizardStep === 7 ? !!product.trim()
+    at("vision") ? !!promptText.trim()
+    : at("brand") ? !!brandName.trim()
+    : at("product") ? !!product.trim()
     : true;
 
-  const chosenType = videoType(videoTypeId);
-
   const goNext = () => {
-    if (wizardStep < STEP_COUNT) setWizardStep((wizardStep + 1) as typeof wizardStep);
+    if (!isLastStep) setWizardStep(steps[stepIndex + 1]);
   };
   const goBack = () => {
-    if (wizardStep === 1) goHome();
-    else setWizardStep((wizardStep - 1) as typeof wizardStep);
+    if (stepIndex === 0) goHome();
+    else setWizardStep(steps[stepIndex - 1]);
   };
 
   const micProps = { recording, recordingTarget, startSpeechRecognition, stopSpeechRecognition };
@@ -99,7 +107,7 @@ export default function StoryboardWizard() {
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {/* Cinematic backdrop for the vision step */}
-      {wizardStep === 4 && !generating && (
+      {at("vision") && !generating && (
         <div className="absolute inset-0 z-0 pointer-events-none">
           <div
             className="h-full w-full bg-cover bg-center bg-no-repeat"
@@ -120,11 +128,11 @@ export default function StoryboardWizard() {
         </button>
         <h2 className="hidden sm:block text-sm font-bold text-foreground tracking-tight">Storyboard Configuration</h2>
         <div className="flex gap-1.5">
-          {Array.from({ length: STEP_COUNT }, (_, i) => i + 1).map((s) => (
+          {steps.map((s, i) => (
             <span
               key={s}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                wizardStep === s ? "bg-foreground w-8" : s < wizardStep ? "bg-accent w-4" : "bg-surface-2 w-4"
+                i === stepIndex ? "bg-foreground w-8" : i < stepIndex ? "bg-accent w-4" : "bg-surface-2 w-4"
               }`}
             />
           ))}
@@ -150,12 +158,12 @@ export default function StoryboardWizard() {
                 Start a new film, or reopen an old one. Nothing else. This is
                 the only step that can exceed a viewport, so it flows naturally
                 and the page itself is the scroll surface. */}
-            {wizardStep === 1 && (
+            {at("projects") && (
               <div className="mx-auto w-full max-w-3xl space-y-8 pt-2 pb-6">
                 {/* Create new — blurred cinematic card, same treatment as the
                     landing page's developer-engine band */}
                 <button
-                  onClick={() => setWizardStep(2)}
+                  onClick={() => setWizardStep("type")}
                   className="group relative block w-full overflow-hidden rounded-3xl border-2 border-dashed border-line-2 hover:border-accent transition-all duration-300 active:scale-[0.99]"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -175,7 +183,7 @@ export default function StoryboardWizard() {
                       Create new project
                     </h1>
                     <p className="max-w-sm text-xs sm:text-[13px] text-ink-3 leading-relaxed">
-                      Describe your brand and let the Optiq Skills agents write, cast and shoot the whole ad.
+                      Describe it once and let the Optiq agents write, cast and shoot the whole film.
                     </p>
                   </div>
                 </button>
@@ -268,7 +276,7 @@ export default function StoryboardWizard() {
                 how the finished cut is scored and narrated. Cards are clip-first
                 like everything else in the product — the cover shows you what
                 you get, the copy just confirms it. */}
-            {wizardStep === 2 && (
+            {at("type") && (
               <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6">
                 <h1 className="text-center text-2xl font-black tracking-tight text-foreground sm:text-3xl">
                   What are we making?
@@ -279,12 +287,22 @@ export default function StoryboardWizard() {
                     phone screen; the cover clip is the explanation, so the copy
                     is a title and a duration and nothing else. */}
                 <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
-                  {VIDEO_TYPES.map((type) => {
-                    const active = videoTypeId === type.id;
+                  {VIDEO_TYPE_CARDS.map((type) => {
+                    // A short film is "chosen" from either half of the split —
+                    // coming back from the mode screen having picked a story must
+                    // still light this card up.
+                    const active = type.id === "short-film" ? isShortFilm(videoTypeId) : videoTypeId === type.id;
                     return (
                       <button
                         key={type.id}
-                        onClick={() => selectVideoType(type.id)}
+                        // Re-picking Short film keeps whichever half you already
+                        // chose, so stepping back to check the format doesn't
+                        // silently throw away "original story".
+                        onClick={() =>
+                          selectVideoType(
+                            type.id === "short-film" && isShortFilm(videoTypeId) ? videoTypeId : type.id
+                          )
+                        }
                         aria-pressed={active}
                         className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-all duration-300 active:scale-[0.98] ${
                           active
@@ -329,14 +347,83 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 3 — RUN-TIME (its own screen, nothing competing)
+            {/* MODE — SHORT FILM ONLY: ADVERT OR ORIGINAL STORY
+                Two cards, clip-first like every other picker in the product. The
+                ADVERT is first and is already selected, because it is what this
+                platform has always made and what picking "Short film" already
+                means — a director who wants one just presses Continue.
+
+                The choice is not cosmetic: it routes the whole generation to a
+                different storyboard system (functions/optiqSkills for the advert,
+                functions/optiqStory for the story) and it removes three steps
+                from the rest of this wizard. */}
+            {at("mode") && (
+              <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6">
+                <h1 className="text-center text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                  What is this film for?
+                </h1>
+
+                {/* Capped on desktop so a mode card is the same size as a type
+                    card on the screen before it. Two cards inheriting the
+                    three-across container made each one half again as big, which
+                    read as a different, heavier screen. Untouched on mobile,
+                    where full width is right. */}
+                <div className="grid w-full grid-cols-2 gap-3 sm:max-w-md sm:gap-4">
+                  {SHORT_FILM_MODES.map((mode) => {
+                    const active = videoTypeId === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        onClick={() => selectVideoType(mode.id)}
+                        aria-pressed={active}
+                        className={`group relative flex flex-col overflow-hidden rounded-2xl border transition-all duration-300 active:scale-[0.98] ${
+                          active
+                            ? "border-accent bg-surface ring-2 ring-accent-line"
+                            : "border-line bg-surface-2 hover:border-line-2"
+                        }`}
+                      >
+                        {active && (
+                          <span className="absolute right-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white shadow-md">
+                            <Check size={9} />
+                          </span>
+                        )}
+
+                        <div className="relative aspect-square w-full overflow-hidden bg-background">
+                          <HoverPreviewVideo
+                            src={mode.clip}
+                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                            fallback={
+                              <div className="absolute inset-0">
+                                <div className="aurora" aria-hidden />
+                                <div className="aurora-veil" aria-hidden />
+                              </div>
+                            }
+                          />
+                        </div>
+
+                        <div className="px-2 py-2.5 text-center sm:px-3 sm:py-3">
+                          <h3 className="truncate text-[12px] font-bold tracking-tight text-foreground sm:text-sm">
+                            {mode.title}
+                          </h3>
+                          <span className="mt-0.5 block text-[9px] leading-snug text-muted sm:text-[10px]">
+                            {mode.blurb}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* RUN-TIME (its own screen, nothing competing)
                 The options come from the chosen type, so a short film offers
                 60–180s and an ad offers 30–90s. */}
-            {wizardStep === 3 && (
+            {at("length") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-8 mx-auto w-full max-w-3xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
-                    {chosenType.id === "short-film" ? "How long is your film?" : "How long should your ad run?"}
+                    {isShortFilm(chosenType.id) ? "How long is your film?" : "How long should your ad run?"}
                   </h1>
                   <p className="mt-1.5 text-xs text-muted">Every scene is 10 seconds of finished video.</p>
                 </div>
@@ -378,20 +465,26 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 4 — DIRECT YOUR VISION */}
-            {wizardStep === 4 && (
+            {/* DIRECT YOUR VISION */}
+            {at("vision") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-2xl">
                 <h1 className="text-3xl sm:text-5xl font-black tracking-widest text-foreground uppercase text-center select-none drop-elevate-lg">
                   Direct Your Vision
                 </h1>
                 <p className="text-xs text-ink-3 text-center max-w-md -mt-3">
-                  Tell us about the ad you want — the brand, the feeling, the audience. Our agents turn it into a story.
+                  {isStory
+                    ? "Tell us the story you want told — who it's about, what they want, what goes wrong. Our agents write it into a film."
+                    : "Tell us about the ad you want — the brand, the feeling, the audience. Our agents turn it into a story."}
                 </p>
                 <div className="w-full rounded-[28px] border border-line bg-surface/80 backdrop-blur-xl p-4 elevate-lg transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
                   <textarea
                     value={promptText}
                     onChange={(e) => setPromptText(e.target.value)}
-                    placeholder="Type a prompt..."
+                    placeholder={
+                      isStory
+                        ? "A woman hides money from her own family, and the person she's hiding it for finds out first…"
+                        : "Type a prompt..."
+                    }
                     rows={5}
                     className="w-full bg-transparent resize-none outline-none text-sm placeholder:text-muted leading-relaxed text-foreground"
                   />
@@ -405,12 +498,12 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 5 — ORIENTATION */}
-            {wizardStep === 5 && (
+            {/* ORIENTATION */}
+            {at("canvas") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-2xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Pick your canvas</h1>
-                  <p className="mt-1 text-xs text-muted">Where will this ad live?</p>
+                  <p className="mt-1 text-xs text-muted">Where will this {isStory ? "film" : "ad"} live?</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-6 w-full">
                   {[
@@ -455,8 +548,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 6 — BRAND NAME */}
-            {wizardStep === 6 && (
+            {/* BRAND NAME — ads only; a story never reaches this step */}
+            {at("brand") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">What is your brand called?</h1>
@@ -477,8 +570,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 7 — PRODUCT / SERVICE */}
-            {wizardStep === 7 && (
+            {/* PRODUCT / SERVICE — ads only */}
+            {at("product") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">What are you selling?</h1>
@@ -500,8 +593,8 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* STEP 8 — BRAND MATERIALS */}
-            {wizardStep === 8 && (
+            {/* BRAND MATERIALS — ads only */}
+            {at("materials") && (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 mx-auto w-full max-w-xl">
                 <div className="text-center">
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">Brand materials</h1>
@@ -574,12 +667,19 @@ export default function StoryboardWizard() {
                   </p>
                 </div>
 
-                {error && (
-                  <div className="w-full rounded-2xl border border-danger bg-danger-soft px-4 py-3 flex gap-2.5 text-xs text-danger items-start">
-                    <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                    <span>{error}</span>
-                  </div>
-                )}
+              </div>
+            )}
+
+            {/* Generation errors used to live inside the brand-materials step,
+                which is the last step of an AD. A story ends on the canvas step
+                and would never have shown them, so the error surfaces on
+                whichever screen actually carries the generate button. */}
+            {error && isLastStep && (
+              <div className="mx-auto w-full max-w-xl pb-4">
+                <div className="w-full rounded-2xl border border-danger bg-danger-soft px-4 py-3 flex gap-2.5 text-xs text-danger items-start">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
               </div>
             )}
           </>
@@ -598,16 +698,16 @@ export default function StoryboardWizard() {
             </button>
 
             <span className="text-[10px] tabular-nums text-muted uppercase tracking-widest hidden sm:block">
-              Step {wizardStep} / {STEP_COUNT}
+              Step {stepIndex + 1} / {steps.length}
             </span>
 
-            {/* Step 1's call to action is the "Create new project" card
+            {/* The first step's call to action is the "Create new project" card
                 itself, so no duplicate Continue button competes with it. */}
-            {wizardStep === 1 ? (
+            {at("projects") ? (
               <span className="text-[10px] tabular-nums text-faint uppercase tracking-widest">
                 Pick up where you left off
               </span>
-            ) : wizardStep < STEP_COUNT ? (
+            ) : !isLastStep ? (
               <button
                 disabled={!canContinue}
                 onClick={goNext}
