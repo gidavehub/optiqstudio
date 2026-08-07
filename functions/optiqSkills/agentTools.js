@@ -174,6 +174,9 @@ async function reviseOne(ctx, scene, instruction) {
     previousScenePrompt: scenes[idx - 1]?.fullPrompt || null,
     nextScenePrompt: scenes[idx + 1]?.fullPrompt || null,
     musicSpec: ctx.project.musicSpec || null,
+    // Decides whether the reviser may write dialogue at all. Absent on films
+    // made before types existed, which resolve to the dialogue ad.
+    videoType: ctx.project.videoType,
   });
 }
 

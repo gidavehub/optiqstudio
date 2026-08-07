@@ -19,6 +19,7 @@ import { activeTakeIndex, sceneTakes } from "../_flow/types";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import useIsMobile from "../_shared/useIsMobile";
+import { audioStageLabel } from "../_shared/audioStages";
 import EditorStudio from "./editor/EditorStudio";
 import MobileScriptDeck from "./script/MobileScriptDeck";
 import SceneDialogue from "./script/SceneDialogue";
@@ -42,7 +43,7 @@ export default function ProjectWorkspace() {
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
-    goHome, projects, activeProjectId, agentRunning,
+    goHome, projects, activeProjectId, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
     aspectRatio,
@@ -215,10 +216,14 @@ export default function ProjectWorkspace() {
 
   // ── AUTO-MERGE FACE ────────────────────────────────────────────────────
   if (productionMode === "auto-merge") {
-    // Every scene rendered → the timeline editor takes the whole viewport. This
-    // is the landing point of "make the whole film": script → clips → timeline,
-    // with no stop in the script editor on the way.
-    if (forceEditor || (renderTally.done === sceneCount && sceneCount > 0)) {
+    // A finished film means picture AND sound. The timeline used to open the
+    // moment the last clip landed, which dropped the director into a silent cut
+    // while the score and the voiceover were still being made — and a narrated
+    // ad at that moment is completely mute, so it reads as a film that came out
+    // broken rather than one that isn't finished yet. Both halves, then the door.
+    const picture = renderTally.done === sceneCount && sceneCount > 0;
+    const sound = audioStage === "ready" || audioStage === "failed";
+    if (forceEditor || (picture && sound)) {
       // aspectRatio is passed explicitly rather than relying on the spread: the
       // editor builds its canvas from it, and the flow's value is the one the
       // rest of this screen is already cut to (it falls back to 16:9), so the
@@ -323,14 +328,41 @@ export default function ProjectWorkspace() {
           <p className="text-center tabular-nums text-[11px] text-muted">
             {stalled
               ? `${renderTally.failed} scene${renderTally.failed === 1 ? "" : "s"} didn't render — retry above, or continue with what's ready`
-              : `Crafting your scenes — ${percent}%`}
+              : picture
+                ? audioStageLabel(audioStage)
+                : `Crafting your scenes — ${percent}%`}
           </p>
+
+          {/* The second half of the wait, and the one nobody was told about: the
+              clips are all in and the film is being scored and narrated. */}
+          {picture && !stalled && (
+            <p className="mx-auto max-w-xs text-center text-[11px] leading-relaxed text-ink-3">
+              Every scene is in. The score and the voiceover are written against
+              the finished cut, so they come last — the timeline opens with the
+              film complete.
+            </p>
+          )}
+
           {stalled && renderTally.done > 0 && (
             <button
               onClick={() => setForceEditor(true)}
               className="flex items-center gap-1.5 rounded-2xl bg-foreground px-5 py-2.5 text-xs font-bold text-background transition-all hover:bg-ink-2"
             >
               <Tv size={13} /> Open timeline anyway
+            </button>
+          )}
+
+          {/* Never a locked door. Waiting is the default and the better outcome,
+              but an audio pass that dies quietly must not strand the director in
+              front of a film they can already watch. Shown for the whole wait
+              rather than appearing on a timer: a control that materialises after
+              a delay reads as the page malfunctioning. */}
+          {picture && !stalled && (
+            <button
+              onClick={() => setForceEditor(true)}
+              className="text-[11px] font-semibold text-ink-3 underline underline-offset-4 transition-colors hover:text-foreground"
+            >
+              Open the timeline without waiting
             </button>
           )}
         </div>

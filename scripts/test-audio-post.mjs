@@ -139,8 +139,9 @@ function json(payload) {
   return { candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(payload) }] } }] };
 }
 
-function run(h, { project = makeProject(), videoType = "voiceover-ad" } = {}) {
+function run(h, { project = makeProject(), videoType = "voiceover-ad", reloadProject } = {}) {
   return runAudioPost({
+    reloadProject,
     vertexFetch: h.vertexFetch,
     ttsGenerate: h.ttsGenerate,
     lyriaGenerate: h.lyriaGenerate,
@@ -367,6 +368,60 @@ test("an existing edited document is preserved, only gaining audio", async () =>
   assert(trimmed.duration === 2, `the director's trim was lost (${trimmed.duration}s)`);
   assert(result.editorDoc.tracks.some((t) => t.name === "Score"), "no score added");
   assert(result.editorDocRev === 8, `rev should follow the stored one, got ${result.editorDocRev}`);
+});
+
+// ── The project moves while the pass runs ───────────────────────────────────
+//
+// The pass takes minutes, and it opens with one read of the project. Both of
+// these are the same bug seen from two sides: a finished six-scene film came
+// back with two clips on the timeline, because the picture was rebuilt from a
+// snapshot taken before most of it existed.
+
+const lateDoc = audioPlan.baseDocFromClips(
+  [0, 1, 2, 3, 4, 5].map((i) => ({ sceneIndex: i, url: `https://cdn.example.com/scene${i}.mp4`, duration: 8.04 })),
+  canvasForAspect("9:16")
+);
+const G = await run(harness({ ttsSeconds: () => 2.2 }), {
+  // Nothing stored when the pass opened — the editor saved its cut a moment later.
+  project: makeProject(),
+  reloadProject: async () => makeProject({ editorDoc: lateDoc, editorDocRev: 4 }),
+});
+
+test("G: a document saved while the pass ran is the one that gains the audio", () => {
+  assert(G.editorDoc.tracks[0].clips.length === 6, `expected 6 clips, got ${G.editorDoc.tracks[0].clips.length}`);
+  assert(G.editorDoc.tracks.some((t) => t.name === "Score"), "no score added");
+  assert(G.editorDocRev === 5, `rev must follow the LIVE doc (4), got ${G.editorDocRev}`);
+});
+
+const partial = makeProject({
+  videoStatus: {
+    2: { status: "succeeded", url: "https://cdn.example.com/scene2.mp4" },
+    5: { status: "succeeded", url: "https://cdn.example.com/scene5.mp4" },
+  },
+});
+const H = await run(harness({ ttsSeconds: () => 2.2 }), {
+  project: partial,
+  reloadProject: async () => makeProject(),
+});
+
+test("H: clips that landed while the pass ran are not dropped from the cut", () => {
+  const cut = H.editorDoc.tracks[0].clips;
+  assert(cut.length === 6, `the cut lost picture — ${cut.length} clip(s) instead of 6`);
+  const labels = cut.map((c) => c.label).join(", ");
+  assert(/Scene 1/.test(labels) && /Scene 4/.test(labels), `scenes went missing: ${labels}`);
+  assert(
+    H.notes.some((n) => /cut changed while the audio was being made/.test(n)),
+    `the mismatch went unreported: ${H.notes.join(" | ")}`
+  );
+});
+
+const I = await run(harness({ ttsSeconds: () => 2.2 }), {
+  // A read that comes back mid-write, with the scene list momentarily empty.
+  reloadProject: async () => makeProject({ scenes: [], videoStatus: {} }),
+});
+
+test("I: a re-read that comes back empty cannot take picture away", () => {
+  assert(I.editorDoc.tracks[0].clips.length === 6, `lost picture to a bad read (${I.editorDoc.tracks[0].clips.length})`);
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

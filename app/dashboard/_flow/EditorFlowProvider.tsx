@@ -172,6 +172,19 @@ const PIPELINE_WORKING_STAGES = ["queued", "analyzing", "storylining", "casting"
 // the editor's autosave for good.
 const AGENT_TURN_CEILING_MS = 10 * 60 * 1000;
 
+// Firestore rejects `undefined` anywhere in a written value, and scene statuses
+// collect optional fields (`error`, `customPrompt`, `id`) as they go.
+const cleanUndefined = (obj: any): any => {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  const clean: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) clean[key] = cleanUndefined(val);
+  }
+  return clean;
+};
+
 const EditorFlowContext = createContext<EditorFlowValue | null>(null);
 
 export function useEditorFlow(): EditorFlowValue {
@@ -419,17 +432,6 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     // would be the same class of bug as echoing compileStatus back: our
     // debounced copy is older than what the agent just wrote.
     if (agentRunning) return;
-
-    const cleanUndefined = (obj: any): any => {
-      if (obj === null || typeof obj !== "object") return obj;
-      if (Array.isArray(obj)) return obj.map(cleanUndefined);
-      const clean: any = {};
-      for (const key of Object.keys(obj)) {
-        const val = obj[key];
-        if (val !== undefined) clean[key] = cleanUndefined(val);
-      }
-      return clean;
-    };
 
     const updateFirebaseProject = async () => {
       try {
@@ -1027,6 +1029,14 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     if (!user || !activeProjectId) return;
     try {
       await updateDoc(doc(db, "projects", activeProjectId), {
+        // The clip set ships WITH the request, in the same write, and before the
+        // job exists. The pass cuts its timeline from this exact field, and the
+        // autosave that normally maintains it is debounced by 1.5s and stands
+        // down completely while an agent turn runs — so at the moment the last
+        // scene lands and this fires, the stored copy can still be several
+        // scenes behind. The job would then measure a film that was missing
+        // most of its clips and write that back as the timeline.
+        videoStatus: cleanUndefined(videoStatus),
         audioStage: "queued",
         audioError: null,
         updatedAt: new Date().toISOString(),
@@ -1041,7 +1051,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       console.error("Failed to enqueue audio post-production:", err);
       setError(err instanceof Error ? err.message : "Could not start audio post-production");
     }
-  }, [user, activeProjectId]);
+  }, [user, activeProjectId, videoStatus]);
 
   /** True once every scene of an auto-produced ad has rendered. */
   const allScenesRendered = useCallback(
@@ -1152,6 +1162,9 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             previousScenePrompt: storyboard.scenes[sceneIndex - 1]?.fullPrompt || null,
             nextScenePrompt: storyboard.scenes[sceneIndex + 1]?.fullPrompt || null,
             musicSpec: storyboard.musicSpec || null,
+            // Decides whether the reviser may write dialogue into this scene at
+            // all — a narrated film's footage is silent by construction.
+            videoType: videoTypeId,
           }),
         });
 
@@ -1180,7 +1193,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         }));
       }
     },
-    [storyboard, videoStatus, apiFetch]
+    [storyboard, videoStatus, apiFetch, videoTypeId]
   );
 
   // ─── PER-SCENE REFERENCE IMAGE MANAGEMENT ────────────────────────────────

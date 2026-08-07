@@ -190,6 +190,23 @@ async function probeDurationFromUrl(url, runCapture) {
   throw new Error("ffprobe reported no duration");
 }
 
+/**
+ * The scenes that have a clip on them right now, in scene order.
+ *
+ * Read off a project record rather than passed in, because it is asked twice —
+ * once to decide what to measure, and again at the end to decide what the
+ * picture actually is by then. Firestore keys numeric maps as strings once they
+ * round-trip, hence the two lookups.
+ */
+function succeededClips(scenes, videoStatus) {
+  const out = [];
+  for (let i = 0; i < (scenes || []).length; i++) {
+    const entry = videoStatus?.[i] || videoStatus?.[String(i)];
+    if (entry?.status === "succeeded" && entry.url) out.push({ sceneIndex: i, url: entry.url });
+  }
+  return out;
+}
+
 /** Build the Lyria prompt. The film's own sound spec is the brief. */
 function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote }) {
   const parts = [
@@ -227,6 +244,7 @@ function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, s
  * @param {object}   opts.project           Live project data (scenes, videoStatus, videoType…).
  * @param {string}   opts.projectId
  * @param {object}   opts.filmKind          From optiqSkills/pipeline: { noun, dialogueInVideo, ttsVoiceover }.
+ * @param {Function} [opts.reloadProject]   async () => project — re-read at the end. See step 7.
  * @param {Function} [opts.onStage]         async (stage, meta) => void.
  * @returns {Promise<object>} A report: what was laid, and anything still wrong.
  */
@@ -243,6 +261,12 @@ async function runAudioPost({
   projectId,
   filmKind,
   onStage,
+  /**
+   * Re-read the project at the end of the pass. Defaults to the snapshot we
+   * opened with, which is what a caller without Firestore (the test harness)
+   * wants — see step 7 for why the live one matters in production.
+   */
+  reloadProject = async () => project,
   /** Optional direction for the score, in the director's own terms. */
   scoreNote,
 }) {
@@ -262,11 +286,7 @@ async function runAudioPost({
   await stage("measuring");
   const scenes = project.scenes || [];
   const videoStatus = project.videoStatus || {};
-  const clips = [];
-  for (let i = 0; i < scenes.length; i++) {
-    const entry = videoStatus[i] || videoStatus[String(i)];
-    if (entry?.status === "succeeded" && entry.url) clips.push({ sceneIndex: i, url: entry.url });
-  }
+  const clips = succeededClips(scenes, videoStatus);
   if (clips.length === 0) {
     throw new Error("No rendered clips — the film has to be shot before it can be scored.");
   }
@@ -482,11 +502,29 @@ async function runAudioPost({
   const { canvasForAspect, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD } = engineApi;
   const canvas = canvasForAspect(project.aspectRatio);
 
+  // Everything above took minutes — a Lyria composition alone is over a minute —
+  // and the project has moved on underneath us. Re-read it, so the audio lands
+  // on the film as it stands NOW rather than as it stood before the score was
+  // composed: by now the director has usually opened the editor, which saves a
+  // document built from the full cut, and scenes that were still rendering when
+  // we measured have landed. Writing the opening snapshot's picture back over
+  // that is what left a finished six-scene film showing two clips.
+  let live = project;
+  try {
+    const fresh = await reloadProject();
+    if (fresh && typeof fresh === "object") live = fresh;
+  } catch (err) {
+    console.warn(
+      `[audio ${projectId}] could not re-read the project; laying audio on the opening snapshot:`,
+      String(err?.message || err).slice(0, 140)
+    );
+  }
+
   // A document the director has already edited is preserved and only gains the
   // audio tracks. A project never opened in the editor gets one built here from
   // the MEASURED clip lengths.
   let doc = null;
-  const stored = project[EDITOR_DOC_FIELD];
+  const stored = live[EDITOR_DOC_FIELD];
   if (stored && Array.isArray(stored.tracks)) {
     try {
       doc = JSON.parse(JSON.stringify(stored));
@@ -495,10 +533,36 @@ async function runAudioPost({
     }
   }
   if (!doc) {
-    doc = P.baseDocFromClips(
-      clips.map((c, i) => ({ ...c, duration: durations[i] })),
-      canvas
-    );
+    // No document to preserve, so the picture is cut here — from the clip set as
+    // it stands now, not the one this pass opened with. Lengths already probed
+    // in step 1 are reused; anything that landed since is probed rather than
+    // assumed, because the narration is cut to real durations.
+    const liveClips = succeededClips(live.scenes || scenes, live.videoStatus || videoStatus);
+    // The re-read can only ADD picture, never take it away. An empty or partial
+    // read — a project mid-write, an agent turn rewriting the scene list — must
+    // not be able to deliver a film with fewer clips than we just scored.
+    const source = liveClips.length >= clips.length ? liveClips : clips;
+    const measured = new Map(clips.map((c, i) => [c.url, durations[i]]));
+    const cut = await mapWithConcurrency(source, SCAN_CONCURRENCY, async (clip) => {
+      const known = measured.get(clip.url);
+      if (known) return { ...clip, duration: known };
+      try {
+        return { ...clip, duration: await probeDurationFromUrl(clip.url, runCapture) };
+      } catch (err) {
+        console.warn(
+          `[audio ${projectId}] could not probe late scene ${clip.sceneIndex + 1}, assuming 10s:`,
+          String(err?.message || err).slice(0, 140)
+        );
+        return { ...clip, duration: 10 };
+      }
+    });
+    if (cut.length !== clips.length) {
+      report.notes.push(
+        `The cut changed while the audio was being made — ${cut.length} clip(s) are on the timeline, ` +
+          `${clips.length} were scored. The score and any narration follow the ${clips.length} that were.`
+      );
+    }
+    doc = P.baseDocFromClips(cut, canvas);
   }
   // The canvas is the shape of the deliverable; a stored document built before
   // aspect ratios were honoured carries a landscape frame (see bridge.ts).
@@ -528,7 +592,10 @@ async function runAudioPost({
   }
 
   report.editorDoc = doc;
-  report.editorDocRev = Number(project[EDITOR_DOC_REV_FIELD] ?? 0) + 1;
+  // Off the LIVE revision, not the opening one. Bumping a stale rev produces a
+  // number the open editor has already passed, and its autosaver would dismiss
+  // this write as an echo of its own — the music would never appear.
+  report.editorDocRev = Number(live[EDITOR_DOC_REV_FIELD] ?? 0) + 1;
   report.docFields = { doc: EDITOR_DOC_FIELD, rev: EDITOR_DOC_REV_FIELD };
   return report;
 }

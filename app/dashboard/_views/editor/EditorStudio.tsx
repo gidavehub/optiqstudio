@@ -30,6 +30,7 @@ import { useEditorFlow } from "../../_flow/EditorFlowProvider";
 import { useAuth } from "../../../../components/AuthProvider";
 import OptiqMark from "../../../../components/OptiqMark";
 import useIsMobile from "../../_shared/useIsMobile";
+import { audioStageLabel, audioWorking as isAudioWorking } from "../../_shared/audioStages";
 import PreviewStage from "./PreviewStage";
 import TimelinePanel from "./TimelinePanel";
 import MediaBin from "./MediaBin";
@@ -48,25 +49,26 @@ const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi,
 // treated as abandoned, so Export can never stay disabled forever.
 const RENDER_STALE_MS = 12 * 60 * 1000;
 
-const AUDIO_STAGE_LABELS: Record<string, string> = {
-  queued: "Scoring queued…",
-  measuring: "Measuring the cut…",
-  scanning: "Watching your film…",
-  writing: "Writing the narration…",
-  speaking: "Recording the voiceover…",
-  rewriting: "Trimming lines to fit…",
-  refitting: "Re-recording trimmed lines…",
-  scoring: "Composing the score…",
-  placing: "Laying it on the timeline…",
-};
-
 export default function EditorStudio({ project }: EditorStudioProps) {
   const { setProductionMode, goHome, audioStage, audioReport, requestAudioPost } = useEditorFlow();
   const { apiFetch } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
 
-  // ── Engine session (one per project id) ────────────────────────────────
+  // ── Remote document adoption ───────────────────────────────────────────
+  //
+  // The audio pass runs server-side and finishes by writing a whole document —
+  // the cut it was given, plus the score and the narration — at a bumped
+  // revision. Without adopting it the editor would keep showing (and keep
+  // autosaving) the silent document it opened with, quietly undoing the pass.
+  //
+  // The autosaver owns the policy: a dirty buffer keeps local, so this can never
+  // take an edit-in-progress away. Adoption is a session rebuild, which is why
+  // the revision is part of the session key below.
+  const remoteRev = Number(project?.[EDITOR_DOC_REV_FIELD] ?? 0);
+  const [adoptedRev, setAdoptedRev] = useState(remoteRev);
+
+  // ── Engine session (one per project id + adopted revision) ─────────────
   const session = useMemo(() => {
     let initial: EditorDoc;
     try {
@@ -109,7 +111,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
     const unbind = autosaver.bindEngine(engine);
     return { engine, interaction, interactionOpts, autosaver, unbind, repointed, reshaped };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.id]);
+  }, [project?.id, adoptedRev]);
 
   const { engine, interaction, interactionOpts, autosaver } = session;
 
@@ -117,6 +119,18 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   const [doc, setDoc] = useState<EditorDoc>(engine.getDoc());
   const [frame, setFrame] = useState<PlaybackFrame | null>(null);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+
+  // A rebuilt session — a different project, or a document adopted from the
+  // server — brings a different engine, and this mirror is still holding the
+  // last one's document. Reset it during render rather than in an effect so the
+  // panes never paint the previous timeline for a frame, and drop the selection
+  // with it, since the clip it names belongs to the document being replaced.
+  const [docSession, setDocSession] = useState(session);
+  if (docSession !== session) {
+    setDocSession(session);
+    setDoc(engine.getDoc());
+    setSelectedClipId(null);
+  }
   const [pps, setPps] = useState(60); // pixels per second
   const [tool, setTool] = useState<EditorTool>("select");
   const [snapOn, setSnapOn] = useState(true);
@@ -136,6 +150,19 @@ export default function EditorStudio({ project }: EditorStudioProps) {
   interactionOpts.getPxPerSecond = () => ppsRef.current;
   interactionOpts.getPlayhead = () => playerRef.current?.controller.getTime();
   interactionOpts.snapEnabled = snapOn;
+
+  // Ask the autosaver whether the stored revision beats ours. It answers
+  // "keep-local" whenever there is an unsaved edit or a save in flight, so an
+  // arriving score can never pull the document out from under a drag.
+  //
+  // In an effect and not in render because `onRemote` MUTATES the autosaver's
+  // base revision — it is the decision and the acknowledgement in one call, so
+  // it must not run on a render that React might discard.
+  useEffect(() => {
+    if (remoteRev === adoptedRev) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to an external store; the extra pass is the point
+    if (autosaver.onRemote(remoteRev) === "adopt-remote") setAdoptedRev(remoteRev);
+  }, [remoteRev, adoptedRev, autosaver]);
 
   useEffect(() => {
     const unsub = engine.subscribe((d) => {
@@ -292,8 +319,9 @@ export default function EditorStudio({ project }: EditorStudioProps) {
 
   const rendering = exporting || (renderStatus === "rendering" && !renderStalled);
 
-  // Every stage of the audio pass except its two terminal ones.
-  const audioWorking = !!audioStage && audioStage !== "ready" && audioStage !== "failed";
+  // Every stage of the audio pass except its two terminal ones. Reachable here
+  // only for a RE-score: a first pass now finishes before the timeline opens.
+  const audioWorking = isAudioWorking(audioStage);
   const audioNotes = (audioReport?.notes as string[] | undefined) ?? [];
   const audioViolations = (audioReport?.violations as string[] | undefined) ?? [];
 
@@ -341,7 +369,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           {audioWorking ? (
             <span className="hidden md:flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-2.5 py-1.5 text-[10px] font-semibold text-accent-ink">
               <Loader2 size={10} className="animate-spin" />
-              {AUDIO_STAGE_LABELS[audioStage ?? ""] ?? "Scoring…"}
+              {audioStageLabel(audioStage)}
             </span>
           ) : (
             <button

@@ -149,39 +149,9 @@ const HOUSE_DEFAULTS = [
 
 // ─── DRAWING A PALETTE ──────────────────────────────────────────────────────
 
-/** Tiny deterministic PRNG (mulberry32) so a seed reproduces a cast exactly. */
-function makeRng(seed) {
-  let a = (seed >>> 0) || 0x9e3779b9;
-  return function rng() {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Cheap string→int hash, so a project id can seed the draw. */
-function hashSeed(value) {
-  const str = String(value ?? "");
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/** Draw `count` distinct items from `list`. */
-function sample(list, count, rng) {
-  const pool = [...list];
-  const out = [];
-  const n = Math.min(count, pool.length);
-  for (let i = 0; i < n; i++) {
-    out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-  }
-  return out;
-}
+// The draw itself lives in ./rng.js, shared with the creative provocation. The
+// algorithm is fixed: a stored film's seed has to keep reproducing its cast.
+const { makeRng, hashSeed, sample } = require("./rng");
 
 /**
  * The casting palette for one film.
@@ -260,6 +230,188 @@ HARD RULES
 4. Wardrobe colours must also differ per character, and must not be rust.
 5. Background people follow the same spread: a crowd where every face is the
    same tone is the cliché the doctrine warns about.`;
+}
+
+// ─── PER-SCENE CASTING ──────────────────────────────────────────────────────
+//
+// The casting SHAPE above is a decision about the whole film. This is the one
+// underneath it, and it was missing entirely: what does THIS scene need?
+//
+// The pipeline could only express one answer — "the locked cast" — and so every
+// scene got the locked cast. Worse, a scene that named nobody fell through to a
+// default that pasted EVERY character in the film into it, which is how a film
+// ends up with the same faces in ten consecutive scenes whatever the storyline
+// asked for.
+//
+// Three answers, chosen per scene:
+//
+//   recurring   — people we have met and will meet again. They carry a Locked
+//                 Character Block, a reference sheet, and the full consistency
+//                 machinery. Expensive, and worth it exactly when a face has to
+//                 survive across clips.
+//   fresh-faces — people who exist for these ten seconds and appear nowhere
+//                 else. No lock, no sheet, no consistency burden: they are
+//                 written fresh inside the scene. A market seller, a passenger,
+//                 a kid on a wall, the man who says one thing and is gone.
+//   no-people   — nobody on camera at all. A product on a table, a street, a
+//                 door, hands out of frame. Completely legitimate, frequently
+//                 the strongest scene in an ad, and previously unsayable.
+//
+// The point is that these are per-SCENE. A single film can lock two leads for
+// its bookends, run three montage scenes of complete strangers, and hold on the
+// product alone for the last ten seconds — and none of those choices should drag
+// the others along with them.
+
+const SCENE_CASTING_MODES = ["recurring", "fresh-faces", "no-people"];
+const DEFAULT_SCENE_CASTING = "recurring";
+
+/** Normalize whatever the storyline returned into one of the three modes. */
+function sceneCasting(beat) {
+  const raw = String(beat?.castingMode || "").trim().toLowerCase();
+  if (SCENE_CASTING_MODES.includes(raw)) return raw;
+  // Absent (an older storyline, or a model that skipped the field): infer from
+  // whether the beat names anybody, which is the honest reading of the data.
+  return (beat?.charactersPresent || []).length > 0 ? "recurring" : DEFAULT_SCENE_CASTING;
+}
+
+/** The per-scene casting brief, for the storyline skill. */
+function sceneCastingDirective() {
+  return `═══ WHO IS IN EACH SCENE — CHOOSE PER SCENE ═══
+Set castingMode on every scene beat. This is a real choice each time, and getting
+it wrong in the safe direction is the platform's most persistent failure: films
+kept putting the same two locked faces in all nine scenes because that was the
+only thing the machinery could say.
+
+  "recurring"   — this scene features named characters we have met before or will
+                  meet again. Use it when a face genuinely has to be the SAME face
+                  across clips: the person the story is about, the relationship at
+                  the centre of it. List them in charactersPresent.
+  "fresh-faces" — the people in this scene appear in NO other scene. A seller, a
+                  passenger, a neighbour, a crowd, a stranger who does one thing
+                  and is gone. Leave charactersPresent EMPTY and describe what
+                  these people DO in the moment; the scene builder will invent
+                  them. Nobody here needs to look the same in any other scene, so
+                  the scene is freer, cheaper and usually more alive.
+  "no-people"   — nobody is on camera. The product on a counter, a street, a
+                  door closing, a pot, a phone screen, a sign. Ten seconds with no
+                  human in frame is often the best scene in an ad, and it can
+                  still be packed with events: things move, land, open, spill,
+                  switch on. Leave charactersPresent empty.
+
+HOW TO DECIDE: ask what this specific scene needs, not what the film has been
+doing. A recurring lead does not have to appear in a scene just because they are
+the lead — if the beat is "the whole market already knows about it", that is
+fresh faces, and shoving the lead into it makes the film smaller. Equally, do not
+scatter fresh faces through a story that is about two people: that reads as a
+different film every ten seconds.
+
+A film may mix all three freely. What it may NOT do is default every scene to
+"recurring" because that is easiest.`;
+}
+
+/**
+ * A per-scene look palette for a scene of one-off people.
+ *
+ * Same mechanism as the film-wide palette, salted by scene number so scene 3's
+ * strangers do not come out looking like scene 7's. Compact on purpose: these
+ * people get a good description, not a 200-word lock they will never need again.
+ */
+function freshFaceDirective(seed, sceneNumber) {
+  const rng = makeRng(hashSeed(`fresh:${sceneNumber}:${seed ?? Math.random()}`));
+  const list = (items) => items.map((i) => `  - ${i}`).join("\n");
+  return `═══ THIS SCENE'S PEOPLE ARE ONE-OFFS ═══
+Nobody in this scene appears anywhere else in the film. There is no Locked
+Character Block for them and there must not be one: do NOT paste any character
+lock into this prompt, and do NOT reuse the film's recurring cast here — those
+faces belong to their own scenes and putting them in this one collapses the film
+back into the same two people in every shot.
+
+Write these people fresh, in the scene, with enough physical detail to render
+cleanly once. Each is explicitly a BLACK Gambian / West African person — that
+keyword is non-negotiable, exactly as it is for the locked cast — and they differ
+visibly from one another. Draw their looks from here:
+
+COMPLEXIONS (spread them; not everyone the same tone):
+${list(sample(COMPLEXIONS, 4, rng))}
+HAIR:
+${list(sample([...HAIR_WOMEN, ...HAIR_MEN], 4, rng))}
+AGES:
+${list(sample(AGE_BANDS, 4, rng))}
+BUILDS:
+${list(sample(BUILDS, 3, rng))}
+
+Give each of them something to DO — these are people caught mid-action, not
+extras arranged in a frame.`;
+}
+
+/**
+ * Which registry characters belong in a scene's prompt.
+ *
+ * The old behaviour when a beat named nobody was to fall back to the ENTIRE
+ * registry, on the theory that some characters are better than none. It is the
+ * opposite: it is what pasted the whole cast into scenes that were written to
+ * have nobody in them. A scene that names nobody now gets nobody.
+ */
+function charactersForBeat(registry, beat) {
+  const mode = sceneCasting(beat);
+  if (mode !== "recurring") return [];
+  const characters = (registry?.characters || []).filter(Boolean);
+  const named = beat?.charactersPresent || [];
+  return characters.filter(
+    (c) =>
+      named.some((n) => normalize(n) === normalize(c.name)) ||
+      (c.scenes || []).includes(beat?.sceneNumber)
+  );
+}
+
+/** Names that appear in two or more scenes — the only ones needing a lock. */
+function recurringCharacterNames(sceneBeats) {
+  const counts = new Map();
+  for (const beat of sceneBeats || []) {
+    if (sceneCasting(beat) !== "recurring") continue;
+    for (const raw of beat.charactersPresent || []) {
+      const key = normalize(raw);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  return new Set([...counts.entries()].filter(([, n]) => n >= 2).map(([name]) => name));
+}
+
+/**
+ * Contradictions between a scene's casting mode and what it actually lists.
+ *
+ * Cheap to catch here and expensive later: a "no-people" scene that names three
+ * characters becomes a scene-builder that puts three people in a shot the
+ * storyline wrote to be empty.
+ */
+function sceneCastingViolations(sceneBeats) {
+  const violations = [];
+  for (const beat of (sceneBeats || []).filter(Boolean)) {
+    const mode = sceneCasting(beat);
+    const named = (beat.charactersPresent || []).filter((n) => String(n || "").trim());
+    if (mode === "no-people" && named.length > 0) {
+      violations.push(
+        `Scene ${beat.sceneNumber} is cast "no-people" but lists ${named.join(", ")}. ` +
+          `Either clear charactersPresent and keep the frame empty of people, or change the mode.`
+      );
+    }
+    if (mode === "fresh-faces" && named.length > 0) {
+      violations.push(
+        `Scene ${beat.sceneNumber} is cast "fresh-faces" but names ${named.join(", ")}. ` +
+          `Fresh faces appear in no other scene and carry no lock, so they are not named characters — ` +
+          `clear charactersPresent and describe what these one-off people DO in the moment instead.`
+      );
+    }
+    if (mode === "recurring" && named.length === 0) {
+      violations.push(
+        `Scene ${beat.sceneNumber} is cast "recurring" but names nobody. Name the characters this scene ` +
+          `shares with the rest of the film, or re-cast it as "fresh-faces" (one-off people) or ` +
+          `"no-people" (nobody on camera).`
+      );
+    }
+  }
+  return violations;
 }
 
 // ─── THE GATE ───────────────────────────────────────────────────────────────
@@ -386,9 +538,12 @@ function castingShapeViolations(shape, sceneBeats) {
   const violations = [];
   if (beats.length < 2 || !shape) return violations;
 
-  // How many scenes each named character appears in.
+  // How many scenes each named character appears in. Only scenes cast
+  // "recurring" count: a fresh-faces scene's people are one-offs by definition,
+  // and a no-people scene has nobody to count.
   const appearances = new Map();
   for (const beat of beats) {
+    if (sceneCasting(beat) !== "recurring") continue;
     for (const raw of beat.charactersPresent || []) {
       const name = normalize(raw);
       if (!name) continue;
@@ -432,6 +587,13 @@ module.exports = {
   drawCastingPalette,
   castingViolations,
   traitsOf,
+  sceneCasting,
+  sceneCastingDirective,
+  sceneCastingViolations,
+  freshFaceDirective,
+  charactersForBeat,
+  recurringCharacterNames,
+  SCENE_CASTING_MODES,
   COMPLEXIONS,
   HAIR_WOMEN,
   HAIR_MEN,

@@ -26,7 +26,25 @@ const {
   exemplarScenePrompt,
   countWords,
 } = require("./index");
-const { castingDirective, castingViolations, castingShapeViolations } = require("./casting");
+const {
+  castingDirective,
+  castingViolations,
+  castingShapeViolations,
+  sceneCasting,
+  sceneCastingDirective,
+  sceneCastingViolations,
+  freshFaceDirective,
+  charactersForBeat,
+  recurringCharacterNames,
+} = require("./casting");
+const {
+  conceptDirective,
+  densityLaw,
+  storylineDensityViolations,
+  scenePromptDensityViolations,
+  MIN_BEATS_PER_SCENE,
+  TARGET_BEATS_PER_SCENE,
+} = require("./creative");
 const {
   planCharacterRefs,
   characterRefPrompt,
@@ -56,6 +74,7 @@ const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene'
 8. BACKGROUND AUTHORSHIP — the environment plus every visible item and every background person (age, clothing, position, what they are doing) gets ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} words. Every unspecified element is a vote for the cliché.
 9. STORY, NOT SLIDESHOW — every scene advances one storyline with a beginning, middle and end across the full ad. The product or service is the hero of the story.
 10. CUTS WITHIN SCENES — scenes are not always one continuous shot. When the storyline plans cuts, the 10s scene contains those hard cuts, each with its own timestamped beat and shot description.
+10b. DENSITY — every 10-second scene carries at least ${MIN_BEATS_PER_SCENE} distinct beats (aim for ${TARGET_BEATS_PER_SCENE}), each a CHANGE OF STATE with its own timestamp and its own physical verb. Ten seconds of one continuous activity — carrying a cup across a room, stirring a pot, scrolling a phone — is the dead footage this whole system exists to prevent. A camera move is not a beat. A mood is not a beat. Somebody continuing to do what they were already doing is not a beat.
 11. NO MUSIC — the video model generates NO music, ever, in any video type. No soundtrack, no melody, no instrumental bed, no humming or singing, no music from a radio/phone/speaker inside the scene, no sting on a cut, no swell under a line. The clip carries ONLY the diegetic sound of the physical events in frame plus the location's ambience (and dialogue where the scene has dialogue). The score is composed separately afterwards by a dedicated music model and laid under the finished cut — music invented here cannot be removed from the clip's audio, collides with that score, and wastes the render. This rule is stated in the ABSOLUTE RULES, restated at the top of the SOUND block, and restated again in the CLOSING RESTATEMENT: one mention does not survive a 2,000-word prompt.`;
 
 // ─── THE THREE KINDS OF FILM ─────────────────────────────────────────────────
@@ -243,6 +262,38 @@ const BRIEF_SCHEMA = {
   ],
 };
 
+// The concept room's output. `concepts` is plural and required because the whole
+// point is divergence: a model asked to "consider several and return the winner"
+// returns its first idea and calls it the winner. Making it show the losers is
+// what forces the others to exist.
+const CONCEPT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    concepts: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title: { type: "STRING" },
+          logline: { type: "STRING" },
+          engine: { type: "STRING" },
+          openingImage: { type: "STRING" },
+          eventDensity: { type: "ARRAY", items: { type: "STRING" } },
+          whereTheOfferingLands: { type: "STRING" },
+          risk: { type: "STRING" },
+        },
+        required: [
+          "title", "logline", "engine", "openingImage",
+          "eventDensity", "whereTheOfferingLands", "risk",
+        ],
+      },
+    },
+    pick: { type: "STRING" },
+    pickRationale: { type: "STRING" },
+  },
+  required: ["concepts", "pick", "pickRationale"],
+};
+
 const STORYLINE_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -260,6 +311,8 @@ const STORYLINE_SCHEMA = {
           purpose: { type: "STRING" },
           moment: { type: "STRING" },
           location: { type: "STRING" },
+          /** Who this scene needs — see sceneCastingDirective() in ./casting.js. */
+          castingMode: { type: "STRING", enum: ["recurring", "fresh-faces", "no-people"] },
           charactersPresent: { type: "ARRAY", items: { type: "STRING" } },
           productPresent: { type: "BOOLEAN" },
           cuts: {
@@ -271,7 +324,10 @@ const STORYLINE_SCHEMA = {
             },
           },
         },
-        required: ["sceneNumber", "purpose", "moment", "location", "charactersPresent", "productPresent", "cuts"],
+        required: [
+          "sceneNumber", "purpose", "moment", "location", "castingMode",
+          "charactersPresent", "productPresent", "cuts",
+        ],
       },
     },
   },
@@ -484,39 +540,117 @@ ${knowledgeFor("brief-analyst")}`,
     BRIEF_SCHEMA
   );
 
-  // ── SKILL 2: STORYLINE — the star of Optiq Skills ─────────────────────────
+  // ── SKILL 1b: THE CONCEPT ROOM ────────────────────────────────────────────
+  //
+  // The step that stops the film being a description of the product. Storyline
+  // used to be asked to "internally consider several candidates and output the
+  // winner", which a model does not do — it writes its first idea and labels it
+  // the winner, and the first idea for any brief is the literal one.
+  //
+  // So the candidates are made to EXIST, in the open, with their losers attached.
+  // Best-effort: a failure here costs the film its brainstorm, not its
+  // generation, and the storyline skill still has the analysis and the density
+  // law. See ./creative.js for why the provocation is drawn rather than stated.
   await reportStage("storylining");
+  const creativeBrief = conceptDirective(castingSeed, { kind, numScenes });
+  let conceptRoom = null;
+  try {
+    conceptRoom = await runOptiqSkill(
+      "concept-room",
+      `${creativeBrief}
+
+${densityLaw({ kind, numScenes })}
+
+THE BRIEF ANALYST'S READING OF THIS CLIENT:
+${JSON.stringify(brief, null, 2)}
+
+HOUSE DOCTRINE — §1.1 (moments not mood) and §1.3 (the banned vocabulary) are the
+standard your concepts are judged against:
+${knowledgeFor("brief-analyst")}`,
+      [...imageParts, { text: briefText }],
+      CONCEPT_SCHEMA
+    );
+    console.log(
+      `[concept room] ${(conceptRoom.concepts || []).length} concept(s), picked "${conceptRoom.pick}": ` +
+        (conceptRoom.concepts || []).map((c) => c.title).join(" · ")
+    );
+  } catch (err) {
+    console.error(
+      "concept-room failed; the storyline skill writes unprompted:",
+      String(err?.message || err).slice(0, 200)
+    );
+  }
+
+  const winner =
+    (conceptRoom?.concepts || []).find(
+      (c) => normalize(c.title) === normalize(conceptRoom?.pick)
+    ) || (conceptRoom?.concepts || [])[0] || null;
+  const rejected = (conceptRoom?.concepts || []).filter((c) => c !== winner);
+
+  const conceptSection = winner
+    ? `═══ THE CONCEPT YOU ARE WRITING (from the concept room — build THIS) ═══
+Title: ${winner.title}
+Logline: ${winner.logline}
+The engine (what keeps generating events): ${winner.engine}
+The first frame: ${winner.openingImage}
+Where the offering lands: ${winner.whereTheOfferingLands}
+The room's own worry about it: ${winner.risk}
+Why this one was picked over the others: ${conceptRoom?.pickRationale || "(not given)"}
+
+Events this concept promised to deliver — the film must contain all of them, and
+they are a floor, not a plan:
+${(winner.eventDensity || []).map((e) => `  • ${e}`).join("\n")}
+
+CONCEPTS THE ROOM REJECTED. They are here so you do not drift back into them
+halfway through — if your storyline starts resembling one of these, you have
+abandoned the idea you were given:
+${rejected.map((c) => `  ✗ ${c.title} — ${c.logline}`).join("\n") || "  (none)"}`
+    : "";
+
+  // ── SKILL 2: STORYLINE — the star of Optiq Skills ─────────────────────────
   const selectedBriefs = referenceFilmBriefs(brief.referenceFilmIds);
-  const storyline = await runOptiqSkill(
+  // Reassigned by the story doctor below when the density gate finds faults.
+  let storyline = await runOptiqSkill(
     "storyline",
     `You are STORYLINE — the most important skill in the Optiq Skills swarm, and the thing that sets this platform apart. Your only job: make the entire ${kind.noun} ONE story. Not a vibe, not a mood reel — a story with a beginning, a middle, and an end.
 
 WHAT KIND OF FILM THIS IS: ${kind.register}
 
 How you work:
-1. Internally consider several candidate story ideas a real human would relate to — funny, touching, tense, proud. Pick the ONE that evokes the strongest emotion${
-      kind.id === "short-film"
-        ? " and tells the truest story. Output only the winner."
-        : " AND sells the offering in a way nobody imagined. Output only the winner."
+1. ${
+      winner
+        ? `The concept room has already done the ideation and handed you a winner — build THAT film. Do not re-pitch it, do not soften it, and do not quietly revert to the obvious version of this brief on your way to scene 3. Your job is execution: turn a one-line concept into ${numScenes} scenes that deliver every event it promised.`
+        : `Consider several candidate story ideas a real human would relate to — funny, touching, tense, proud — and reject the literal one first. The literal idea for any brief ("someone uses the product and is pleased") is a description of the offering with a camera pointed at it, and it produces empty film. Pick the ONE that evokes the strongest emotion${
+            kind.id === "short-film"
+              ? " and tells the truest story."
+              : " AND sells the offering in a way nobody imagined."
+          }`
     }
 2. Tell that story in exactly ${numScenes} scenes × ${SCENE_SECONDS} seconds${
       numScenes >= 12
         ? ` — this is a long film, so the arc has room: give it a real second act, let scenes breathe, and do NOT pad it by repeating the same beat with different framing.`
         : `. Decide the arc: hook/problem → escalation → the turn (the offering enters) → proof → payoff → brand.`
     }
-3. Plan the CUTS inside every scene. A ${SCENE_SECONDS}s scene is either ONE continuous locked shot (when physical continuity IS the content) or 2–4 hard cuts, each a complete moment with its own verb. In a 30s film you can land up to ~10 cuts total — quick and fast. Use the cut decision tree from the doctrine.
+3. Plan the CUTS inside every scene, to the density law below. A ${SCENE_SECONDS}s scene is either ONE continuous locked shot (when physical continuity IS the content) or 2–4 hard cuts, each a complete moment with its own verb. In a 30s film you can land up to ~10 cuts total — quick and fast. Use the cut decision tree from the doctrine.
 4. Every beat must be a MOMENT — a filmable physical event, verbs about hands — never an atmosphere. If a beat cannot be pointed at with a camera, replace it.
-5. For each scene list: its purpose in the arc, the captured moment, the location, which named characters appear, and whether the product appears.
+5. For each scene list: its purpose in the arc, the captured moment, the location, its casting mode, which named characters appear, and whether the product appears. Write the moment as the actual sequence of events, not a summary of the mood — "she takes the lid off, the steam catches her, she swears, the boy laughs and she throws the cloth at him" rather than "a warm domestic moment in the kitchen".
 6. Invent the characters the story needs (names, roles) and HONOUR THE ANALYST'S CASTING SHAPE — it is not a suggestion:
    • "single-lead" — one recurring character in most scenes. Others may appear, but the film is theirs.
    • "ensemble" — two to four recurring characters who all matter. Give them their own wants and their own beats; do not quietly demote three of them to background for one hero. Scenes should put them TOGETHER, in relationship, not take turns.
-   • "no-hero-montage" — a DIFFERENT person in each scene and nobody recurring. Do not sneak a lead back in by having one person bookend it. Each scene's charactersPresent must name people who appear nowhere else.
+   • "no-hero-montage" — a DIFFERENT person in each scene and nobody recurring. Do not sneak a lead back in by having one person bookend it. Cast those scenes "fresh-faces" and leave charactersPresent empty; they need no locks.
    The platform's known failure is collapsing everything into one hero. If the shape says ensemble or montage, a film that comes out with one dominant character is a FAILED brief, not a stylistic choice.
+6b. Then decide, SCENE BY SCENE, who that scene actually needs — see the per-scene casting brief below. The film-wide shape says what the film is about; the casting mode says who is in front of the camera for these particular ten seconds, and they are not the same question.
 7. ${
       kind.dialogueInVideo
         ? "Characters speak on camera. Keep dialogue short, spoken the way people actually talk, and never in advertising copy."
         : "NOBODY SPEAKS ON CAMERA. Plan no dialogue whatsoever — not a line, not a word. Every beat must be legible from the picture alone, because the only words this film gets are a voiceover recorded separately afterwards. If a beat only works when someone explains it, the beat is wrong: replace it with something we can SEE."
     }
+
+${conceptSection}
+
+${densityLaw({ kind, numScenes })}
+
+${sceneCastingDirective()}
 
 THE BRIEF ANALYST'S ANALYSIS (follow its casting decision and tone):
 ${JSON.stringify(brief, null, 2)}
@@ -530,15 +664,83 @@ ${knowledgeFor("storyline")}`,
     STORYLINE_SCHEMA
   );
 
+  // ── GATE: DEAD CONTENT & DENSITY ──────────────────────────────────────────
+  //
+  // The cheapest place in the whole pipeline to fix a boring film. A thin beat
+  // caught here is one repair call; the same thin beat caught after the scenes
+  // are built is nine 2,000-word rebuilds, and caught after rendering it is the
+  // director's money. Mood language is caught here too, for the same reason.
+  const densityFaults = [
+    ...storylineDensityViolations(storyline, { numScenes }),
+    ...sceneCastingViolations(storyline.sceneBeats),
+  ];
+  if (densityFaults.length > 0) {
+    console.warn(
+      `storyline produced ${densityFaults.length} density/casting violation(s); repairing:`,
+      densityFaults.map((v) => v.slice(0, 140))
+    );
+    try {
+      const repaired = await runOptiqSkill(
+        "storyline-doctor",
+        `You are the STORY DOCTOR. A storyline has been written and it has failed the house
+gates for density or casting. Fix EVERY violation below and change nothing else:
+the concept, the title, the arc, the emotional hook and the characters all stay
+exactly as they are. You are punching up scenes, not rewriting the film.
+
+${densityLaw({ kind, numScenes })}
+
+${sceneCastingDirective()}
+
+Return the COMPLETE storyline in the same schema, with every scene present and in
+order — not just the ones you changed.`,
+        [
+          {
+            text: `VIOLATIONS TO FIX:
+${densityFaults.map((v, i) => `${i + 1}. ${v}`).join("\n")}
+
+THE STORYLINE TO REPAIR:
+${JSON.stringify(storyline, null, 2)}`,
+          },
+        ],
+        STORYLINE_SCHEMA
+      );
+      // Only adopt a repair that kept the film: a doctor that returns three of
+      // nine scenes has not repaired the storyline, it has deleted it.
+      if ((repaired?.sceneBeats || []).length >= (storyline.sceneBeats || []).length) {
+        const remaining = [
+          ...storylineDensityViolations(repaired, { numScenes }),
+          ...sceneCastingViolations(repaired.sceneBeats),
+        ];
+        console.log(
+          `[story doctor] ${densityFaults.length} → ${remaining.length} violation(s) after repair`
+        );
+        storyline = repaired;
+      } else {
+        console.warn(
+          `[story doctor] returned ${(repaired?.sceneBeats || []).length} scenes for a ` +
+            `${(storyline.sceneBeats || []).length}-scene film; keeping the original`
+        );
+      }
+    } catch (err) {
+      console.error("storyline-doctor failed; keeping the original storyline", err);
+    }
+  }
+
   // ── SKILL 3: CASTING & CONSISTENCY REGISTRY ───────────────────────────────
   await reportStage("casting");
   // Drawn fresh per film — this is what stops every ad starring the same person.
   // See the long note at the top of ./casting.js for why an instruction alone
   // could not fix it.
+  // Only scenes cast "recurring" contribute names to the registry. A film whose
+  // scenes are all fresh faces or empty frames needs no locked cast at all, and
+  // authoring one for it was how those scenes ended up with the same people in
+  // them anyway.
   const castNames = new Set();
   for (const beat of storyline.sceneBeats || []) {
+    if (sceneCasting(beat) !== "recurring") continue;
     for (const name of beat.charactersPresent || []) castNames.add(normalize(name));
   }
+  const recurringNames = recurringCharacterNames(storyline.sceneBeats);
   const directive = castingDirective(castingSeed, Math.max(castNames.size, 2));
 
   const registrySystemPrompt = `You are CASTING-REGISTRY, the consistency authority of the Optiq Skills swarm. You author the single source of truth that every scene-builder pastes VERBATIM. Redundancy is the mechanism: the video model has no memory, so identity lives in your words.
@@ -547,8 +749,23 @@ ${directive}
 
 ${noMusicMandate({ allowDialogue: kind.dialogueInVideo })}
 
+═══ WHO YOU ARE CASTING, AND WHO YOU ARE NOT ═══
+Only scenes cast "recurring" have named characters, and only those characters get
+a Locked Character Block. Scenes cast "fresh-faces" are one-off people who appear
+nowhere else and are written fresh inside their own scene — they do NOT belong in
+this registry, and inventing locks for them is how a film ends up with the same
+faces in every shot. Scenes cast "no-people" have nobody on camera at all.
+
+The named cast of this film, from the recurring scenes: ${
+    castNames.size > 0 ? [...castNames].join(", ") : "NOBODY — this film has no recurring characters, so author an EMPTY characters array and put your effort into the sets, the product anchor and the sound spec"
+  }.${
+    recurringNames.size > 0
+      ? `\nOf those, these appear in two or more scenes and carry the real consistency burden: ${[...recurringNames].join(", ")}.`
+      : ""
+  }
+
 Author, with these EXACT word budgets:
-1. CHARACTERS — for every named character in the storyline's beats, however many that is: a Locked Character Block of ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words. Do NOT collapse an ensemble or a montage into one lead plus extras — if the storyline names nine people across nine scenes, author nine blocks. Physical properties only: the keyword "Black" plus Gambian/West African, the SPECIFIC complexion and finish assigned to that character by the casting palette above, face shape, nose, lips, cheekbones, eyes, brows, hair (cut/length/texture/how worn), facial hair, age, height, build, the one distinguishing marker from the palette, and one temperament line at the end. Plus a separate wardrobe lock (colours in CAPS, garment types named precisely, the closure stated, one constant object). Single-scene characters still get full blocks.
+1. CHARACTERS — for every character named above, however many that is: a Locked Character Block of ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words. Do NOT collapse an ensemble into one lead plus extras — if the storyline names five people across its recurring scenes, author five blocks. Do NOT invent characters the storyline did not name. Physical properties only: the keyword "Black" plus Gambian/West African, the SPECIFIC complexion and finish assigned to that character by the casting palette above, face shape, nose, lips, cheekbones, eyes, brows, hair (cut/length/texture/how worn), facial hair, age, height, build, the one distinguishing marker from the palette, and one temperament line at the end. Plus a separate wardrobe lock (colours in CAPS, garment types named precisely, the closure stated, one constant object). Single-scene characters still get full blocks.
 2. PRODUCTS — the exact product anchor (shape, label text, colors, size, wear). ${attachedImagesNote}
 3. ELEMENTS — recurring story-carrying objects, with the scenes they appear in and their exact state per scene if mid-transformation.
 4. RECURRING SETS — every location used by 2+ scenes gets a full locked set block (walls, floor, furniture, every visible item).
@@ -753,17 +970,17 @@ Brand: ${brandName || "Client"} · Offering: ${product || "(unspecified)"}`,
   const buildScene = async (beat) => {
     const neighborBefore = storyline.sceneBeats.find((b) => b.sceneNumber === beat.sceneNumber - 1);
     const neighborAfter = storyline.sceneBeats.find((b) => b.sceneNumber === beat.sceneNumber + 1);
-    const relevantCharacters = registry.characters.filter(
-      (c) =>
-        (beat.charactersPresent || []).some((n) => normalize(n) === normalize(c.name)) ||
-        (c.scenes || []).includes(beat.sceneNumber)
-    );
-    const charactersForScene = relevantCharacters.length > 0 ? relevantCharacters : registry.characters;
+    const casting = sceneCasting(beat);
+    // A scene that names nobody now gets nobody. The old fallback pasted the
+    // ENTIRE registry into any scene without a named character, which is
+    // precisely how a film ends up with its two leads standing in every shot.
+    const charactersForScene = charactersForBeat(registry, beat);
 
     // Only the people actually IN this scene get their reference attached. This
     // is the whole point of per-scene placement: a face attached to a scene that
-    // character isn't in is an invitation to put them there.
-    const sceneRefs = refsForScene(characterRefs, beat, beat.sceneNumber);
+    // character isn't in is an invitation to put them there. A scene with no
+    // recurring cast carries no reference sheet at all.
+    const sceneRefs = casting === "recurring" ? refsForScene(characterRefs, beat, beat.sceneNumber) : [];
     const sceneRefParts = sceneRefs
       .filter((r) => r.base64)
       .map((r) => ({ inlineData: { mimeType: r.mimeType || "image/png", data: r.base64 } }));
@@ -777,15 +994,33 @@ ${MANDATORY_PROMPT_RULES}
 
 ${noMusicMandate({ allowDialogue: kind.dialogueInVideo })}
 
+${densityLaw({ kind, numScenes })}
+
+${
+        casting === "no-people"
+          ? `═══ THIS SCENE HAS NOBODY IN IT ═══
+No person appears on camera in this scene. No faces, no hands, no bodies, nobody
+passing in the background, nobody reflected in anything. Do NOT paste a Locked
+Character Block — there is no character here, and adding one contradicts the film.
+
+This is a deliberate choice and often the strongest ten seconds in an ad, but it
+is NOT permission to write a still life. The density law still binds: things move,
+land, open, tip, spill, switch on, boil over, get pushed by wind, are lifted by
+something out of frame. Write the events, and let the absence of people be the
+composition rather than the content.`
+          : casting === "fresh-faces"
+            ? freshFaceDirective(castingSeed, beat.sceneNumber)
+            : `- Paste each present character's Locked Character Block and wardrobe lock VERBATIM at the top (identity first — models weight early tokens).`
+      }
+
 Scene-specific contract:
 - fullPrompt is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. Describe every single visible thing: in a room, the walls, the marks on the walls, the floor, every item in frame; in a market, every stall and its wares.
-- Paste each present character's Locked Character Block and wardrobe lock VERBATIM at the top (identity first — models weight early tokens).
 - Paste the product anchor VERBATIM wherever the product appears${imageParts.length > 0 ? ", with the reference-image quarantine clause" : ""}.
 - Paste the recurring set block VERBATIM if this scene uses a recurring set.
 - The ABSOLUTE RULES block states the no-music law explicitly — "NO MUSIC of any kind" — alongside the other prohibitions.
 - IF a character reference image is attached to this scene, the brief below carries an "ATTACHED CHARACTER REFERENCE" clause. Reproduce that clause inside the prompt, near the top, immediately after the character blocks. It is what tells the video model to take the person and NOT the studio backdrop the reference was shot on — without it, scenes come back grey and flatly lit. Do not paraphrase it.
 - The SOUND block opens by restating that the clip carries NO MUSIC, then the locked sound spec VERBATIM, then this scene's diegetic event sounds (every physical event has a sound). Flag "voiceover separate". Never name an instrument, a tempo, a BPM or a musical mood: there is no score in this clip.
-- The ACTION block is timestamped beats implementing the storyline's planned cuts exactly. Physical verbs. Five verbs minimum.
+- The ACTION block is timestamped beats implementing the storyline's planned cuts exactly, spread across the whole ten seconds. At least ${MIN_BEATS_PER_SCENE} separate timestamped beats, aiming for ${TARGET_BEATS_PER_SCENE}, each a change of state with its own physical verb. Five verbs minimum. Ten seconds narrating one continuous activity is a failed scene.
 - ${
         kind.dialogueInVideo
           ? "The DIALOGUE block carries the scene's spoken lines, short and natural, with the language tag."
@@ -825,8 +1060,14 @@ Previous: ${neighborBefore ? JSON.stringify(neighborBefore) : "none — this is 
 Next: ${neighborAfter ? JSON.stringify(neighborAfter) : "none — this is the final scene (land the brand)"}
 
 THE CONSISTENCY REGISTRY (paste applicable locks VERBATIM):
-Characters in this scene:
-${JSON.stringify(charactersForScene, null, 2)}
+Who is in this scene — casting mode "${casting}":
+${
+            casting === "no-people"
+              ? "NOBODY. This scene has no people on camera at all. There are no character locks to paste."
+              : casting === "fresh-faces"
+                ? "One-off people who appear in no other scene and have no locks. Write them fresh, to the palette above. Do NOT paste any character block from this film's registry."
+                : JSON.stringify(charactersForScene, null, 2)
+          }
 
 Products: ${JSON.stringify(registry.products, null, 2)}
 Elements: ${JSON.stringify(registry.elements.filter((e) => (e.scenes || []).includes(beat.sceneNumber)), null, 2)}
@@ -860,22 +1101,42 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
         `fullPrompt is ${wc} words — below the ${WORD_BUDGETS.scenePromptMin}-word floor. Expand with authored specifics (environment items, background people, event sounds), never filler.`
       );
     }
-    const present = registry.characters.filter(
-      (c) =>
-        (beat?.charactersPresent || []).some((n) => normalize(n) === normalize(c.name)) ||
-        (c.scenes || []).includes(scene.sceneNumber)
-    );
-    for (const c of present) {
-      if (!containsVerbatim(scene.fullPrompt, c.lcb)) {
-        violations.push(`The Locked Character Block for ${c.name} is missing or paraphrased. Paste it VERBATIM: "${c.lcb}"`);
+    // Locks are only owed by scenes that carry the recurring cast. A fresh-faces
+    // or empty scene demanding a Locked Character Block was the gate arguing with
+    // the storyline, and the gate always won — which put the leads back into
+    // scenes written to be without them.
+    const casting = sceneCasting(beat);
+    if (casting === "recurring") {
+      for (const c of charactersForBeat(registry, beat)) {
+        if (!containsVerbatim(scene.fullPrompt, c.lcb)) {
+          violations.push(`The Locked Character Block for ${c.name} is missing or paraphrased. Paste it VERBATIM: "${c.lcb}"`);
+        }
+      }
+    } else {
+      // …and the reverse: a lock that leaked into a scene it does not belong to
+      // is how the film collapses back to the same two faces everywhere.
+      for (const c of registry.characters || []) {
+        if (c.lcb && containsVerbatim(scene.fullPrompt, c.lcb)) {
+          violations.push(
+            `Scene ${scene.sceneNumber} is cast "${casting}" but pastes ${c.name}'s Locked Character Block. ` +
+              `${c.name} is not in this scene. Remove the block entirely and ${
+                casting === "no-people"
+                  ? "keep every person out of frame — this scene has nobody in it."
+                  : "write the scene's own one-off people instead, who appear nowhere else in the film."
+              }`
+          );
+        }
       }
     }
     if (registry.soundSpec && !containsVerbatim(scene.fullPrompt, registry.soundSpec)) {
       violations.push(`The locked sound spec is missing or paraphrased in the SOUND block. Paste it VERBATIM: "${registry.soundSpec}"`);
     }
-    if (!/black/i.test(scene.fullPrompt)) {
+    if (casting !== "no-people" && !/black/i.test(scene.fullPrompt)) {
       violations.push(`The keyword "Black" never appears — every on-screen person must be explicitly described as Black Gambian / Black West African.`);
     }
+    // The density backstop. The storyline gate is the real defence; this catches
+    // a builder that was handed four beats and wrote one long activity anyway.
+    violations.push(...scenePromptDensityViolations(scene));
     // The registry gate already cleaned the locked spec, but a builder can still
     // invent a score in its own event-sound writing, so every scene is checked.
     violations.push(...sceneSoundViolations(scene.fullPrompt, { allowDialogue: kind.dialogueInVideo }));
@@ -901,6 +1162,8 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
 ${MANDATORY_PROMPT_RULES}
 
 ${noMusicMandate({ allowDialogue: kind.dialogueInVideo })}
+
+${densityLaw({ kind, numScenes })}
 
 HOUSE DOCTRINE:
 ${verifierKnowledge}`,
@@ -977,16 +1240,30 @@ async function reviseScene({
   previousScenePrompt,
   nextScenePrompt,
   musicSpec,
+  /**
+   * Which of the three kinds of film this scene belongs to. Absent on films made
+   * before types existed, which `filmKind` resolves to the dialogue ad.
+   *
+   * This used to read an undeclared `kind` from the pipeline function above,
+   * which is a ReferenceError, not a fallback: every revision threw before it
+   * reached Vertex. That took out the script editor's revise box AND every
+   * agent write tool, since they all come through here.
+   */
+  videoType,
 }) {
+  const kind = filmKind(videoType);
   const runOptiqSkill = makeSkillRunner(vertexFetch);
   const systemPrompt = `You are the SCENE REVISER of the Optiq Skills swarm, revising one scene prompt of a film.
 Apply the user's revision request to the original prompt while preserving everything that is locked.
 
 ${noMusicMandate({ allowDialogue: kind.dialogueInVideo })}
 
+${densityLaw({ kind })}
+
 You MUST:
 - NEVER reintroduce music. If the director's request asks for music ("add an upbeat track", "make it feel triumphant with strings"), do NOT put it in the prompt: the score is composed separately afterwards by a dedicated music model. Deliver the feeling through the diegetic sound and the action instead, and the composed track will carry the rest.
 - Keep moments, not mood. Physical verbs. Banned vocabulary stays banned.
+- NEVER come back with fewer events than you started with. A revision that turns four timestamped beats into one continuous activity has made the scene worse whatever else it fixed, and ten seconds of one action is the failure this whole system exists to prevent. If the director's request genuinely calls for a calmer scene, make it calmer WITHOUT making it emptier.
 - Keep the Locked Character Block, wardrobe lock and style header VERBATIM.
 - Re-compile into the canonical 14-block order, ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words.
 - CONTINUITY: the revised scene continues seamlessly from the previous scene prompt and hands off cleanly to the next — same characters, same product state, same recurring elements, same sound spec verbatim.

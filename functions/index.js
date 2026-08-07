@@ -2114,7 +2114,7 @@ exports.storyRevise = onRequest(
       await requireAuth(req);
       const {
         scenePrompt, revisionRequest, characterLock, styleHeader,
-        previousScenePrompt, nextScenePrompt, musicSpec,
+        previousScenePrompt, nextScenePrompt, musicSpec, videoType,
       } = req.body;
       if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
 
@@ -2127,6 +2127,7 @@ exports.storyRevise = onRequest(
         previousScenePrompt,
         nextScenePrompt,
         musicSpec,
+        videoType,
       });
       return res.status(200).json({ revisedPrompt });
     } catch (err) {
@@ -2843,6 +2844,13 @@ exports.audioPost = onDocumentCreated(
         project,
         projectId: job.projectId,
         filmKind: filmKind(project.videoType),
+        // The pass runs for minutes. This is how it sees the project as it is by
+        // the time it has something to place, instead of laying the score onto a
+        // snapshot taken before any of the work happened.
+        reloadProject: async () => {
+          const s = await projectRef.get();
+          return s.exists ? { id: job.projectId, ...s.data() } : null;
+        },
         // Set when the agent's rescore_film tool started this pass, carrying the
         // director's own words about how the score should feel.
         scoreNote: job.scoreNote || null,
