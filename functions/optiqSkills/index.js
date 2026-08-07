@@ -129,16 +129,43 @@ function referenceFilmBriefs(ids) {
 const SKILL_KNOWLEDGE = {
   "brief-analyst": ["01-doctrine.md"],
   "storyline": ["01-doctrine.md", "06-cut-logic.md"],
-  "casting-registry": ["03-character-consistency.md", "04-environment-engine.md", "05-craft-modules.md"],
+  // 12 rides with 03 everywhere 03 goes: 03's worked examples are exactly what
+  // makes every film cast the same person, and 12 is the counterweight.
+  // 13 rides with 05 the way 12 rides with 03: 05's sound craft still teaches the
+  // music-consistency rule, and 13 is what reverses it.
+  // 14 rides with 03 for the same reason 12 does: it reverses part of it. 03
+  // still teaches "images are for products only", and 14 is what changed.
+  "casting-registry": [
+    "03-character-consistency.md",
+    "12-casting-variety.md",
+    "14-character-references.md",
+    "04-environment-engine.md",
+    "05-craft-modules.md",
+    "13-sound-policy.md",
+  ],
   "scene-builder": [
     "02-prompt-architecture.md",
     "04-environment-engine.md",
     "05-craft-modules.md",
     "08-brand-product-text.md",
     "09-safety.md",
+    "12-casting-variety.md",
+    "13-sound-policy.md",
+    "14-character-references.md",
   ],
-  "scene-verifier": ["01-doctrine.md", "09-safety.md", "10-failure-catalog.md"],
-  "scene-reviser": ["02-prompt-architecture.md", "05-craft-modules.md", "10-failure-catalog.md"],
+  "scene-verifier": [
+    "01-doctrine.md",
+    "09-safety.md",
+    "10-failure-catalog.md",
+    "12-casting-variety.md",
+    "13-sound-policy.md",
+  ],
+  "scene-reviser": [
+    "02-prompt-architecture.md",
+    "05-craft-modules.md",
+    "10-failure-catalog.md",
+    "13-sound-policy.md",
+  ],
 };
 
 function knowledgeFor(skillName) {
@@ -162,6 +189,18 @@ const DOCTRINE_MODULES = {
   safety: { file: "09-safety.md", title: "Safety — minors, classifiers, prohibited framings" },
   "failure-catalog": { file: "10-failure-catalog.md", title: "Known generation failures and their structural fixes" },
   "agent-procedure": { file: "11-agent-procedure.md", title: "How the swarm works end to end" },
+  "casting-variety": {
+    file: "12-casting-variety.md",
+    title: "Casting variety — why every film stopped starring the same person, and the spread that fixes it",
+  },
+  "sound-policy": {
+    file: "13-sound-policy.md",
+    title: "The sound policy — the video model generates NO music; Lyria 3 Pro scores the finished cut instead",
+  },
+  "character-references": {
+    file: "14-character-references.md",
+    title: "Character reference images — consistency by picture as well as paragraph, and why it reverses §3.8",
+  },
   exemplar: { file: "exemplar-scene.md", title: "A gold-standard scene prompt at full density" },
 };
 

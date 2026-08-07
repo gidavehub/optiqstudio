@@ -233,5 +233,8 @@ module.exports = {
   computeWaveform,
   waveformFromInt16LE,
   probeMedia,
+  // Exported so the audio-post pass can run its own ffprobe calls through the
+  // same spawn helper rather than keeping a second copy of it.
+  runCapture,
   DEFAULT_WAVEFORM_BUCKETS,
 };

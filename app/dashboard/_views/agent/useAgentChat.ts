@@ -23,9 +23,10 @@ import {
 } from "firebase/firestore";
 import { ref as storageRef, uploadString } from "firebase/storage";
 import { db, storage } from "../../../../lib/firebase";
-import { AgentChatMessage, AgentAttachment } from "./types";
+import { AgentChatMessage, AgentAttachment, AgentThread, MAIN_THREAD_ID } from "./types";
 
 export interface AgentChat {
+  /** Messages in the ACTIVE thread only. */
   messages: AgentChatMessage[];
   loading: boolean;
   /** True while a turn is queued or running — the composer locks on this. */
@@ -33,7 +34,20 @@ export interface AgentChat {
   /** The step the agent is on right now, for the live status line. */
   activity: string | null;
   send: (text: string, images?: AgentAttachment[]) => Promise<void>;
+  /** Deletes the active thread's messages. */
   clear: () => Promise<void>;
+
+  // ── History ──────────────────────────────────────────────────────────────
+  /** Every conversation on this film, most recently touched first. */
+  threads: AgentThread[];
+  activeThreadId: string;
+  selectThread: (id: string) => void;
+  /**
+   * Start a fresh conversation. Mints an id locally and writes nothing — an
+   * empty thread that was never spoken in should leave no trace.
+   */
+  newThread: () => void;
+  deleteThread: (id: string) => Promise<void>;
 }
 
 const NO_MESSAGES: AgentChatMessage[] = [];
@@ -89,7 +103,52 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
   // Recomputed on render, which is what makes the timeout above actually fire:
   // a project whose turn died sends no further snapshots, so nothing else would
   // ever re-evaluate it.
-  const messages = useMemo(() => raw.map(withTimeout), [raw]);
+  const allMessages = useMemo(() => raw.map(withTimeout), [raw]);
+
+  // ── Threads ───────────────────────────────────────────────────────────────
+  //
+  // Grouped from the messages rather than stored in their own collection: every
+  // message is already in this snapshot, so the sidebar is free and instant, and
+  // there is nothing to keep in sync or migrate. Messages predating threads have
+  // no threadId and fall into MAIN_THREAD_ID.
+  const threads = useMemo<AgentThread[]>(() => {
+    const byId = new Map<string, AgentChatMessage[]>();
+    for (const message of allMessages) {
+      const id = message.threadId || MAIN_THREAD_ID;
+      const list = byId.get(id);
+      if (list) list.push(message);
+      else byId.set(id, [message]);
+    }
+    const out: AgentThread[] = [];
+    for (const [id, list] of byId) {
+      const firstSaid = list.find((m) => m.role === "user" && m.text.trim());
+      const last = list[list.length - 1];
+      out.push({
+        id,
+        title: firstSaid ? firstSaid.text.trim().replace(/\s+/g, " ").slice(0, 80) : "New conversation",
+        messageCount: list.length,
+        updatedAt: last?.updatedAt || last?.createdAt || "",
+        busy: last?.role === "assistant" && (last.status === "queued" || last.status === "working"),
+      });
+    }
+    return out.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+  }, [allMessages]);
+
+  // Which conversation is on screen. Unset means "whatever is most recent", so a
+  // freshly opened room lands on the newest thread without persisting anything.
+  //
+  // Stamped with the project it belongs to, and derived rather than reset in an
+  // effect — the same shape `thread` above uses, for the same reason: clearing it
+  // from an effect on projectId is a cascading render, and React's lint rules
+  // (rightly) reject it. A stamp that doesn't match simply reads as no selection.
+  const [selected, setSelected] = useState<{ projectId: string; threadId: string } | null>(null);
+  const selectedThreadId = selected && selected.projectId === projectId ? selected.threadId : null;
+  const activeThreadId = selectedThreadId ?? threads[0]?.id ?? MAIN_THREAD_ID;
+
+  const messages = useMemo(
+    () => allMessages.filter((m) => (m.threadId || MAIN_THREAD_ID) === activeThreadId),
+    [allMessages, activeThreadId]
+  );
 
   const last = messages[messages.length - 1];
   const busy = last?.role === "assistant" && (last.status === "queued" || last.status === "working");
@@ -136,6 +195,7 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
         // Kept on the message too, so the bubble can show what was attached
         // when the thread is reopened.
         images: uploaded,
+        threadId: activeThreadId,
         status: "done",
         createdAt: new Date(now).toISOString(),
       });
@@ -146,6 +206,7 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
         role: "assistant",
         text: "",
         steps: [],
+        threadId: activeThreadId,
         status: "queued",
         createdAt: new Date(now + 1).toISOString(),
       });
@@ -156,18 +217,57 @@ export default function useAgentChat(projectId: string | null, uid: string | nul
         text: body,
         // The trigger reads these paths back out of Storage.
         images: uploaded,
+        // So the function carries only THIS conversation's history into the turn.
+        // Without it the agent would read every thread on the film as one.
+        threadId: activeThreadId,
         status: "queued",
         createdAt: new Date().toISOString(),
       });
     },
-    [projectId, uid]
+    [projectId, uid, activeThreadId]
   );
 
-  const clear = useCallback(async () => {
+  /** Delete one conversation. Legacy messages carry no threadId, hence the ?? . */
+  const deleteThread = useCallback(
+    async (id: string) => {
+      if (!projectId) return;
+      const snap = await getDocs(collection(db, "projects", projectId, "agentChat"));
+      const doomed = snap.docs.filter((d) => ((d.data().threadId as string) || MAIN_THREAD_ID) === id);
+      await Promise.all(doomed.map((d) => deleteDoc(d.ref)));
+      // Deleting the thread you were reading drops you back to the newest one.
+      setSelected((current) => (current?.threadId === id ? null : current));
+    },
+    [projectId]
+  );
+
+  const clear = useCallback(() => deleteThread(activeThreadId), [deleteThread, activeThreadId]);
+
+  const selectThread = useCallback(
+    (id: string) => {
+      if (projectId) setSelected({ projectId, threadId: id });
+    },
+    [projectId]
+  );
+
+  const newThread = useCallback(() => {
     if (!projectId) return;
-    const snap = await getDocs(collection(db, "projects", projectId, "agentChat"));
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+    setSelected({
+      projectId,
+      threadId: `t_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    });
   }, [projectId]);
 
-  return { messages, loading, busy: !!busy, activity, send, clear };
+  return {
+    messages,
+    loading,
+    busy: !!busy,
+    activity,
+    send,
+    clear,
+    threads,
+    activeThreadId,
+    selectThread,
+    newThread,
+    deleteThread,
+  };
 }

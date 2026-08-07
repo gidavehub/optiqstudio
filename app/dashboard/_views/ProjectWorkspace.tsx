@@ -219,7 +219,21 @@ export default function ProjectWorkspace() {
     // is the landing point of "make the whole film": script → clips → timeline,
     // with no stop in the script editor on the way.
     if (forceEditor || (renderTally.done === sceneCount && sceneCount > 0)) {
-      return <EditorStudio project={{ ...(project ?? {}), id: activeProjectId, title: storyboard.title, videoStatus }} />;
+      // aspectRatio is passed explicitly rather than relying on the spread: the
+      // editor builds its canvas from it, and the flow's value is the one the
+      // rest of this screen is already cut to (it falls back to 16:9), so the
+      // timeline can't disagree with the previews the director just looked at.
+      return (
+        <EditorStudio
+          project={{
+            ...(project ?? {}),
+            id: activeProjectId,
+            title: storyboard.title,
+            videoStatus,
+            aspectRatio,
+          }}
+        />
+      );
     }
 
     const percent = Math.round((renderTally.done / Math.max(sceneCount, 1)) * 100);

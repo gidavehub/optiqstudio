@@ -19,9 +19,25 @@ const { functionDeclarations, callTool, toolLabel, WRITE_TOOLS } = require("./ag
 const AGENT_MODEL = "gemini-3.5-flash";
 
 // How many model turns one message may take. Each turn can carry several tool
-// calls, so this is generous in practice — and it is what stops a confused loop
-// from burning the function's 9-minute budget.
-const MAX_STEPS = 10;
+// calls, so this is generous in practice.
+//
+// Raised from 10 because directors were hitting it on real work: a film-wide
+// note that reads six scenes and rewrites three is already nine turns before the
+// agent has said anything, and it now has rendering and re-scoring tools that
+// take turns of their own.
+const MAX_STEPS = 26;
+
+// A step ceiling alone is the wrong guard, and raising it made that worse: the
+// function dies at 540s, and 26 turns of a slow tool can pass that with nothing
+// written back — which the client only sees as a turn that stopped responding.
+// So the loop also watches the clock and stops itself in time to write a real
+// answer. Well inside the 540s ceiling, leaving room for the final model call.
+const TURN_BUDGET_MS = 7 * 60 * 1000;
+
+// Tools that are worth waiting for even when the budget is nearly gone, because
+// abandoning them halfway is worse than finishing late: they cost the director
+// money or leave the film in a half-changed state.
+const UNINTERRUPTIBLE = new Set(["render_scene", "rescore_film", "rewrite_film", "propagate_locks"]);
 
 // How much prior conversation the agent carries. The film itself is read
 // through tools, so history only needs to hold the thread of the discussion.
@@ -57,7 +73,7 @@ Concept: ${project.concept || "(none recorded)"}
 1. The director briefs the wizard (brand, offering, run-time, orientation, reference images).
 2. The OPTIQ SKILLS SWARM writes the film: a brief-analyst classifies the offering and picks reference storylines; the STORYLINE skill turns it into ONE story where the product is the hero; a casting-registry authors the consistency locks; parallel scene-builders compile each scene into a single copy-ready prompt; JS quality gates check the result and a verifier repairs failures.
 3. Each scene is rendered as a 10-second clip by a video model that is given NOTHING but that scene's compiled prompt (plus any reference images attached to the scene). It has no memory of the other scenes. This is the single fact that explains every rule below.
-4. Rendered clips land in the timeline editor, where they are trimmed and exported as one film.
+4. Rendered clips land in the timeline editor, where they are trimmed and exported as one film. The clips carry NO music — the score is composed afterwards by Lyria 3 Pro against the finished cut and laid under the timeline. Narrated films also get a voiceover written and recorded against that cut, timed into the gaps where nobody is speaking.
 5. The ad is paid for once, up front, and that payment covers one render of every scene. RE-rendering a scene costs the director money.
 
 ═══ WHAT THE HOUSE FORCES, AND WHY ═══
@@ -85,7 +101,11 @@ ${doctrineIndexText()}
 • One beat → rewrite_scene. A change that runs through the film → rewrite_film. A literal typo or a wrong price → patch_scene. Changing a lock → update_direction, then propagate_locks, always both.
 • After writing, say plainly what you changed and what it means: which scenes moved, and — if any of them were already rendered — that the old clip is still on screen until they re-render it, which costs money.
 • Never claim an edit you did not make. If a tool failed, say so and say why.
-• You cannot render clips, spend the director's balance, add or remove scenes, or change the run-time. The scene count is what they paid for. Say so plainly if asked, and offer what you can do instead.
+• NEVER PUT MUSIC IN A SCENE PROMPT. The clips are generated with no music at all — only diegetic sound, ambience and dialogue. The score is composed separately by Lyria 3 Pro against the finished cut. Music baked into a clip cannot be removed, collides with the composed score, and only a paid re-render undoes it. When the director wants a different musical feel, that is rescore_film, not a prompt edit.
+• YOU CAN SHOOT AND SCORE, AND BOTH SPEND MONEY. render_scene starts a real render; rescore_film re-composes the whole score and re-records the narration. Call them ONLY when the director has asked for it in this conversation — never speculatively, never as a bonus alongside a rewrite they did ask for. When you do, say what it cost and that it runs in the background. If you are unsure whether they meant "change the words" or "change the film", ask.
+• Rendering costs nothing while the ad's prepaid allowance lasts (it covers one render of every scene). After that a re-render is charged. render_scene tells you which applied — pass that on rather than guessing.
+• You still cannot add or remove scenes, or change the run-time. The scene count is what they paid for. Say so plainly if asked, and offer what you can do instead.
+• Use get_audio before answering anything about the music or the voiceover. Never describe a score you have not read.
 • Never invent what a scene contains. If you have not read it this turn, read it.
 
 ═══ VOICE ═══
@@ -166,7 +186,21 @@ function describeResult(result) {
  * @param {Function} opts.onText       async (text) => void — called as prose lands.
  * @returns {Promise<{ text: string, steps: Array, touchedFilm: boolean }>}
  */
-async function runStorylineAgent({ vertexFetch, project, saveProject, history, message, images = [], onSteps, onText }) {
+async function runStorylineAgent({
+  vertexFetch,
+  project,
+  saveProject,
+  history,
+  message,
+  images = [],
+  onSteps,
+  onText,
+  // Production powers, injected by the caller because they spend money — see
+  // storylineAgent in functions/index.js. Absent means the tools decline rather
+  // than pretending to work.
+  renderScene,
+  rescoreFilm,
+}) {
   const steps = [];
   let touchedFilm = false;
   const publishSteps = async () => {
@@ -181,6 +215,8 @@ async function runStorylineAgent({ vertexFetch, project, saveProject, history, m
       touchedFilm = true;
       await saveProject(patch);
     },
+    renderScene,
+    rescoreFilm,
     // Long-running tools call this so the work log ticks over instead of
     // sitting on "Reworking the whole storyline" for three minutes.
     progress: async (detail) => {
@@ -212,8 +248,29 @@ async function runStorylineAgent({ vertexFetch, project, saveProject, history, m
 
   const system = systemPrompt(project);
   let prose = "";
+  const startedAt = Date.now();
+  let ranOutOfTime = false;
 
   for (let step = 0; step < MAX_STEPS; step++) {
+    // Out of clock: ask for a closing answer instead of starting more work, so
+    // the director gets a report on what was actually done rather than a turn
+    // that dies silently at the function's ceiling.
+    if (Date.now() - startedAt > TURN_BUDGET_MS) {
+      ranOutOfTime = true;
+      contents.push({
+        role: "user",
+        parts: [
+          {
+            text: "SYSTEM: you are out of time on this turn. Do NOT call any more tools. Reply now, in prose, with exactly what you changed and what is still outstanding, so the director can pick it up in the next message.",
+          },
+        ],
+      });
+      const { parts: closing } = await callModel(vertexFetch, contents, system);
+      const said = closing.map((p) => p.text || "").join("").trim();
+      if (said) prose = prose ? `${prose}\n\n${said}` : said;
+      break;
+    }
+
     const { parts, finishReason } = await callModel(vertexFetch, contents, system);
 
     const calls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
@@ -251,6 +308,21 @@ async function runStorylineAgent({ vertexFetch, project, saveProject, history, m
     // later call in the same turn must see what an earlier one did.
     const responseParts = [];
     for (const call of calls) {
+      // Past the budget, decline anything still queued rather than starting it —
+      // except the ones that must not be abandoned midway.
+      if (Date.now() - startedAt > TURN_BUDGET_MS && !UNINTERRUPTIBLE.has(call.name)) {
+        responseParts.push({
+          functionResponse: {
+            name: call.name,
+            response: {
+              result: {
+                error: "Skipped — this turn ran out of time. Tell the director what you did and stop.",
+              },
+            },
+          },
+        });
+        continue;
+      }
       const entry = {
         tool: call.name,
         label: toolLabel(call.name, call.args),
@@ -283,14 +355,16 @@ async function runStorylineAgent({ vertexFetch, project, saveProject, history, m
     contents.push({ role: "user", parts: responseParts });
   }
 
-  // Step budget exhausted — say so rather than returning an empty bubble.
+  // Budget exhausted — say so rather than returning an empty bubble.
   return {
     text:
       prose ||
-      "I ran out of working steps on that one before I could finish. Tell me the single next thing you want changed and I'll take it from there.",
+      (ranOutOfTime
+        ? "That turn ran long and I had to stop before I could finish. Nothing is half-written — tell me the single next thing you want and I'll pick it up."
+        : "I ran out of working steps on that one before I could finish. Tell me the single next thing you want changed and I'll take it from there."),
     steps,
     touchedFilm,
   };
 }
 
-module.exports = { runStorylineAgent, MAX_STEPS };
+module.exports = { runStorylineAgent, MAX_STEPS, TURN_BUDGET_MS };

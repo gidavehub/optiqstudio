@@ -13,9 +13,10 @@
 // carries the Optiq Studio brand itself.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft, Edit3, Redo2, Undo2, Scissors, Trash2, Magnet,
-  ZoomIn, ZoomOut, Loader2, Download, Zap, Film,
+  ZoomIn, ZoomOut, Loader2, Download, Zap, Film, Music2, AlertCircle,
 } from "lucide-react";
 import { doc as fsDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../../../lib/firebase";
@@ -23,10 +24,11 @@ import {
   EditorEngine, EditorPlayer, InteractionController, EditorAutosaver,
   EditorDoc, PlaybackFrame, docFromLegacyProject, deserializeDoc, syncSceneTakes,
   compileRenderJob, clampZoom, formatTimecode, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD,
-  resolveShortcut, clipEnd,
+  resolveShortcut, clipEnd, conformCanvas,
 } from "../../../../lib/editor";
 import { useEditorFlow } from "../../_flow/EditorFlowProvider";
 import { useAuth } from "../../../../components/AuthProvider";
+import OptiqMark from "../../../../components/OptiqMark";
 import useIsMobile from "../../_shared/useIsMobile";
 import PreviewStage from "./PreviewStage";
 import TimelinePanel from "./TimelinePanel";
@@ -46,10 +48,23 @@ const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi,
 // treated as abandoned, so Export can never stay disabled forever.
 const RENDER_STALE_MS = 12 * 60 * 1000;
 
+const AUDIO_STAGE_LABELS: Record<string, string> = {
+  queued: "Scoring queued…",
+  measuring: "Measuring the cut…",
+  scanning: "Watching your film…",
+  writing: "Writing the narration…",
+  speaking: "Recording the voiceover…",
+  rewriting: "Trimming lines to fit…",
+  refitting: "Re-recording trimmed lines…",
+  scoring: "Composing the score…",
+  placing: "Laying it on the timeline…",
+};
+
 export default function EditorStudio({ project }: EditorStudioProps) {
-  const { setProductionMode, goHome } = useEditorFlow();
+  const { setProductionMode, goHome, audioStage, audioReport, requestAudioPost } = useEditorFlow();
   const { apiFetch } = useAuth();
   const isMobile = useIsMobile();
+  const router = useRouter();
 
   // ── Engine session (one per project id) ────────────────────────────────
   const session = useMemo(() => {
@@ -86,8 +101,13 @@ export default function EditorStudio({ project }: EditorStudioProps) {
     // out of the autosaver — the mount effect below persists it instead, since
     // a Firestore write must not be a side effect of rendering.
     const repointed = syncSceneTakes(engine, project?.videoStatus);
+    // Same reasoning for the canvas: a document saved before the canvas was
+    // derived from the ad's orientation carries a hardcoded landscape frame, so
+    // a vertical film would preview and export letterboxed. Conform before the
+    // engine is bound and before the first frame is drawn.
+    const reshaped = conformCanvas(engine, project?.aspectRatio);
     const unbind = autosaver.bindEngine(engine);
-    return { engine, interaction, interactionOpts, autosaver, unbind, repointed };
+    return { engine, interaction, interactionOpts, autosaver, unbind, repointed, reshaped };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
@@ -122,8 +142,8 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       setDoc(d);
       playerRef.current?.setDoc(d);
     });
-    // Persist the take adoption the session did on the way up.
-    if (session.repointed > 0) session.autosaver.markDirty(engine.getDoc());
+    // Persist the take adoption and canvas conform the session did on the way up.
+    if (session.repointed > 0 || session.reshaped) session.autosaver.markDirty(engine.getDoc());
     return () => {
       unsub();
       session.unbind();
@@ -272,6 +292,11 @@ export default function EditorStudio({ project }: EditorStudioProps) {
 
   const rendering = exporting || (renderStatus === "rendering" && !renderStalled);
 
+  // Every stage of the audio pass except its two terminal ones.
+  const audioWorking = !!audioStage && audioStage !== "ready" && audioStage !== "failed";
+  const audioNotes = (audioReport?.notes as string[] | undefined) ?? [];
+  const audioViolations = (audioReport?.violations as string[] | undefined) ?? [];
+
   return (
     <div className="flex h-full flex-col bg-background text-foreground overflow-hidden select-none">
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
@@ -286,11 +311,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
 
           {/* Optiq Studio brand (the floating pills are hidden in this editor) */}
           <div className="hidden sm:flex items-center gap-2 shrink-0">
-            <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-              {/* Inverted for the light shell: ink disc, canvas-coloured ring. */}
-              <circle cx="16" cy="16" r="16" className="fill-foreground" />
-              <circle cx="16" cy="16" r="8" fill="none" className="stroke-background" strokeWidth={4} />
-            </svg>
+            <OptiqMark size={18} />
             <span className="tabular-nums text-[12px] font-bold tracking-tight lowercase text-foreground">
               optiq studio
             </span>
@@ -313,12 +334,52 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           <span className={`hidden sm:inline text-[9px] tabular-nums uppercase tracking-wider ${autosaver.isDirty ? "text-orange" : "text-faint"}`}>
             {autosaver.isDirty ? "● Saving…" : "● Saved"}
           </span>
+
+          {/* Audio post-production. The score and voiceover are written against
+              the finished cut, so this runs itself once every scene lands; the
+              button is only for re-running it or recovering from a failure. */}
+          {audioWorking ? (
+            <span className="hidden md:flex items-center gap-1.5 rounded-xl border border-accent-line bg-surface px-2.5 py-1.5 text-[10px] font-semibold text-accent-ink">
+              <Loader2 size={10} className="animate-spin" />
+              {AUDIO_STAGE_LABELS[audioStage ?? ""] ?? "Scoring…"}
+            </span>
+          ) : (
+            <button
+              onClick={() => void requestAudioPost()}
+              title={
+                audioStage === "ready"
+                  ? "Re-score and re-narrate this cut"
+                  : audioStage === "failed"
+                    ? "Scoring failed — try again"
+                    : "Score and narrate this cut"
+              }
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition-all active:scale-95 ${
+                audioStage === "failed"
+                  ? "border-danger bg-danger-soft text-danger hover:bg-danger-soft"
+                  : "border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-accent-ink"
+              }`}
+            >
+              <Music2 size={11} />
+              <span className="hidden lg:inline">{audioStage === "ready" ? "Re-score" : "Score"}</span>
+            </button>
+          )}
+          {/* This editor owns its navigation (the floating WorkspaceModeBar is
+              hidden here), so both other faces have to be reachable from it. */}
+          <button
+            onClick={() => router.push(`/dashboard/project/${project?.id}/agent`)}
+            aria-label="Optiq Agent"
+            title="Optiq Agent"
+            className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
+          >
+            <OptiqMark size={12} /> <span className="hidden md:inline">Optiq Agent</span>
+          </button>
           <button
             onClick={() => setProductionMode("manual")}
             aria-label="Script editor"
+            title="Script editor"
             className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
           >
-            <Edit3 size={11} /> <span className="hidden sm:inline">Script Editor</span>
+            <Edit3 size={11} /> <span className="hidden md:inline">Script</span>
           </button>
           {renderStatus === "succeeded" && renderUrl ? (
             <a
@@ -353,6 +414,23 @@ export default function EditorStudio({ project }: EditorStudioProps) {
       {renderStalled && (
         <div className="mx-4 mt-2 rounded-xl border border-orange bg-orange-soft px-3 py-2 text-[11px] text-orange shrink-0">
           The previous render stopped responding and was abandoned. You can export again.
+        </div>
+      )}
+      {audioStage === "failed" && project?.audioError && (
+        <div className="mx-4 mt-2 rounded-xl border border-danger bg-danger-soft px-3 py-2 text-[11px] text-danger shrink-0">
+          Scoring failed: {project.audioError}
+        </div>
+      )}
+      {/* What the pass could not do. Worth saying plainly — a dropped line or an
+          unscored tail is the director's call to fix, not ours to hide. */}
+      {audioStage === "ready" && (audioNotes.length > 0 || audioViolations.length > 0) && (
+        <div className="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-orange bg-orange-soft px-3 py-2 text-[11px] text-orange shrink-0">
+          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+          <div className="min-w-0 space-y-0.5">
+            {[...audioViolations, ...audioNotes].slice(0, 3).map((note, i) => (
+              <p key={i}>{note}</p>
+            ))}
+          </div>
         </div>
       )}
 

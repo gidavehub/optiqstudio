@@ -242,4 +242,46 @@ function buildFfmpegPlan(job) {
   return { inputs, filterComplex: F.join(";"), videoLabel, audioLabel };
 }
 
-module.exports = { validateRenderJob, buildFfmpegPlan, atempoChain, LIMITS };
+// ── The canvas ──────────────────────────────────────────────────────────────
+// CJS port of `canvasForAspect` in lib/editor/types.ts. Kept in parity by
+// scripts/test-render-parity.ts. Used by the legacy projectCompile path, which
+// has no RenderJob to read a canvas off and so must derive one from the
+// project's stored orientation.
+
+function parseAspect(aspect) {
+  if (typeof aspect === "number") {
+    return Number.isFinite(aspect) && aspect > 0 ? aspect : null;
+  }
+  if (typeof aspect !== "string") return null;
+  const parts = aspect.trim().split(/[:/x]/i);
+  if (parts.length === 2) {
+    const w = Number(parts[0]);
+    const h = Number(parts[1]);
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? w / h : null;
+  }
+  const single = Number(aspect);
+  return Number.isFinite(single) && single > 0 ? single : null;
+}
+
+function even(v) {
+  return Math.max(2, Math.round(v / 2) * 2);
+}
+
+const CANVAS_SHORT_SIDE = 720;
+
+/** The 720p-class export canvas for an aspect ratio. See the TS twin for why. */
+function canvasForAspect(aspect, fallback = "16:9") {
+  const ratio = parseAspect(aspect) ?? parseAspect(fallback) ?? 16 / 9;
+  return ratio >= 1
+    ? { width: even(CANVAS_SHORT_SIDE * ratio), height: even(CANVAS_SHORT_SIDE) }
+    : { width: even(CANVAS_SHORT_SIDE), height: even(CANVAS_SHORT_SIDE / ratio) };
+}
+
+module.exports = {
+  validateRenderJob,
+  buildFfmpegPlan,
+  atempoChain,
+  LIMITS,
+  canvasForAspect,
+  CANVAS_SHORT_SIDE,
+};

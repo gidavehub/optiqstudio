@@ -38,6 +38,14 @@ export interface InsertClipOptions {
   volume?: number;
   label?: string;
   overlap?: OverlapMode;
+  /**
+   * Audio fades, seconds. Settable at insert time because a music bed is
+   * meaningless without them, and doing it in a second `setClipProps` command
+   * would put every segment on the undo stack twice and re-render per clip.
+   * Clamped so the two fades cannot exceed the clip.
+   */
+  fadeIn?: number;
+  fadeOut?: number;
 }
 
 export interface SnapContext {
@@ -267,6 +275,14 @@ export class EditorEngine {
         Math.min(wanted, availableSrc / speed)
       );
 
+      // A fade longer than the clip, or two fades that together outlast it,
+      // would have the clip fading up while already fading down. Scale both
+      // down proportionally rather than rejecting the insert.
+      const wantIn = Math.max(0, opts.fadeIn ?? 0);
+      const wantOut = Math.max(0, opts.fadeOut ?? 0);
+      const fadeTotal = wantIn + wantOut;
+      const fadeScale = fadeTotal > duration && fadeTotal > 0 ? duration / fadeTotal : 1;
+
       const clip: Clip = {
         id,
         assetId: opts.assetId,
@@ -277,8 +293,8 @@ export class EditorEngine {
         speed,
         volume: opts.volume ?? 1,
         muted: false,
-        fadeIn: 0,
-        fadeOut: 0,
+        fadeIn: wantIn * fadeScale,
+        fadeOut: wantOut * fadeScale,
         transform: track.kind === "video" ? { ...DEFAULT_TRANSFORM } : undefined,
         label: opts.label ?? asset.label,
       };
@@ -439,6 +455,31 @@ export class EditorEngine {
       if (!loc) throw new Error(`Unknown clip ${clipId}`);
       Object.assign(loc.clip, props);
     });
+  }
+
+  /**
+   * Resize the export canvas.
+   *
+   * Clip transforms are fractions of the canvas, not pixels, so everything on
+   * the timeline keeps its relative framing — this changes the shape of the
+   * deliverable without disturbing a single edit.
+   *
+   * `history: false` by default: the canvas is a property of the project (its
+   * chosen orientation), not an edit the director made, so conforming a document
+   * to its project must not land on the undo stack where Ctrl+Z would put the
+   * wrong shape back.
+   */
+  setCanvas(width: number, height: number, opts: { history?: boolean } = {}): void {
+    if (!(width > 0) || !(height > 0)) {
+      throw new Error(`Canvas must be positive (got ${width}×${height})`);
+    }
+    this.command(
+      (doc) => {
+        doc.width = Math.round(width);
+        doc.height = Math.round(height);
+      },
+      { history: opts.history ?? false }
+    );
   }
 
   // ── Snapping ──────────────────────────────────────────────────────────────

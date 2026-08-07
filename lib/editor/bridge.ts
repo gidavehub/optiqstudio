@@ -7,7 +7,7 @@
  * ships, with zero migration of stored projects.
  */
 
-import { AssetRef, createEmptyDoc, EditorDoc, genId } from "./types";
+import { AssetRef, canvasForAspect, createEmptyDoc, EditorDoc, genId } from "./types";
 import { EditorEngine } from "./engine";
 
 export interface LegacyTimelineItem {
@@ -25,12 +25,19 @@ export interface LegacyProjectShape {
   musicVolume?: number;
   /** Seconds per scene in the legacy pipeline. */
   sceneDuration?: number;
+  /**
+   * The orientation the ad was commissioned at ("16:9" / "9:16"), as chosen in
+   * the wizard and stored on the project. This is what the canvas comes from —
+   * see `canvasForAspect`. Absent on projects that predate it, which is what the
+   * fallback is for.
+   */
+  aspectRatio?: string | number;
 }
 
 const LEGACY_SCENE_SECONDS = 10;
 
 export function docFromLegacyProject(proj: LegacyProjectShape): EditorDoc {
-  const engine = new EditorEngine(createEmptyDoc({ fps: 30, width: 1280, height: 720 }));
+  const engine = new EditorEngine(createEmptyDoc({ fps: 30, ...canvasForAspect(proj.aspectRatio) }));
   const doc = engine.getDoc();
   const videoTrackId = doc.tracks.find((t) => t.kind === "video")!.id;
   const audioTrackId = doc.tracks.find((t) => t.kind === "audio")!.id;
@@ -110,6 +117,28 @@ export function assetSceneIndex(asset: AssetRef): number | null {
   if (asset.kind !== "video") return null;
   const match = SCENE_LABEL.exec(asset.label ?? "");
   return match ? Number(match[1]) - 1 : null;
+}
+
+/**
+ * Conform a document's canvas to the project's orientation.
+ *
+ * Needed because every document saved before the canvas was derived from
+ * `aspectRatio` was built at a hardcoded 1280×720, whatever the ad's shape. A
+ * vertical film therefore has a landscape canvas stored on it, and would keep
+ * previewing and exporting letterboxed forever — the fix to `docFromLegacyProject`
+ * only helps documents built after it.
+ *
+ * Safe to run on every load: it is a no-op when the canvas already agrees, and
+ * clip transforms are canvas fractions so nothing on the timeline moves.
+ *
+ * Returns true when the canvas actually changed (i.e. the caller should persist).
+ */
+export function conformCanvas(engine: EditorEngine, aspectRatio?: string | number): boolean {
+  const target = canvasForAspect(aspectRatio);
+  const doc = engine.getDoc();
+  if (doc.width === target.width && doc.height === target.height) return false;
+  engine.setCanvas(target.width, target.height);
+  return true;
 }
 
 /**

@@ -39,9 +39,14 @@ import {
   SceneImagesMap,
   Storyboard,
   VideoStatusMap,
+  VideoTypeId,
   WizardStep,
+  DEFAULT_VIDEO_TYPE,
+  defaultLengthFor,
   recordTake,
+  scenesForLength,
   sceneTakes,
+  videoType,
 } from "./types";
 
 interface EditorFlowValue {
@@ -83,6 +88,9 @@ interface EditorFlowValue {
   wizardStep: WizardStep;
   setWizardStep: (v: WizardStep) => void;
   length: ProjectLength; setLength: (v: ProjectLength) => void;
+  /** Which of the three kinds of film. Decides the run-times on offer AND how
+   * the finished cut is scored and narrated. */
+  videoTypeId: VideoTypeId; selectVideoType: (v: VideoTypeId) => void;
   promptText: string; setPromptText: (v: string) => void;
   brandName: string; setBrandName: (v: string) => void;
   product: string; setProduct: (v: string) => void;
@@ -108,6 +116,12 @@ interface EditorFlowValue {
   setVideoStatus: React.Dispatch<React.SetStateAction<VideoStatusMap>>;
 
   // Cloud storyboard-generation progress (server-driven, survives tab close)
+  /** Audio post-production: the pass that scores and narrates a finished cut.
+   * Read straight off the project doc — the server owns it, so it is never
+   * mirrored into local state that autosave could echo back. */
+  audioStage: string | null;
+  audioReport: Record<string, unknown> | null;
+  requestAudioPost: () => Promise<void>;
   pipelineStage: string | null;
   pipelineProgress: { scenesDone: number; scenesTotal: number } | null;
   retryStoryboard: () => Promise<void>;
@@ -194,6 +208,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // Wizard
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
   const [length, setLength] = useState<ProjectLength>("30s");
+  const [videoTypeId, setVideoTypeId] = useState<VideoTypeId>(DEFAULT_VIDEO_TYPE);
   const [promptText, setPromptText] = useState("");
   const [brandName, setBrandName] = useState("");
   const [product, setProduct] = useState("");
@@ -279,6 +294,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     setSceneImages(proj.sceneImages || {});
     setProjectMaterials(proj.materials || []);
     setLength(proj.length);
+    // Films made before types existed carry dialogue in their footage, so an
+    // unset value resolves to the dialogue ad — NOT to the wizard's default,
+    // which would silence them in audio post. See LEGACY_VIDEO_TYPE.
+    setVideoTypeId(videoType(proj.videoType).id);
     setBrandName(proj.brandName || "");
     setProduct(proj.product || "");
     setPromptText(proj.concept || "");
@@ -884,6 +903,19 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // loadProjectState read that back and dropped the user in the script editor —
   // which is exactly the "auto-generate only writes the script" bug. Whoever
   // starts the run now states which mode they meant.
+  /**
+   * Choose the kind of film.
+   *
+   * Also repairs the run-time, because the two are coupled: the run-times on
+   * offer differ per type (a short film starts at 60s, an ad at 30s), so
+   * switching type while an out-of-range length is selected would otherwise
+   * leave the wizard holding an invalid pair and charge for it.
+   */
+  const selectVideoType = useCallback((id: VideoTypeId) => {
+    setVideoTypeId(id);
+    setLength((current) => (videoType(id).lengths.includes(current) ? current : defaultLengthFor(id)));
+  }, []);
+
   const generateStoryboard = useCallback(async (mode?: ProductionMode) => {
     const runMode: ProductionMode = mode || productionMode || "manual";
     if (!promptText.trim()) {
@@ -913,6 +945,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         title: "Optiq Skills at work…",
         concept: promptText,
         length,
+        videoType: videoTypeId,
         brandName: brandName || "Client",
         product: product || "Product offering",
         aspectRatio,
@@ -925,7 +958,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         pipelineError: null,
         // An ad is one price: the spec payment covers every scene render, so
         // the project carries an allowance the render endpoint draws down.
-        prepaidRenders: length === "30s" ? 3 : length === "60s" ? 6 : 9,
+        prepaidRenders: scenesForLength(length),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -947,6 +980,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         projectId,
         prompt: promptText,
         length,
+        videoType: videoTypeId,
         brandName: brandName || "Client",
         product: product || "Product offering",
         aspectRatio,
@@ -967,6 +1001,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     promptText,
     user,
     length,
+    videoTypeId,
     brandName,
     product,
     aspectRatio,
@@ -974,6 +1009,39 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     router,
     uploadBrandMaterials,
   ]);
+
+  // ─── AUDIO POST-PRODUCTION ────────────────────────────────────────────────
+  //
+  // The score and the narration are written against the FINISHED cut, so this
+  // can only run once every scene has rendered. It is a long server job, so the
+  // client only enqueues it and then watches `audioStage` on the project.
+  //
+  // Deliberately read from the project doc rather than mirrored into state: it
+  // is server-owned, and mirroring server status into client state is what let
+  // an autosave echo stale status back over the top of it.
+  const audioProject = projects.find((p) => p.id === activeProjectId) ?? null;
+  const audioStage: string | null = audioProject?.audioStage ?? null;
+  const audioReport = (audioProject?.audioReport as Record<string, unknown> | undefined) ?? null;
+
+  const requestAudioPost = useCallback(async () => {
+    if (!user || !activeProjectId) return;
+    try {
+      await updateDoc(doc(db, "projects", activeProjectId), {
+        audioStage: "queued",
+        audioError: null,
+        updatedAt: new Date().toISOString(),
+      });
+      await addDoc(collection(db, "audioPostJobs"), {
+        uid: user.uid,
+        projectId: activeProjectId,
+        status: "queued",
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("Failed to enqueue audio post-production:", err);
+      setError(err instanceof Error ? err.message : "Could not start audio post-production");
+    }
+  }, [user, activeProjectId]);
 
   /** True once every scene of an auto-produced ad has rendered. */
   const allScenesRendered = useCallback(
@@ -1002,6 +1070,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         projectId: activeProjectId,
         prompt: promptText,
         length,
+        videoType: videoTypeId,
         brandName: brandName || "Client",
         product: product || "Product offering",
         aspectRatio,
@@ -1016,7 +1085,27 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       setGenerating(false);
       setPipelineStage("failed");
     }
-  }, [user, activeProjectId, promptText, length, brandName, product, aspectRatio, productionMode, projectMaterials]);
+  }, [user, activeProjectId, promptText, length, videoTypeId, brandName, product, aspectRatio, productionMode, projectMaterials]);
+
+  // Kick off scoring the moment the last scene lands, so a finished film arrives
+  // already scored instead of waiting for the director to ask.
+  //
+  // Guarded three ways, because this spends Vertex quota: only when every scene
+  // has actually rendered, only when the project has never had a pass (or the
+  // last one failed), and only once per mount via a ref — `audioStage` reaches
+  // us through a Firestore snapshot, so between enqueueing and the write landing
+  // this effect can re-run with the old value and queue a second job.
+  const audioKickedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeProjectId || !storyboard) return;
+    const sceneCount = storyboard.scenes.length;
+    if (sceneCount === 0) return;
+    if (!allScenesRendered(storyboard.scenes, videoStatus)) return;
+    if (audioStage && audioStage !== "failed") return;
+    if (audioKickedRef.current === activeProjectId) return;
+    audioKickedRef.current = activeProjectId;
+    void requestAudioPost();
+  }, [activeProjectId, storyboard, videoStatus, audioStage, allScenesRendered, requestAudioPost]);
 
   // ─── AUTO-RESUME OR INITIATE QUEUED GENERATIONS ON PROJECT LOAD ──────────
   useEffect(() => {
@@ -1173,6 +1262,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     musicVolume, setMusicVolume,
     wizardStep, setWizardStep,
     length, setLength,
+    videoTypeId, selectVideoType,
     promptText, setPromptText,
     brandName, setBrandName,
     product, setProduct,
@@ -1183,6 +1273,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     recording, recordingTarget, generating, error, setError, copiedIndex,
     storyboard, setStoryboard,
     videoStatus, setVideoStatus,
+    audioStage, audioReport, requestAudioPost,
     pipelineStage, pipelineProgress, retryStoryboard,
     agentRunning,
     sceneImages, projectMaterials,

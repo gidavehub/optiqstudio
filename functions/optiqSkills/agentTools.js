@@ -17,6 +17,7 @@
 // confirm-price modal.
 
 const { reviseScene } = require("./pipeline");
+const { sceneSoundViolations } = require("./soundPolicy");
 const {
   WORD_BUDGETS,
   countWords,
@@ -103,6 +104,10 @@ function sceneViolations(scene, project) {
       'The word "Gambian" never appears — the setting must be unmistakably The Gambia unless the brief set it elsewhere.'
     );
   }
+  // The no-music law. Without this, check_film would call a scene that asks the
+  // video model for a soundtrack "clean" — and that clip's invented score
+  // collides with the track Lyria composes for the finished cut.
+  violations.push(...sceneSoundViolations(prompt));
   return { sceneNumber: scene.sceneNumber, words, violations };
 }
 
@@ -615,6 +620,123 @@ Everything else in the prompt stays as it is. Recompile in the canonical block o
       };
     },
   },
+
+  // ─── PRODUCTION TOOLS ─────────────────────────────────────────────────────
+  // The agent used to be able to write the film and nothing else — a director who
+  // wanted the scene they'd just fixed actually shot had to leave the room and go
+  // to the script editor. These three close that gap. They are the only tools
+  // that touch money or long-running jobs, so each one reports plainly what it
+  // started and what it cost.
+
+  {
+    name: "render_scene",
+    label: (a) => `Rendering scene ${a.sceneNumber}`,
+    description:
+      "Shoot one scene: send its current compiled prompt to the video model and start the render. Costs the director money unless the ad's prepaid allowance still covers it, so ONLY call this when they have actually asked for a render in this conversation — never speculatively, and never 'while you're at it'. The render runs in the background and takes a minute or two; it does not block you. Say what it cost.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        sceneNumber: { type: "INTEGER", description: "The scene's number as shown in the editor (1-based)." },
+      },
+      required: ["sceneNumber"],
+    },
+    run: async (args, ctx) => {
+      if (!ctx.renderScene) {
+        return { error: "Rendering isn't available in this context." };
+      }
+      const { scene, idx } = sceneAt(ctx.project, args.sceneNumber);
+      if (!scene) return { error: `There is no scene ${args.sceneNumber} in this film.` };
+
+      const status = ctx.project.videoStatus?.[idx]?.status;
+      if (status === "rendering") {
+        return { note: `Scene ${scene.sceneNumber} is already rendering. Nothing started.` };
+      }
+      // The director's own edited prompt wins over the compiled one, exactly as
+      // it does when they press render in the script editor.
+      const prompt = ctx.project.videoStatus?.[idx]?.customPrompt || scene.fullPrompt;
+      try {
+        const result = await ctx.renderScene(idx, prompt);
+        return {
+          started: true,
+          sceneNumber: scene.sceneNumber,
+          generationId: result.id,
+          cost: result.cost,
+          paidFrom: result.usedPrepaid ? "the ad's prepaid allowance (no extra charge)" : "the wallet",
+          note:
+            "Rendering now, in the background. It takes a minute or two and the clip appears in the script editor and on the timeline when it lands.",
+        };
+      } catch (err) {
+        return { error: String(err?.message || err).slice(0, 300) };
+      }
+    },
+  },
+
+  {
+    name: "rescore_film",
+    label: () => "Re-scoring the film",
+    description:
+      "Re-run audio post-production on the finished cut: compose a new score with Lyria, and (for a narrated film) re-write and re-record the voiceover, then lay it all back on the timeline at the right lengths. Use this when the director wants a different musical feel, or after enough of the film has changed that the old score no longer fits. Every scene has to have rendered first. Pass `vibe` to steer the music. This replaces the whole score — there is no per-section re-scoring yet, so say so if they asked for one section only.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        vibe: {
+          type: "STRING",
+          description:
+            "Optional direction for the new score in the director's own terms, e.g. 'warmer and slower, less percussion' or 'sparse and tense until the last beat'.",
+        },
+      },
+    },
+    run: async (args, ctx) => {
+      if (!ctx.rescoreFilm) {
+        return { error: "Re-scoring isn't available in this context." };
+      }
+      const scenes = ctx.project.scenes || [];
+      const unrendered = scenes.filter((_, i) => ctx.project.videoStatus?.[i]?.status !== "succeeded").length;
+      if (scenes.length === 0 || unrendered > 0) {
+        return {
+          error: `The score is written against the finished cut, and ${unrendered} scene(s) haven't rendered yet. Render them first.`,
+        };
+      }
+      if (ctx.project.audioStage && !["ready", "failed"].includes(ctx.project.audioStage)) {
+        return { note: "Audio post-production is already running on this film. Nothing started." };
+      }
+      try {
+        await ctx.rescoreFilm(args.vibe || null);
+        return {
+          started: true,
+          vibe: args.vibe || "(no specific direction)",
+          note:
+            "Re-scoring now, in the background — this takes a few minutes because the score is composed against the cut and the voiceover is re-timed to fit. The timeline updates itself when it's done.",
+        };
+      } catch (err) {
+        return { error: String(err?.message || err).slice(0, 300) };
+      }
+    },
+  },
+
+  {
+    name: "get_audio",
+    label: () => "Checking the film's audio",
+    description:
+      "Read what is currently on the film's audio tracks: whether a score has been laid, how long it is, how many lines of narration were placed and which voice reads them, plus anything audio post could not do. Call this before answering a question about the music or the voiceover — never guess at it.",
+    parameters: { type: "OBJECT", properties: {} },
+    run: async (_args, ctx) => {
+      const p = ctx.project;
+      const report = p.audioReport || null;
+      return {
+        stage: p.audioStage || "never run",
+        soundSpec: p.musicSpec || null,
+        ambienceSpec: p.ambienceSpec || null,
+        scoreUrl: p.musicUrl || null,
+        filmDuration: report?.filmDuration ?? null,
+        narrationLines: report?.narrationLines ?? 0,
+        musicSegments: report?.musicSegments ?? 0,
+        voice: report?.voice ?? null,
+        problems: [...(report?.violations || []), ...(report?.notes || [])],
+        lastRunAt: report?.at ?? null,
+      };
+    },
+  },
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
@@ -646,6 +768,10 @@ const WRITE_TOOLS = new Set([
   "patch_scene",
   "update_direction",
   "propagate_locks",
+  // Not script writes, but they change the deliverable and cost real money, so
+  // the work log must flag them the same way.
+  "render_scene",
+  "rescore_film",
 ]);
 
 async function callTool(name, args, ctx) {

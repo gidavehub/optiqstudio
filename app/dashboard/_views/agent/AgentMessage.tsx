@@ -8,7 +8,8 @@
 // the wrong feeling for the room where the film gets made.
 
 import React from "react";
-import { AlertCircle, Bot, PenLine } from "lucide-react";
+import { AlertCircle, PenLine } from "lucide-react";
+import OptiqMark from "../../../../components/OptiqMark";
 import AgentWorkLog from "./AgentWorkLog";
 import RichText from "./RichText";
 import { useReferenceImages } from "../../_shared/useReferenceImages";
@@ -69,8 +70,10 @@ export default function AgentMessage({ message }: { message: AgentChatMessage })
 
   return (
     <div className="flex gap-3">
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-2xl border border-line bg-surface text-accent-ink">
-        <Bot size={14} />
+      {/* Whose voice this is — the Optiq mark, the same one in the chrome and
+          the tab icon. A generic robot said "some AI"; this says Optiq. */}
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-2xl border border-line bg-surface">
+        <OptiqMark size={14} />
       </span>
 
       <div className="min-w-0 flex-1 space-y-3">

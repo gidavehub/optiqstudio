@@ -12,11 +12,11 @@ import { CheckCircle, X, Zap, Wallet, Edit3 } from "lucide-react";
 import { db } from "../../../lib/firebase";
 import { doc, updateDoc, increment, collection, addDoc } from "firebase/firestore";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
-import { LENGTH_PRICING_GMD } from "../_flow/types";
+import { LENGTH_PRICING_GMD, scenesForLength, videoType, formatRunTime } from "../_flow/types";
 
 export default function StoryboardPaywallModal() {
   const {
-    user, profile, length,
+    user, profile, length, videoTypeId,
     storyboardPayOpen, setStoryboardPayOpen,
     paywallStep, setPaywallStep,
     setProductionMode, generateStoryboard,
@@ -26,7 +26,8 @@ export default function StoryboardPaywallModal() {
   if (!storyboardPayOpen) return null;
 
   const cost = LENGTH_PRICING_GMD[length];
-  const scenes = length === "30s" ? 3 : length === "60s" ? 6 : 9;
+  const scenes = scenesForLength(length);
+  const kind = videoType(videoTypeId);
   const balance = profile?.credits ?? 0;
   const hasEnough = balance >= cost;
   const remaining = balance - cost;
@@ -47,7 +48,7 @@ export default function StoryboardPaywallModal() {
         uid: user.uid,
         invoiceId,
         date: dateString,
-        description: `Storyboard Spec Generation (${length} — ${scenes} Scenes)`,
+        description: `Storyboard Spec Generation (${kind.title} · ${formatRunTime(length)} — ${scenes} Scenes)`,
         method: "Wallet Balance",
         status: "Succeeded",
         amount: `-GMD ${cost.toFixed(2)}`,
@@ -130,8 +131,9 @@ export default function StoryboardPaywallModal() {
           /* ── STEP 1: PAY ─────────────────────────────────────────────── */
           <div>
             <p className="mt-1 text-[13px] text-ink-3">
-              {length} ad · {scenes} scenes
+              {kind.title} · {formatRunTime(length)} · {scenes} scenes
             </p>
+            <p className="mt-0.5 text-[11px] text-muted">{kind.audioLabel}</p>
 
             <div className="mt-6 text-center">
               <p className="font-display text-5xl font-black leading-none tracking-tight text-foreground">

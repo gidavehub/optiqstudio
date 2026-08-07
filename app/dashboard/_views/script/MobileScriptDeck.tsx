@@ -8,11 +8,13 @@
 //
 // So the phone gets one card per page, exactly like the creation wizard: chrome
 // and progress dots at the top, Back/Next at the bottom, and a 3D flip between
-// pages. Page 1 is the storyline — what this film is, at a glance; pages 2..n+1
-// are the scenes, video first.
+// pages. Page 1 is scene 1 — you land straight on work you can do. A storyline
+// page used to sit in front of it, restating the concept and offering the agent;
+// it was a doorstep, not a page, and the agent is one tap away in the chrome.
 
 import React, { useEffect, useRef, useState } from "react";
-import { Bot, ChevronLeft, ChevronRight, Film, Tv } from "lucide-react";
+import { ChevronLeft, ChevronRight, Tv } from "lucide-react";
+import OptiqMark from "../../../../components/OptiqMark";
 import {
   Scene, SceneImage, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
@@ -40,7 +42,7 @@ interface MobileScriptDeckProps {
   /** Puts an earlier take of a scene back on air. */
   onSelectTake: (sceneIndex: number, takeIndex: number) => void;
   onOpenTimeline: () => void;
-  /** Opens the storyline agent — the deck's film-wide page. */
+  /** Opens the storyline agent — the only way to work the film as a whole. */
   onOpenAgent: () => void;
   /** True while an agent turn is rewriting this film server-side. */
   agentRunning: boolean;
@@ -68,8 +70,8 @@ export default function MobileScriptDeck({
   onOpenAgent,
   agentRunning,
 }: MobileScriptDeckProps) {
-  // Page 0 is the storyline; scene i lives on page i + 1.
-  const pageCount = storyboard.scenes.length + 1;
+  // One page per scene, and nothing else — page i IS scene i.
+  const pageCount = storyboard.scenes.length;
   const [page, setPage] = useState(0);
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export default function MobileScriptDeck({
     setPage(to);
   };
 
-  const sceneIndex = page - 1;
+  const sceneIndex = page;
   const scene: Scene | undefined = storyboard.scenes[sceneIndex];
   const status = scene ? videoStatus[sceneIndex] || { status: "idle" as const } : undefined;
 
@@ -100,21 +102,24 @@ export default function MobileScriptDeck({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <span className="block tabular-nums text-[9px] font-bold uppercase tracking-widest text-accent-ink">
-              {page === 0 ? "Storyline" : `Scene ${scene?.sceneNumber ?? sceneIndex + 1} · 10s`}
+              Scene {scene?.sceneNumber ?? sceneIndex + 1} · 10s
             </span>
             <h2 className="truncate text-sm font-bold tracking-tight text-foreground">{storyboard.title}</h2>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {/* The agent's icon is the Optiq mark, not a generic robot — this is
+                the product talking. With the storyline page gone this button is
+                the only way to the film as a whole, so it carries its word. */}
             <button
               onClick={onOpenAgent}
-              aria-label="Storyline agent"
+              aria-label="Optiq Agent"
               className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-[11px] font-bold transition-colors active:scale-95 ${
                 agentRunning
                   ? "animate-pulse border-accent bg-surface-2 text-accent-ink"
                   : "border-line bg-surface text-ink-2"
               }`}
             >
-              <Bot size={12} />
+              <OptiqMark size={13} /> Agent
             </button>
             <button
               onClick={onOpenTimeline}
@@ -128,12 +133,12 @@ export default function MobileScriptDeck({
         {/* Progress dots — tap one to jump straight there */}
         <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           {Array.from({ length: pageCount }, (_, i) => {
-            const done = i > 0 && videoStatus[i - 1]?.status === "succeeded";
+            const done = videoStatus[i]?.status === "succeeded";
             return (
               <button
                 key={i}
                 onClick={() => go(i)}
-                aria-label={i === 0 ? "Storyline" : `Scene ${i}`}
+                aria-label={`Scene ${i + 1}`}
                 className={`h-1.5 shrink-0 rounded-full transition-all duration-300 ${
                   i === page
                     ? "w-8 bg-foreground"
@@ -155,39 +160,7 @@ export default function MobileScriptDeck({
           key={page}
           className={direction === "next" ? "animate-deck-next" : "animate-deck-prev"}
         >
-          {page === 0 ? (
-            <div className="space-y-4 pt-1">
-              <div className="rounded-[28px] border border-line bg-surface p-4">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-3">
-                  <Film size={11} className="text-accent-ink" /> What this film is
-                </span>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-                  {storyboard.concept}
-                </p>
-              </div>
-
-              {/* The only way to change the film as a whole. The character,
-                  style and music locks used to be edited by hand right here —
-                  they're machinery, and this conversation handles them better. */}
-              <button
-                onClick={onOpenAgent}
-                className="flex w-full items-center gap-3 rounded-3xl border border-accent-line bg-surface p-4 text-left transition-colors active:scale-[0.99]"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-accent-line bg-surface-2 text-accent-ink">
-                  <Bot size={16} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-bold tracking-tight text-foreground">
-                    {agentRunning ? "Agent is working…" : "Work the whole storyline"}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-3">
-                    Talk it through — rewrite scenes, retune the arc, keep every lock intact.
-                  </span>
-                </span>
-                <ChevronRight size={15} className="shrink-0 text-accent-ink" />
-              </button>
-            </div>
-          ) : scene && status ? (
+          {scene && status ? (
             <div className="space-y-4 pt-1">
               {/* The clip leads — it's the thing you came to look at. */}
               <SceneRenderPanel
@@ -256,7 +229,7 @@ export default function MobileScriptDeck({
           </button>
 
           <span className="tabular-nums text-[10px] uppercase tracking-widest text-muted">
-            {page === 0 ? "Storyline" : `${page} / ${storyboard.scenes.length}`}
+            {page + 1} / {storyboard.scenes.length}
           </span>
 
           {page < pageCount - 1 ? (

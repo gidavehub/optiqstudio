@@ -1251,10 +1251,6 @@ exports.voiceGenerate = onRequest(
 // Re-verify with `node scripts/probe-lyria3.mjs`.
 const LYRIA_MODEL = "lyria-3-pro-preview";
 const lyriaAi = new GoogleGenAI({ vertexai: true, project: "davelabs-tools", location: "global" });
-// Rich, vibey default when a project has no usable music spec — genre-appropriate
-// for the brand ads and specific enough to avoid a bland, plain loop.
-const DEFAULT_AD_MUSIC =
-  "An upbeat, vibey, cinematic brand-advert instrumental with rich layered percussion, a memorable melodic hook on kora or guitar, warm bass, uplifting brass and evolving dynamics — energetic, emotional and modern. NOT a plain repetitive loop or a bare drum beat. No vocals, no lyrics.";
 // Returns { base64, mimeType, ext }. The Interactions API has no structured
 // negative-prompt field the way :predict did, so an exclusion is folded into
 // the prompt text.
@@ -1306,36 +1302,10 @@ async function lyriaGenerate(prompt, negativePrompt = null) {
   throw lastErr;
 }
 
-// Turns a storyboard's locked soundSpec into a Lyria prompt — or returns null
-// when the spec deliberately locks SILENCE (in which case the ad must stay
-// silent and we never score it).
-function musicPromptFromSpec(spec) {
-  if (!spec || typeof spec !== "string") return null;
-  const s = spec.trim();
-  if (!s) return null;
-  if (/\b(silence|silent|no music|no score|without music)\b/i.test(s)) return null;
-  // Push Lyria toward a rich, evolving, cinematic bed — never a plain looping
-  // beat — while still matching the ad's locked mood.
-  return (
-    "A rich, dynamic, emotionally expressive instrumental score for a premium brand advert — " +
-    "cinematic and vibey, with layered, evolving instrumentation, texture and movement that builds and breathes " +
-    "across the piece. NOT a plain repetitive loop and NOT a bare four-on-the-floor drum beat. No vocals, no lyrics. " +
-    `Match this exact mood and instrumentation: ${s}`
-  );
-}
-
 // ── Optiq narration (Gemini 3.1 Flash TTS) ──────────────────────────────────
-// The ad's footage is silent; the narrator is composed here. One warm voice
-// reads a main narration (plays under the whole ad) plus a short closing tagline
-// (placed at the very end at compile). The agent picks the voice for the vibe.
-const VOICEOVER_VOICES = {
-  "gambian-english": { voice: "Enceladus", style: "a warm, wise Gambian English advertisement narrator — calm, confident and emotive" },
-  "nigerian-british-male": { voice: "Iapetus", style: "a polished Nigerian-British male advertisement narrator — warm, articulate and persuasive" },
-  "nigerian-british-female": { voice: "Vindemiatrix", style: "a polished Nigerian-British female advertisement narrator — warm, elegant and persuasive" },
-  "cinematic-deep": { voice: "Charon", style: "a deep, slow, wise cinematic narrator with rich gravitas and warmth, like a legendary documentary voice" },
-};
-
-// Speaks `text` with Gemini 3.1 Flash TTS. Returns { base64Wav, durationSec }.
+// Synthesizes one line. `durationSec` is exact, computed from the PCM byte count
+// rather than probed — which is what lets audio post-production measure a take
+// and refit an overrunning line without touching ffmpeg. See functions/audioPost.js.
 async function ttsGenerate(text, voiceName, style) {
   const model = "gemini-3.1-flash-tts-preview";
   const promptText = style ? `${style}:\n\n${text}` : text;
@@ -1351,37 +1321,6 @@ async function ttsGenerate(text, voiceName, style) {
   const rate = parseInt((raw.mimeType || "").match(/rate=(\d+)/)?.[1] || "24000", 10);
   const pcmBytes = Buffer.from(raw.data, "base64").length;
   return { base64Wav: pcmToWav(raw.data, rate), durationSec: pcmBytes / (rate * 2) };
-}
-
-// Writes the ad's narration + closing tagline and picks the narrator voice.
-async function writeAdNarration({ concept, brandName, scenes }) {
-  const scenesText = (scenes || [])
-    .map((s, i) => `Scene ${i + 1}: ${String(s.beat || s.summary || s.fullPrompt || "").slice(0, 220)}`)
-    .join("\n")
-    .slice(0, 3000);
-  const schema = {
-    type: "OBJECT",
-    properties: {
-      voiceKey: { type: "STRING", enum: Object.keys(VOICEOVER_VOICES) },
-      narration: { type: "STRING" },
-      tagline: { type: "STRING" },
-    },
-    required: ["voiceKey", "narration", "tagline"],
-  };
-  const sys = `You are the NARRATION DIRECTOR for an Optiq Studio advert. The video is SILENT — you write the spoken narration a professional voice actor reads over the finished ad.
-Return JSON:
-- voiceKey: pick the narrator voice that best fits this ad's vibe. Default "gambian-english" (warm Gambian English) unless the ad clearly calls for another: "nigerian-british-male", "nigerian-british-female", or "cinematic-deep" (a slow, deep, wise cinematic voice).
-- narration: the main voiceover that plays across the ad — warm, advertisement-style, emotive, telling the brand's story and building desire. Concise and punchy, about 35-55 words. ONLY the words to be spoken; no stage directions, no scene numbers.
-- tagline: a short, memorable closing line (6-12 words) that lands at the very end — the brand's closing statement or call to action.
-Natural spoken English (light Gambian English welcome for local brands). No emojis, no markdown, no quotes.`;
-  const brief = `Brand: ${brandName || "the brand"}\nConcept: ${concept || ""}\n\nScenes:\n${scenesText}`;
-  const response = await vertexFetch(`/publishers/google/models/gemini-3.5-flash:generateContent`, {
-    contents: [{ role: "user", parts: [{ text: brief }] }],
-    systemInstruction: { parts: [{ text: sys }] },
-    generationConfig: { temperature: 0.85, responseMimeType: "application/json", responseSchema: schema },
-  });
-  const text = response.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "{}";
-  return JSON.parse(text);
 }
 
 exports.musicGenerate = onRequest(
@@ -1928,7 +1867,7 @@ exports.storyGenerate = onRequest(
       await requireAuth(req);
       const {
         prompt, length, brandName, product,
-        characterName, characterDesc, logo, materials, aspectRatio,
+        characterName, characterDesc, logo, materials, aspectRatio, videoType,
       } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
@@ -1943,6 +1882,7 @@ exports.storyGenerate = onRequest(
         logo,
         materials,
         aspectRatio,
+        videoType,
       });
       return res.status(200).json(storyboard);
     } catch (err) {
@@ -2028,8 +1968,43 @@ exports.storyboardGenerate = onDocumentCreated(
         brandName: job.brandName,
         product: job.product,
         aspectRatio: job.aspectRatio,
+        videoType: job.videoType,
         logo,
         materials,
+        // Seeds the per-film casting palette. Keyed on the project so a retry
+        // re-casts the same people instead of swapping the lead's face on the
+        // director halfway through a film.
+        castingSeed: job.projectId,
+
+        // ── Character reference sheets ────────────────────────────────────────
+        // Injected because every Vertex media call lives here. A failure inside
+        // either of these degrades the film to text-only consistency rather than
+        // sinking the generation — see the note in optiqSkills/characterRefs.js.
+        generateImage: async (prompt) => {
+          const response = await vertexFetch(
+            `/publishers/google/models/gemini-3.1-flash-image:generateContent`,
+            {
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseModalities: ["TEXT", "IMAGE"],
+                // Portrait: a full-length standing figure wastes most of a
+                // landscape frame, and the face is what has to survive.
+                imageConfig: { aspectRatio: "3:4" },
+              },
+            }
+          );
+          const part = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+          if (!part?.inlineData?.data) throw new Error("the image model returned no image");
+          return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
+        },
+        storeImage: async (id, base64, mimeType) => {
+          const ext = String(mimeType).includes("jpeg") ? "jpg" : "png";
+          // Alongside the project's other materials, and marked shared so the
+          // generation-delete sweep never removes them.
+          const path = `users/${job.uid}/projects/${job.projectId}/characters/${id}.${ext}`;
+          const url = await uploadBase64(base64, path, mimeType);
+          return { path, url };
+        },
         onStage: (stage, meta) => setStage(stage, meta ? { pipelineProgress: meta } : {}),
       });
 
@@ -2039,15 +2014,48 @@ exports.storyboardGenerate = onDocumentCreated(
       storyboard.scenes.forEach((_, idx) => {
         videoStatus[idx] = { status: "idle", revisionInput: "", customPrompt: "" };
       });
+      // Per-scene reference images.
+      //
+      // This used to attach EVERY uploaded image to EVERY scene, which put the
+      // product in scenes it isn't in and invited the logo into every frame. Now
+      // each scene gets only what belongs to it: the character sheets for the
+      // people actually in it, plus the uploads the swarm placed there.
+      //
+      // `materials` is the list the swarm was given, in the same order its
+      // placement indexes refer to; `job.materialPaths` is the persisted twin.
       const imageMaterials = (job.materialPaths || []).filter((m) => (m.mimeType || "").startsWith("image/"));
+      const placement = storyboard.materialPlacement || {};
+      const refs = storyboard.characterRefs || [];
       const sceneImages = {};
-      if (imageMaterials.length > 0) {
-        storyboard.scenes.forEach((_, idx) => {
-          sceneImages[idx] = imageMaterials.map((m) => ({
-            name: m.name, path: m.path, url: m.url, mimeType: m.mimeType,
-          }));
-        });
-      }
+
+      storyboard.scenes.forEach((_, idx) => {
+        const attached = [];
+
+        // The people in this scene. `scenes` is 1-based on the ref.
+        for (const ref of refs) {
+          if (!ref.url || !(ref.scenes || []).includes(idx + 1)) continue;
+          attached.push({
+            name: `${ref.name} — character reference`,
+            path: ref.path,
+            url: ref.url,
+            mimeType: ref.mimeType || "image/png",
+          });
+        }
+
+        // The director's uploads the swarm placed on this scene.
+        for (const materialIndex of placement[idx] || placement[String(idx)] || []) {
+          const material = imageMaterials[Number(materialIndex)];
+          if (!material) continue;
+          attached.push({
+            name: material.name,
+            path: material.path,
+            url: material.url,
+            mimeType: material.mimeType,
+          });
+        }
+
+        if (attached.length > 0) sceneImages[idx] = attached;
+      });
 
       // NOTE: the ad's audio (Optiq Music score + the two TTS narration tracks)
       // is NO LONGER baked here. Generating it on the storyboard's critical path
@@ -2062,6 +2070,14 @@ exports.storyboardGenerate = onDocumentCreated(
         styleHeader: storyboard.styleHeader || "",
         characterLock: storyboard.characterLock || { name: "", description: "", wardrobe: "" },
         isStory: storyboard.isStory ?? null,
+        // Echoed back from the pipeline so the stored project records the kind
+        // the swarm actually built, not just the kind the wizard asked for.
+        videoType: storyboard.videoType ?? null,
+        castingShape: storyboard.castingShape ?? null,
+        // The rendered character sheets. Kept on the project so the script editor
+        // can show them, the agent can read them, and a re-render of one scene
+        // still gets the same faces.
+        characterRefs: storyboard.characterRefs ?? [],
         storyArc: storyboard.storyArc ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
@@ -2181,9 +2197,27 @@ exports.storylineAgent = onDocumentCreated(
       }
 
       // The thread so far, oldest first, minus the bubble we're about to fill.
-      const historySnap = await projectRef.collection("agentChat").orderBy("createdAt", "desc").limit(AGENT_HISTORY_LIMIT).get();
+      //
+      // Filtered to THIS conversation. A film can have several, and carrying all
+      // of them in would have the agent answering as if two unrelated
+      // discussions were one. Messages written before threads existed have no
+      // threadId and belong to "main", which is what the client calls the
+      // original conversation. Filtered in memory rather than with a `where`, so
+      // no composite index is needed — hence the larger fetch.
+      const threadId = job.threadId || "main";
+      const historySnap = await projectRef
+        .collection("agentChat")
+        .orderBy("createdAt", "desc")
+        .limit(AGENT_HISTORY_LIMIT * 4)
+        .get();
       const history = historySnap.docs
-        .filter((d) => d.id !== job.replyTo && (d.data().text || "").trim())
+        .filter(
+          (d) =>
+            d.id !== job.replyTo &&
+            (d.data().threadId || "main") === threadId &&
+            (d.data().text || "").trim()
+        )
+        .slice(0, AGENT_HISTORY_LIMIT)
         .map((d) => ({ role: d.data().role === "assistant" ? "assistant" : "user", text: d.data().text }))
         .reverse();
       // The message being answered is passed separately, so drop its echo.
@@ -2247,6 +2281,92 @@ exports.storylineAgent = onDocumentCreated(
         },
         history,
         message: job.text,
+
+        // ── Production powers ────────────────────────────────────────────────
+        // Injected rather than implemented in the tool server, because both of
+        // these spend the director's money and the charging rules must live in
+        // exactly one place — beside videoGenerate, which they mirror.
+
+        /** Shoot one scene. Mirrors videoGenerate's prepaid-then-charge path. */
+        renderScene: async (sceneIndex, prompt) => {
+          // Every storyboard scene is a 10s clip, and "omni" is the model key
+          // videoGenerate defaults to — both must match that path or the price
+          // the agent quotes won't be the price that gets charged.
+          const duration = 10;
+          const model = "omni";
+          let cost = videoCost(model, duration);
+
+          // The ad is one price: the storyboard payment bought one render of
+          // every scene, so draw on that allowance first. Decremented in a
+          // transaction so only what was actually paid for can be consumed.
+          const usedPrepaid = await db
+            .runTransaction(async (tx) => {
+              const snap = await tx.get(projectRef);
+              if (!snap.exists) return false;
+              const data = snap.data();
+              if (data.uid !== job.uid) return false;
+              const remaining = Number(data.prepaidRenders) || 0;
+              if (remaining <= 0) return false;
+              tx.update(projectRef, { prepaidRenders: remaining - 1 });
+              return true;
+            })
+            .catch((err) => {
+              console.error(`[agent ${job.projectId}] prepaid check failed:`, err.message);
+              return false;
+            });
+
+          if (usedPrepaid) cost = 0;
+          else await chargeCredits(job.uid, cost, `Video clip (${duration}s, from the agent)`);
+
+          const genRef = db.collection("generations").doc();
+          await genRef.set({
+            uid: job.uid,
+            type: "video",
+            status: "generating",
+            prompt,
+            model,
+            cost,
+            durationSeconds: duration,
+            aspectRatio: project.aspectRatio || "16:9",
+            // Lets processVideoGeneration hand the allowance back if the render
+            // fails, so a failure never quietly costs a paid-for scene.
+            prepaidProjectId: usedPrepaid ? job.projectId : null,
+            createdAt: new Date().toISOString(),
+          });
+
+          // Mark the scene as rendering so the script editor and the timeline
+          // show it immediately, exactly as pressing render there would.
+          const videoStatus = { ...(project.videoStatus || {}) };
+          videoStatus[sceneIndex] = {
+            ...(videoStatus[sceneIndex] || {}),
+            status: "rendering",
+            id: genRef.id,
+            error: null,
+          };
+          project.videoStatus = videoStatus;
+          await projectRef.update({ videoStatus, updatedAt: new Date().toISOString() });
+
+          return { id: genRef.id, cost, usedPrepaid };
+        },
+
+        /** Re-run audio post-production, optionally steering the new score. */
+        rescoreFilm: async (vibe) => {
+          await projectRef.update({
+            audioStage: "queued",
+            audioError: null,
+            updatedAt: new Date().toISOString(),
+          });
+          await db.collection("audioPostJobs").add({
+            uid: job.uid,
+            projectId: job.projectId,
+            // Threaded into the Lyria prompt so "warmer and slower" actually
+            // reaches the composer.
+            scoreNote: vibe || null,
+            status: "queued",
+            createdAt: new Date().toISOString(),
+          });
+        },
+
         // Stills the director attached to THIS message. They ride to Storage
         // from the client (a Firestore doc can't carry base64 past 1MB) and are
         // rehydrated here, the same offload the video path uses. A failed read
@@ -2307,111 +2427,6 @@ function compileRunCommand(cmd) {
   });
 }
 
-// ── Shared ad-audio composition ─────────────────────────────────────────────
-// Both exports (the storyboard projectCompile and the editor's renderJobV2) need
-// the SAME three audio files under a SILENT video: the Optiq Music bed + the two
-// TTS narration tracks. These helpers keep the two paths identical.
-
-// Returns the project's { musicUrl, voiceoverUrl, taglineUrl, taglineDuration },
-// generating + persisting any that are missing so every export has full audio.
-async function ensureProjectAudio(projectRef, projectId) {
-  let musicUrl = null, voiceoverUrl = null, taglineUrl = null, taglineDuration = null;
-  const psnap = await projectRef.get();
-  const pd = psnap.exists ? psnap.data() : {};
-  musicUrl = pd.musicUrl || null;
-  voiceoverUrl = pd.voiceoverUrl || null;
-  taglineUrl = pd.taglineUrl || null;
-  taglineDuration = Number(pd.taglineDuration) || null;
-
-  const patch = {};
-  if (!musicUrl) {
-    try {
-      const prompt = musicPromptFromSpec(pd.musicSpec) || DEFAULT_AD_MUSIC;
-      const track = await lyriaGenerate(prompt);
-      musicUrl = await uploadBase64(
-        track.base64,
-        `projects/${projectId}/score.${track.ext}`,
-        track.mimeType
-      );
-      patch.musicUrl = musicUrl;
-      console.log(`[audio ${projectId}] generated Optiq Music`);
-    } catch (e) {
-      console.error(`[audio ${projectId}] music generation failed:`, e.message);
-    }
-  }
-  if (!voiceoverUrl && !taglineUrl) {
-    try {
-      const vo = await writeAdNarration({ concept: pd.concept, brandName: pd.brandName, scenes: pd.scenes });
-      const mapped = VOICEOVER_VOICES[vo.voiceKey] || VOICEOVER_VOICES["gambian-english"];
-      if (vo.narration) {
-        const nar = await ttsGenerate(vo.narration, mapped.voice, mapped.style);
-        voiceoverUrl = await uploadBase64(nar.base64Wav, `projects/${projectId}/voiceover.wav`, "audio/wav");
-        patch.voiceoverUrl = voiceoverUrl;
-      }
-      if (vo.tagline) {
-        const tag = await ttsGenerate(vo.tagline, mapped.voice, mapped.style);
-        taglineUrl = await uploadBase64(tag.base64Wav, `projects/${projectId}/tagline.wav`, "audio/wav");
-        taglineDuration = tag.durationSec;
-        patch.taglineUrl = taglineUrl;
-        patch.taglineDuration = taglineDuration;
-      }
-      console.log(`[audio ${projectId}] generated narration (${vo.voiceKey})`);
-    } catch (e) {
-      console.error(`[audio ${projectId}] narration generation failed:`, e.message);
-    }
-  }
-  if (Object.keys(patch).length) await projectRef.set(patch, { merge: true }).catch(() => {});
-  return { musicUrl, voiceoverUrl, taglineUrl, taglineDuration };
-}
-
-// Lays the ad soundtrack over `inPath`, writing `outPath`: DROPS the video's own
-// audio ([0:a] at volume 0, also the duration anchor) and mixes the looped music
-// bed + narration (from the top) + tagline (delayed to the end) through a limiter.
-// Returns true if it composed, false if there was nothing to add.
-async function composeAdAudio({ inPath, outPath, workDir, audio, musicVolume = 0.6, totalDuration, tag, download, run }) {
-  const path = require("path");
-  const assets = [];
-  // The score is .mp3 since Lyria 3 Pro, but projects scored before that still
-  // hold a .wav — so the local name follows the URL rather than assuming either.
-  if (audio.musicUrl) {
-    const ext = /\.mp3(\?|$)/i.test(audio.musicUrl) ? "mp3" : "wav";
-    const p = path.join(workDir, `cmp_bgm.${ext}`);
-    await download(audio.musicUrl, p);
-    assets.push({ kind: "music", path: p });
-  }
-  if (audio.voiceoverUrl) { const p = path.join(workDir, "cmp_vo.wav"); await download(audio.voiceoverUrl, p); assets.push({ kind: "voiceover", path: p }); }
-  if (audio.taglineUrl) { const p = path.join(workDir, "cmp_tag.wav"); await download(audio.taglineUrl, p); assets.push({ kind: "tagline", path: p }); }
-  if (assets.length === 0) return false;
-
-  const inputArgs = [`-i "${inPath}"`];
-  const filters = [`[0:a]volume=0[base]`];
-  const mixLabels = ["[base]"];
-  let idx = 0;
-  for (const a of assets) {
-    idx++;
-    if (a.kind === "music") {
-      inputArgs.push(`-stream_loop -1 -i "${a.path}"`);
-      filters.push(`[${idx}:a]volume=${musicVolume}[music]`);
-      mixLabels.push("[music]");
-    } else if (a.kind === "voiceover") {
-      inputArgs.push(`-i "${a.path}"`);
-      filters.push(`[${idx}:a]volume=1.5[vo]`);
-      mixLabels.push("[vo]");
-    } else if (a.kind === "tagline") {
-      inputArgs.push(`-i "${a.path}"`);
-      const delayMs = Math.max(0, Math.round((totalDuration - (audio.taglineDuration || 4) - 0.3) * 1000));
-      filters.push(`[${idx}:a]adelay=${delayMs}|${delayMs},volume=1.6[tag]`);
-      mixLabels.push("[tag]");
-    }
-  }
-  const filterGraph =
-    `${filters.join(";")};${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0:normalize=0[mixed];` +
-    `[mixed]alimiter=limit=0.95[aout]`;
-  console.log(`[${tag}] Composing ad audio: music@${musicVolume}${audio.voiceoverUrl ? " + narration" : ""}${audio.taglineUrl ? " + tagline" : ""}`);
-  const cmd = `ffmpeg -y ${inputArgs.join(" ")} -filter_complex "${filterGraph}" -map 0:v -map "[aout]" -c:v copy -c:a aac "${outPath}"`;
-  await run(cmd);
-  return true;
-}
 
 exports.projectCompile = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "1GiB" },
@@ -2430,6 +2445,15 @@ exports.projectCompile = onRequest(
       // narrated by the platform anymore. Background music is only mixed in when
       // the client explicitly passes a musicUrl (e.g. a track the user chose).
       const musicUrl = bodyMusicUrl;
+
+      // The output frame is the ad's own shape. This used to be a hardcoded
+      // `scale=1280:720`, which forced a vertical ad into a landscape frame AND
+      // distorted it doing so (a bare scale ignores the source ratio entirely).
+      // Reading the project's stored orientation is what makes a 9:16 ad compile
+      // as 720×1280.
+      const { canvasForAspect } = require("./editorEngine");
+      const projectSnap = await projectRef.get();
+      const canvas = canvasForAspect(projectSnap.get("aspectRatio"));
 
       // Set compileStatus: "compiling" in Firestore
       await projectRef.set({
@@ -2473,7 +2497,10 @@ exports.projectCompile = onRequest(
 
             // Keep the clip's OWN (natively generated) audio.
             console.log(`[compile ${projectId}] Trimming segment ${i} (${trimStart}s→${trimEnd}s, ${duration}s)`);
-            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=1280:720,setsar=1,fps=30" -ar 44100 -ac 2 "${trimmedPath}"`;
+            // force_original_aspect_ratio + pad, never a bare scale: a clip is
+            // fitted into the frame, never stretched to fill it. When the clip
+            // already matches the ad's shape (the normal case) nothing is padded.
+            const trimCmd = `ffmpeg -y -ss ${trimStart} -t ${duration} -i "${srcPath}" -c:v libx264 -preset superfast -crf 23 -c:a aac -vf "scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease,pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30" -ar 44100 -ac 2 "${trimmedPath}"`;
             await compileRunCommand(trimCmd);
 
             filelistContent.push(`file '${trimmedPath}'`);
@@ -2739,6 +2766,134 @@ exports.renderJobV2 = onRequest(
 // the 120s window — assets are single clips, not full films.
 
 const { probeMedia, DEFAULT_WAVEFORM_BUCKETS } = require("./mediaProbe");
+
+// ─── AUDIO POST-PRODUCTION ──────────────────────────────────────────────────
+//
+// Scores and narrates a finished cut: measure every clip, watch each one, write
+// narration to the gaps it found, speak it, refit anything that overran, compose
+// the score with Lyria, cut it to the film's exact length, and lay the whole lot
+// onto the project's editorDoc so it exports through the normal render path.
+//
+// A Firestore trigger rather than a request: the pass takes minutes (a Lyria
+// composition alone is 55-75s) and it has to survive the director closing the
+// tab. Streams `audioStage` to the project doc so the UI can follow it.
+//
+// us-central1 to match the other Firestore triggers in this project; ffmpeg and
+// ffprobe come from the runtime image, not the region, so the probes work here
+// exactly as they do in renderJobV2.
+exports.audioPost = onDocumentCreated(
+  { document: "audioPostJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 5 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const job = snap.data();
+    if (!job || !job.projectId || !job.uid) return;
+
+    const jobRef = snap.ref;
+    const projectRef = db.collection("projects").doc(job.projectId);
+
+    // Claim it, so a retried delivery cannot score the same film twice.
+    const claimed = await db.runTransaction(async (tx) => {
+      const d = await tx.get(jobRef);
+      if (d.exists && (d.data().status || "queued") === "queued") {
+        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
+        return true;
+      }
+      return false;
+    });
+    if (!claimed) {
+      console.log(`[audio ${job.projectId}] job not queued, skipping`);
+      return;
+    }
+
+    const setStage = async (stage, extra = {}) => {
+      await projectRef
+        .update({ audioStage: stage, audioError: null, updatedAt: new Date().toISOString(), ...extra })
+        .catch(() => {});
+    };
+
+    try {
+      const psnap = await projectRef.get();
+      if (!psnap.exists) throw new Error("Project not found");
+      const project = { id: job.projectId, ...psnap.data() };
+      if (project.uid !== job.uid) throw new Error("Not your project");
+
+      const { runAudioPost } = require("./audioPost");
+      const audioPlan = require("./audioPlan");
+      const { canvasForAspect } = require("./editorEngine");
+      const { filmKind } = require("./optiqSkills/pipeline");
+      // Field names the editor owns — see lib/editor/persistence.ts.
+      const EDITOR_DOC_FIELD = "editorDoc";
+      const EDITOR_DOC_REV_FIELD = "editorDocRev";
+
+      const report = await runAudioPost({
+        vertexFetch,
+        ttsGenerate,
+        lyriaGenerate,
+        uploadBase64,
+        runCapture: require("./mediaProbe").runCapture,
+        fetchVideoBase64: async (url) => {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`Could not fetch clip (${res.status})`);
+          const buf = Buffer.from(await res.arrayBuffer());
+          return { base64: buf.toString("base64"), mimeType: res.headers.get("content-type") || "video/mp4" };
+        },
+        plan: audioPlan,
+        engineApi: { canvasForAspect, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD },
+        project,
+        projectId: job.projectId,
+        filmKind: filmKind(project.videoType),
+        // Set when the agent's rescore_film tool started this pass, carrying the
+        // director's own words about how the score should feel.
+        scoreNote: job.scoreNote || null,
+        onStage: (stage, meta) => setStage(stage, meta ? { audioProgress: meta } : {}),
+      });
+
+      // The document is the deliverable: written with a bumped revision so an
+      // open editor's autosaver adopts it (see EditorAutosaver.onRemote) rather
+      // than treating it as its own echo.
+      await projectRef.update(
+        stripUndefined({
+          [EDITOR_DOC_FIELD]: report.editorDoc,
+          [EDITOR_DOC_REV_FIELD]: report.editorDocRev,
+          musicUrl: report.music?.url ?? null,
+          audioStage: "ready",
+          audioError: null,
+          audioProgress: null,
+          audioReport: {
+            filmDuration: report.film?.duration ?? null,
+            narrationLines: report.narration.length,
+            musicSegments: report.music?.segments ?? 0,
+            musicLoops: report.music?.loops ?? 0,
+            voice: report.voice?.describe ?? null,
+            violations: report.violations,
+            notes: report.notes,
+            at: new Date().toISOString(),
+          },
+          updatedAt: new Date().toISOString(),
+        })
+      );
+      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+      console.log(
+        `[audio ${job.projectId}] ready — ${report.narration.length} line(s), ` +
+          `${report.music?.segments ?? 0} music segment(s), ${report.violations.length} issue(s)`
+      );
+    } catch (err) {
+      console.error(`[audio ${job.projectId}] failed:`, err);
+      await projectRef
+        .update({
+          audioStage: "failed",
+          audioError: err.message || "Audio post-production failed",
+          audioProgress: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(() => {});
+      await jobRef
+        .update({ status: "failed", error: err.message || "failed", finishedAt: new Date().toISOString() })
+        .catch(() => {});
+    }
+  }
+);
 
 exports.mediaProbe = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120, memory: "1GiB" },

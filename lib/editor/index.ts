@@ -17,3 +17,4 @@ export * from "./interactions";
 export * from "./shortcuts";
 export * from "./persistence";
 export * from "./autosave";
+export * from "./audioPlan";

@@ -14,6 +14,8 @@ import {
   syncSceneTakes,
   assetSceneIndex,
   clipEnd,
+  canvasForAspect,
+  conformCanvas,
 } from "../lib/editor";
 import {
   recordTake,
@@ -403,6 +405,87 @@ test("pre-versioning scenes read as a one-take history", () => {
   assert(sceneTakes(legacy).length === 1, "single take");
   assert(activeTakeIndex(legacy) === 0, "and it's the active one");
   assert(activeTakeIndex({ status: "idle" }) === -1, "no clip, no take");
+});
+
+// ── The canvas ──────────────────────────────────────────────────────────────
+//
+// The bug these cover: every document was built at a hardcoded 1280×720, so a
+// 9:16 ad previewed and exported as a slim strip pillarboxed inside a landscape
+// frame. The canvas is the shape of the deliverable.
+
+test("the canvas follows the ad's orientation", () => {
+  const landscape = canvasForAspect("16:9");
+  assert(landscape.width === 1280 && landscape.height === 720, `16:9 → ${landscape.width}×${landscape.height}`);
+  const portrait = canvasForAspect("9:16");
+  assert(portrait.width === 720 && portrait.height === 1280, `9:16 → ${portrait.width}×${portrait.height}`);
+  const square = canvasForAspect("1:1");
+  assert(square.width === 720 && square.height === 720, `1:1 → ${square.width}×${square.height}`);
+});
+
+test("both canvas dimensions are always even (h264 yuv420p)", () => {
+  for (const aspect of ["16:9", "9:16", "1:1", "4:5", "5:4", "21:9", "3:2", 1.85, 0.54]) {
+    const { width, height } = canvasForAspect(aspect);
+    assert(width % 2 === 0 && height % 2 === 0, `${aspect} → ${width}×${height} is not even`);
+  }
+});
+
+test("a missing or junk aspect ratio falls back to landscape", () => {
+  for (const bad of [undefined, null, "", "banana", "0:0", -3, NaN]) {
+    const { width, height } = canvasForAspect(bad as never);
+    assert(width === 1280 && height === 720, `${String(bad)} → ${width}×${height}`);
+  }
+});
+
+test("a portrait project builds a portrait document", () => {
+  const doc = docFromLegacyProject({
+    aspectRatio: "9:16",
+    videoStatus: { 0: { status: "succeeded", url: "https://cdn/s1.mp4" } },
+  });
+  assert(doc.width === 720 && doc.height === 1280, `got ${doc.width}×${doc.height}`);
+  // And it reaches the render job, which is what ffmpeg's frame is built from.
+  const job = compileRenderJob(doc);
+  assert(job.width === 720 && job.height === 1280, `job ${job.width}×${job.height}`);
+  const plan = buildFfmpegPlan(job);
+  assert(plan.filterComplex.includes("scale=720:1280"), "the filtergraph scales to the portrait frame");
+});
+
+test("a project with no stored orientation still builds landscape", () => {
+  const doc = docFromLegacyProject({
+    videoStatus: { 0: { status: "succeeded", url: "https://cdn/s1.mp4" } },
+  });
+  assert(doc.width === 1280 && doc.height === 720, `got ${doc.width}×${doc.height}`);
+});
+
+test("conformCanvas reshapes a document saved at the wrong canvas", () => {
+  // Exactly the stored state the old code left behind: a vertical ad whose
+  // saved document is landscape.
+  const engine = new EditorEngine(createEmptyDoc({ width: 1280, height: 720 }));
+  const track = engine.getDoc().tracks[0].id;
+  const asset = engine.addAsset({ kind: "video", url: "https://cdn/a.mp4", duration: 10 });
+  engine.insertClip(track, { assetId: asset, start: 0, duration: 4 });
+
+  const changed = conformCanvas(engine, "9:16");
+  assert(changed, "it reported the reshape so the caller persists it");
+  const doc = engine.getDoc();
+  assert(doc.width === 720 && doc.height === 1280, `got ${doc.width}×${doc.height}`);
+  // The edit survives untouched — only the frame changed.
+  assert(doc.tracks[0].clips.length === 1, "the clip is still there");
+  near(doc.tracks[0].clips[0].duration, 4);
+  validateDoc(doc);
+});
+
+test("conformCanvas is a no-op when the canvas already agrees", () => {
+  const engine = new EditorEngine(createEmptyDoc({ width: 720, height: 1280 }));
+  assert(conformCanvas(engine, "9:16") === false, "no change reported");
+  assert(conformCanvas(engine, undefined) === true, "…but a landscape project does reshape it");
+});
+
+test("reshaping the canvas is not an undo step", () => {
+  // Ctrl+Z after opening a conformed project must not restore the wrong shape.
+  const engine = new EditorEngine(createEmptyDoc({ width: 1280, height: 720 }));
+  conformCanvas(engine, "9:16");
+  assert(!engine.canUndo(), "the conform did not land on the undo stack");
+  assert(engine.getDoc().width === 720, "and the portrait canvas stuck");
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

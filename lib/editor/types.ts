@@ -99,6 +99,61 @@ export interface EditorDoc {
 
 export const MIN_CLIP_DURATION = 0.05;
 
+// ── The canvas ──────────────────────────────────────────────────────────────
+//
+// The document's width/height ARE the exported frame: `compileRenderJob` copies
+// them onto the render job, and ffmpeg then fits every source into that frame
+// with `scale=…:force_original_aspect_ratio=decrease,pad=…`. So a canvas that
+// disagrees with the footage doesn't crop or stretch — it pillarboxes, which is
+// how a 9:16 ad ends up as a slim strip stranded in the middle of a 16:9 file.
+// The canvas is not a rendering detail; it is the shape of the deliverable.
+
+/** Editor-local aspect parser. Kept here so this module stays framework-free —
+ * `app/dashboard/_shared/aspect.ts` is the React-side twin of this logic. */
+function parseAspect(aspect?: string | number | null): number | null {
+  if (typeof aspect === "number") {
+    return Number.isFinite(aspect) && aspect > 0 ? aspect : null;
+  }
+  if (typeof aspect !== "string") return null;
+  const parts = aspect.trim().split(/[:/x]/i);
+  if (parts.length === 2) {
+    const w = Number(parts[0]);
+    const h = Number(parts[1]);
+    return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? w / h : null;
+  }
+  const single = Number(aspect);
+  return Number.isFinite(single) && single > 0 ? single : null;
+}
+
+/** h264 + yuv420p need both dimensions even, so every canvas is rounded to 2. */
+function even(v: number): number {
+  return Math.max(2, Math.round(v / 2) * 2);
+}
+
+/** The 720p-class short side every canvas is built from. */
+export const CANVAS_SHORT_SIDE = 720;
+
+/**
+ * The export canvas for an aspect ratio, at 720p on the SHORT side.
+ *
+ * Short-side-driven on purpose: it makes 16:9 come out 1280×720 and 9:16 come
+ * out 720×1280 — the same pixel budget and the same perceived quality either
+ * way, rather than a portrait film being quietly downgraded to 405×720 (which
+ * is what driving off the long side would do).
+ *
+ * Landscape 16:9 lands on exactly the historical 1280×720 default, so existing
+ * landscape projects conform to their own current canvas and nothing churns.
+ */
+export function canvasForAspect(
+  aspect?: string | number | null,
+  fallback: string | number = "16:9"
+): { width: number; height: number } {
+  const ratio = parseAspect(aspect) ?? parseAspect(fallback) ?? 16 / 9;
+  return ratio >= 1
+    ? { width: even(CANVAS_SHORT_SIDE * ratio), height: even(CANVAS_SHORT_SIDE) }
+    : { width: even(CANVAS_SHORT_SIDE), height: even(CANVAS_SHORT_SIDE / ratio) };
+}
+
 export const DEFAULT_TRANSFORM: ClipTransform = {
   x: 0,
   y: 0,

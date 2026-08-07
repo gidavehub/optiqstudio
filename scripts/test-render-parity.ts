@@ -14,6 +14,7 @@ import {
   createEmptyDoc,
   compileRenderJob,
   buildFfmpegPlan,
+  canvasForAspect,
   RenderJob,
 } from "../lib/editor";
 
@@ -26,6 +27,7 @@ const serverEngine = require_("../functions/editorEngine.js") as {
     videoLabel: string;
     audioLabel: string;
   };
+  canvasForAspect: (aspect?: string | number | null) => { width: number; height: number };
 };
 
 let passed = 0;
@@ -166,6 +168,50 @@ test("validator rejects: not an object", () => {
     threw = true;
   }
   assert(threw, "expected validation error");
+});
+
+// ── Canvas parity ───────────────────────────────────────────────────────────
+// The legacy projectCompile path has no RenderJob to read a canvas off, so it
+// derives one with the CJS port. If the two drift, the timeline export and the
+// storyboard compile disagree about the shape of the same ad.
+
+test("canvasForAspect matches between lib/editor and functions/editorEngine", () => {
+  const cases = ["16:9", "9:16", "1:1", "4:5", "5:4", "21:9", "3:2", "2:3", 1.85, 0.54, "16/9", "9x16"];
+  for (const aspect of cases) {
+    const ts = canvasForAspect(aspect);
+    const js = serverEngine.canvasForAspect(aspect);
+    assert(
+      ts.width === js.width && ts.height === js.height,
+      `${aspect}: TS ${ts.width}×${ts.height} vs JS ${js.width}×${js.height}`
+    );
+  }
+});
+
+test("canvasForAspect fallback matches for unusable input", () => {
+  for (const bad of [undefined, null, "", "banana", "0:0", -3]) {
+    const ts = canvasForAspect(bad as never);
+    const js = serverEngine.canvasForAspect(bad as never);
+    assert(
+      ts.width === js.width && ts.height === js.height,
+      `${String(bad)}: TS ${ts.width}×${ts.height} vs JS ${js.width}×${js.height}`
+    );
+    assert(ts.width === 1280 && ts.height === 720, `fallback should be landscape, got ${ts.width}×${ts.height}`);
+  }
+});
+
+test("a portrait job survives the server validator", () => {
+  const e = new EditorEngine(createEmptyDoc(canvasForAspect("9:16")));
+  const v = e.getDoc().tracks[0].id;
+  const a = e.addAsset({ kind: "video", url: "https://cdn.example.com/p.mp4", duration: 10 });
+  e.insertClip(v, { assetId: a, start: 0 });
+  const job = compileRenderJob(e.getDoc());
+  const accepted = serverEngine.validateRenderJob(job);
+  assert(accepted.width === 720 && accepted.height === 1280, "portrait canvas accepted as-is");
+  // And both sides build the same portrait filtergraph.
+  assert(
+    buildFfmpegPlan(job).filterComplex === serverEngine.buildFfmpegPlan(job).filterComplex,
+    "portrait filtergraphs diverged"
+  );
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

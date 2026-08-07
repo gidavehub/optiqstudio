@@ -54,4 +54,28 @@ export interface AgentChatMessage {
   updatedAt?: string;
   /** Stills sent with a user message, as Storage refs. */
   images?: AgentAttachmentRef[];
+  /**
+   * Which conversation this message belongs to.
+   *
+   * Absent on every message written before threads existed, and that is load
+   * bearing rather than a gap: those all belong to the one original conversation,
+   * so `MAIN_THREAD_ID` stands in for undefined everywhere. Nothing had to be
+   * migrated, and no message can be orphaned by the change.
+   */
+  threadId?: string;
+}
+
+/** The conversation every pre-threads message belongs to. */
+export const MAIN_THREAD_ID = "main";
+
+/** One conversation in the history sidebar. Derived from the messages, not stored. */
+export interface AgentThread {
+  id: string;
+  /** First thing the director said in it, trimmed — the conversation's name. */
+  title: string;
+  messageCount: number;
+  /** ISO timestamp of the most recent message, for ordering the sidebar. */
+  updatedAt: string;
+  /** True while a turn in this thread is still queued or running. */
+  busy: boolean;
 }
