@@ -36,6 +36,8 @@ const {
   freshFaceDirective,
   charactersForBeat,
   recurringCharacterNames,
+  adultsOnlyMandate,
+  minorViolations,
 } = require("./casting");
 const {
   conceptDirective,
@@ -75,7 +77,8 @@ const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene'
 9. STORY, NOT SLIDESHOW — every scene advances one storyline with a beginning, middle and end across the full ad. The product or service is the hero of the story.
 10. CUTS WITHIN SCENES — scenes are not always one continuous shot. When the storyline plans cuts, the 10s scene contains those hard cuts, each with its own timestamped beat and shot description.
 10b. DENSITY — every 10-second scene carries at least ${MIN_BEATS_PER_SCENE} distinct beats (aim for ${TARGET_BEATS_PER_SCENE}), each a CHANGE OF STATE with its own timestamp and its own physical verb. Ten seconds of one continuous activity — carrying a cup across a room, stirring a pot, scrolling a phone — is the dead footage this whole system exists to prevent. A camera move is not a beat. A mood is not a beat. Somebody continuing to do what they were already doing is not a beat.
-11. NO MUSIC — the video model generates NO music, ever, in any video type. No soundtrack, no melody, no instrumental bed, no humming or singing, no music from a radio/phone/speaker inside the scene, no sting on a cut, no swell under a line. The clip carries ONLY the diegetic sound of the physical events in frame plus the location's ambience (and dialogue where the scene has dialogue). The score is composed separately afterwards by a dedicated music model and laid under the finished cut — music invented here cannot be removed from the clip's audio, collides with that score, and wastes the render. This rule is stated in the ABSOLUTE RULES, restated at the top of the SOUND block, and restated again in the CLOSING RESTATEMENT: one mention does not survive a 2,000-word prompt.`;
+11. NO MUSIC — the video model generates NO music, ever, in any video type. No soundtrack, no melody, no instrumental bed, no humming or singing, no music from a radio/phone/speaker inside the scene, no sting on a cut, no swell under a line. The clip carries ONLY the diegetic sound of the physical events in frame plus the location's ambience (and dialogue where the scene has dialogue). The score is composed separately afterwards by a dedicated music model and laid under the finished cut — music invented here cannot be removed from the clip's audio, collides with that score, and wastes the render. This rule is stated in the ABSOLUTE RULES, restated at the top of the SOUND block, and restated again in the CLOSING RESTATEMENT: one mention does not survive a 2,000-word prompt.
+12. ADULTS ONLY — every single person visible in this scene is 18 or older. No child, no baby, no toddler, no schoolchild, no teenager under 18 appears in any frame, in any role, foreground or background — not in a crowd, not in a doorway, not carried on somebody's back, not in a photograph on a wall. If the brief implied one, they are written as an adult of 18+ doing the same thing. State ages plainly where you state them, and never state one below 18.`;
 
 // ─── THE THREE KINDS OF FILM ─────────────────────────────────────────────────
 // Server-side mirror of VIDEO_TYPES in app/dashboard/_flow/types.ts. Only what
@@ -514,6 +517,12 @@ Brand Info:
 
 WHAT YOU ARE ANALYSING FOR: ${kind.register}
 
+${adultsOnlyMandate()}
+
+If the director's brief names or implies anyone under 18, say so plainly in your
+reading and recast them as an adult of 18 or older doing the same thing. Never
+refuse the brief over it and never quietly drop what it was about.
+
 Your jobs:
 1. Classify the offering: product or service, and summarise what it literally is and does.
 2. Identify the target audience and "the one thing" — if the viewer remembers one sentence, what is it?
@@ -616,6 +625,8 @@ ${rejected.map((c) => `  ✗ ${c.title} — ${c.logline}`).join("\n") || "  (non
 
 WHAT KIND OF FILM THIS IS: ${kind.register}
 
+${adultsOnlyMandate()}
+
 How you work:
 1. ${
       winner
@@ -673,6 +684,7 @@ ${knowledgeFor("storyline")}`,
   const densityFaults = [
     ...storylineDensityViolations(storyline, { numScenes }),
     ...sceneCastingViolations(storyline.sceneBeats),
+    ...minorViolations(JSON.stringify(storyline.sceneBeats || []), "The storyline"),
   ];
   if (densityFaults.length > 0) {
     console.warn(
@@ -795,7 +807,13 @@ ${knowledgeFor("casting-registry")}`;
   // spec caught here is ONE repair, caught later it is every scene in the film.
   // One combined repair call rather than two — the failures are independent but
   // the fix is the same document.
-  const registryFaults = [...castingViolations(registry), ...registrySoundViolations(registry)];
+  const registryFaults = [
+    ...castingViolations(registry),
+    ...registrySoundViolations(registry),
+    // A minor written into a locked block is pasted verbatim into every scene
+    // that person appears in, so this one repair is worth N later ones.
+    ...minorViolations(JSON.stringify(registry.characters || []), "The casting registry"),
+  ];
   if (registryFaults.length > 0) {
     console.warn(
       `casting-registry produced ${registryFaults.length} violation(s); repairing:`,
@@ -1146,6 +1164,10 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
           `Return an empty dialogue field and carry the beat in the picture instead.`
       );
     }
+    // Adults only, platform-wide. Checked on every scene because this is the last
+    // place it can be caught for free: after this the prompt goes to the video
+    // model, and a rendered minor costs money to replace.
+    violations.push(...minorViolations(scene.fullPrompt, `Scene ${scene.sceneNumber}`));
     return violations;
   };
 

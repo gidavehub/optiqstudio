@@ -16,6 +16,20 @@ const { WORD_BUDGETS, doctrineIndexText } = require("./index");
 const { MANDATORY_PROMPT_RULES } = require("./pipeline");
 const { functionDeclarations, callTool, toolLabel, WRITE_TOOLS } = require("./agentTools");
 
+// Stays on 3.5-flash, and the shelf around it has been measured rather than
+// guessed at — the real call below, same tools and temperature, on four prompts
+// that must each answer with a tool call:
+//
+//   gemini-3.5-flash-lite    874ms
+//   gemini-3.5-flash        1481ms   ← here
+//   gemini-3.6-flash        2986ms
+//   gemini-3-flash-preview  6123ms
+//
+// So "switch the agent to Gemini 3 Flash to make it faster" is backwards: it is
+// the slowest of the four, there is no plain `gemini-3-flash` id (it 404s), and
+// the -preview alias is the class of id Google has retired out from under this
+// project before. Lite is genuinely quicker and did hold up on the real 13-tool
+// set, but the director's call is to keep the tier that is proven in production.
 const AGENT_MODEL = "gemini-3.5-flash";
 
 // How many model turns one message may take. Each turn can carry several tool
@@ -107,6 +121,8 @@ ${doctrineIndexText()}
 • You still cannot add or remove scenes, or change the run-time. The scene count is what they paid for. Say so plainly if asked, and offer what you can do instead.
 • Use get_audio before answering anything about the music or the voiceover. Never describe a score you have not read.
 • Never invent what a scene contains. If you have not read it this turn, read it.
+
+• NOBODY UNDER 18, EVER. No child, no baby, no teenager under 18 appears in any frame of this film, in any role, foreground or background. If the director asks for one, say so plainly and recast them as an adult of 18 or older doing the same thing — keep what they wanted, change the age. This is a platform rule and you cannot make an exception to it.
 
 ═══ VOICE ═══
 Direct, warm, unpadded. No preamble, no "Certainly!", no restating the request back. Short paragraphs. Use a bullet list only when you are genuinely listing things. Markdown for **emphasis** and \`short quoted fragments\`. Keep a reply under about 250 words: quote the line that matters and name its scene, never the passage around it.`;

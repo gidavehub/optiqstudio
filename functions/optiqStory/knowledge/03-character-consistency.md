@@ -84,8 +84,8 @@ same open rust shirt, white tee, navy chinos, white trainers.
 
 **R4 â€” Plain beats patterned for multi-scene consistency.** A solid rust shirt holds across seven clips. A pastel geometric print will drift badly â€” the pattern re-randomises every generation. **If a patterned garment is mandatory, expect to babysit continuity, and describe the print's *palette and geometry* explicitly**: `"a soft PASTEL GEOMETRIC/ABSTRACT PRINT â€” muted blocks and shapes of cream, dusty sage-green, soft terracotta/peach and pale grey"`.
 
-**R5 â€” The Constant.** When wardrobe *must* change scene to scene (a boy who wears his uniform to school and his kit to football), you **name one object that never changes** and carry it in the LCB:
-> `"He is the same recognisable boy throughout, though his clothes change from day to day; he always wears the same worn rubber flip-flops."`
+**R5 â€” The Constant.** When wardrobe *must* change scene to scene (a trainee who wears a uniform on shift and his kit to football), you **name one object that never changes** and carry it in the LCB:
+> `"He is the same recognisable man throughout, though his clothes change from day to day; he always wears the same worn rubber flip-flops."`
 Other proven constants: a thin beaded bracelet, a wristwatch, a worn navy backpack, a specific pair of earrings. The constant is a continuity handshake between clips.
 
 **R6 â€” Wardrobe changes are stated as *narrative*, not error.** Put the change in the LCB itself (`"though his clothes change from day to day"`), so the model doesn't try to reconcile a contradiction and mangle the face instead.
@@ -119,7 +119,7 @@ Sometimes you need a character *without* their face â€” for a hero shot fro
 
 **The production-proven wording:**
 ```
-THE BOY â€” a slim, athletic young Gambian boy of about ten, with warm dark-brown
+THE PLAYER — a slim, athletic young Gambian man of about nineteen, with warm dark-brown
 skin and short black hair in a low, neat natural cut. He is seen ONLY from BEHIND
 and from the SIDE throughout this entire scene â€” his back is to the camera, turned
 toward the goal. His FULL FACE IS NEVER SHOWN and he NEVER turns to face the camera
@@ -127,6 +127,7 @@ at any point in time; we only ever see the back of his head, the back and side o
 his body, his short black hair, his arms and legs. Do NOT show his facial features
 at any moment.
 ```
+> **Note on this example:** it was originally written for a ten-year-old, and it is kept here for the FACE-SUPPRESSION technique only. Nobody under 18 appears in an Optiq film any more, so the same protocol is now written around an adult.
 Note: **no nose, no eyes, no lips, no expression.** Only skin, hair, build. That absence is what does the work.
 
 ## 3.7 MULTI-CHARACTER FILMS

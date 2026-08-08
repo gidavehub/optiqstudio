@@ -79,6 +79,8 @@ export default function StoryboardWizard() {
   const chosenType = videoType(videoTypeId);
   /** A film with nothing to sell: no brand, no product, no materials to upload. */
   const isStory = !chosenType.branded;
+  /** …and of those, the narrated one, which is briefed as a subject not a plot. */
+  const isDocumentary = videoTypeId === "short-film-documentary";
 
   // The flow is a LIST, not a count. An original story is three screens shorter
   // than an ad, and the short-film types carry an extra one — so "step 4" is not
@@ -363,12 +365,10 @@ export default function StoryboardWizard() {
                   What is this film for?
                 </h1>
 
-                {/* Capped on desktop so a mode card is the same size as a type
-                    card on the screen before it. Two cards inheriting the
-                    three-across container made each one half again as big, which
-                    read as a different, heavier screen. Untouched on mobile,
-                    where full width is right. */}
-                <div className="grid w-full grid-cols-2 gap-3 sm:max-w-md sm:gap-4">
+                {/* Three across, the same shape as the type picker on the screen
+                    before it — so a mode card is the same size as a type card and
+                    this reads as the same screen asking a narrower question. */}
+                <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
                   {SHORT_FILM_MODES.map((mode) => {
                     const active = videoTypeId === mode.id;
                     return (
@@ -401,8 +401,8 @@ export default function StoryboardWizard() {
                           />
                         </div>
 
-                        <div className="px-2 py-2.5 text-center sm:px-3 sm:py-3">
-                          <h3 className="truncate text-[12px] font-bold tracking-tight text-foreground sm:text-sm">
+                        <div className="px-1.5 py-2 text-center sm:px-2 sm:py-2.5">
+                          <h3 className="truncate text-[11px] font-bold tracking-tight text-foreground sm:text-[13px]">
                             {mode.title}
                           </h3>
                           <span className="mt-0.5 block text-[9px] leading-snug text-muted sm:text-[10px]">
@@ -472,18 +472,22 @@ export default function StoryboardWizard() {
                   Direct Your Vision
                 </h1>
                 <p className="text-xs text-ink-3 text-center max-w-md -mt-3">
-                  {isStory
-                    ? "Tell us the story you want told — who it's about, what they want, what goes wrong. Our agents write it into a film."
-                    : "Tell us about the ad you want — the brand, the feeling, the audience. Our agents turn it into a story."}
+                  {isDocumentary
+                    ? "Tell us what you want a film about — the place, the work, the thing nobody looks at twice. Our agents find the angle and write the narration."
+                    : isStory
+                      ? "Tell us the story you want told — who it's about, what they want, what goes wrong. Our agents write it into a film."
+                      : "Tell us about the ad you want — the brand, the feeling, the audience. Our agents turn it into a story."}
                 </p>
                 <div className="w-full rounded-[28px] border border-line bg-surface/80 backdrop-blur-xl p-4 elevate-lg transition-all duration-300 focus-within:border-accent-line focus-within:ring-2 focus-within:ring-accent-line">
                   <textarea
                     value={promptText}
                     onChange={(e) => setPromptText(e.target.value)}
                     placeholder={
-                      isStory
-                        ? "A woman hides money from her own family, and the person she's hiding it for finds out first…"
-                        : "Type a prompt..."
+                      isDocumentary
+                        ? "How salt gets out of the flats at Sanyang and onto a truck, and who carries it…"
+                        : isStory
+                          ? "A woman hides money from her own family, and the person she's hiding it for finds out first…"
+                          : "Type a prompt..."
                     }
                     rows={5}
                     className="w-full bg-transparent resize-none outline-none text-sm placeholder:text-muted leading-relaxed text-foreground"

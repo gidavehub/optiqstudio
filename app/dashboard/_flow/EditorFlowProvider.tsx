@@ -298,7 +298,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         characterLock: proj.characterLock || { name: "", description: "", wardrobe: "" },
         scenes: proj.scenes || [],
         isStory: proj.isStory,
+        isDocumentary: proj.isDocumentary,
         storyArc: proj.storyArc,
+        thesis: proj.thesis,
+        theClose: proj.theClose,
         musicSpec: proj.musicSpec,
         ambienceSpec: proj.ambienceSpec,
       });
@@ -411,7 +414,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       characterLock: proj.characterLock || { name: "", description: "", wardrobe: "" },
       scenes: proj.scenes || [],
       isStory: proj.isStory,
+      isDocumentary: proj.isDocumentary,
       storyArc: proj.storyArc,
+      thesis: proj.thesis,
+      theClose: proj.theClose,
       musicSpec: proj.musicSpec,
       ambienceSpec: proj.ambienceSpec,
     });
@@ -1175,9 +1181,14 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
             previousScenePrompt: storyboard.scenes[sceneIndex - 1]?.fullPrompt || null,
             nextScenePrompt: storyboard.scenes[sceneIndex + 1]?.fullPrompt || null,
             musicSpec: storyboard.musicSpec || null,
-            // Decides whether the reviser may write dialogue into this scene at
-            // all — a narrated film's footage is silent by construction.
+            // Decides which sandbox's reviser runs, and whether it may write
+            // dialogue into this scene at all — a narrated film's footage is
+            // silent by construction.
             videoType: videoTypeId,
+            // Documentary only: the voiceover over this scene. The reviser builds
+            // the picture around it — leaving the voice room to sit, and never
+            // letting the picture repeat what the line already says.
+            narration: scene.narration || null,
           }),
         });
 

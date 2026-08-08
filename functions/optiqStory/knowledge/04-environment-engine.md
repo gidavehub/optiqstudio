@@ -59,7 +59,7 @@ The agent's ammunition. Deploy liberally; these are the words that buy authentic
 - interiors: bare or worn cement/lino floors, plain plastered walls, very little furniture, **spotless**
 - **a single candle melted onto a saucer** â€” for poverty, this beats "a dim bulb or lantern" every time. It is the true detail.
 - a thin foam mattress on a low frame; a folded printed cloth for a blanket
-- eating: the family rings **one large shared bowl** on a **woven mat on the floor**, eating with the **right hand**; an elder nudges meat toward a child's side of the bowl
+- eating: the family rings **one large shared bowl** on a **woven mat on the floor**, eating with the **right hand**; an elder nudges meat toward a younger man's side of the bowl
 
 ### DRESS
 - **wax-print** wrapper-and-blouse; **grand mbubb** (women's flowing gown); **musor** (tall sculpted headwrap)

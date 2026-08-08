@@ -1,7 +1,19 @@
 ﻿# OPTIQ SKILLS KNOWLEDGE — PART III: CHARACTER CONSISTENCY WITHOUT REFERENCE IMAGES (LCB, five anchors, wardrobe lock, recurrence)
 (Internal operating doctrine for the Optiq Skills agent swarm. Extracted from the Optiq film system manual.)
 
-# PART III â€” CHARACTER CONSISTENCY WITHOUT REFERENCE IMAGES
+# PART III — CHARACTER CONSISTENCY WITHOUT REFERENCE IMAGES
+
+> ## READ THIS FIRST — PART III IN A DOCUMENTARY
+>
+> This module was written for films that star somebody. **A documentary usually stars nobody**, and most of what follows will not be used on your film.
+>
+> The people in a documentary are whoever is doing the work in that ten seconds. They are written fresh inside their own scene, they carry no locked block, they get no reference sheet, and they never appear again. That is the format (see §15.8), and inventing locks for them is the exact failure that made every film on this platform star the same person.
+>
+> **What still binds, always:** every person on camera is explicitly described as a **Black** Gambian / Black West African person, with a specific complexion from the palette, and no two people in a scene share a complexion, a hairstyle or a build. That rule is Part XII's and it is not negotiable — models have rendered under-described people as other ethnicities.
+>
+> **What follows applies only to the rare "one-subject" film** — one person, followed all the way through, whose face has to be the same face in most scenes. At most two such people exist in any documentary, and usually zero. When you do have one, everything below is exactly right: 150–200 words, physical properties only, pasted verbatim at the top of every prompt they appear in, with one difference — **no temperament line and no behavioural tell.** This is a real person doing real work, not a character being played, and a performance note is how a documentary starts looking staged.
+>
+> One more difference: their clothing lock is **workwear**, marked by the job — stained, faded, rolled, taped — not a costume. And they never look at the lens and never speak.
 
 > This is the most valuable single system in this document. It is what lets us generate nine separate clips, in nine separate context windows, weeks apart, and have them cut together as one film starring one person.
 
@@ -147,18 +159,20 @@ This is a real constraint. Design around it at the outline stage, not at the pro
 
 **Rule 5 â€” Never attach two images.** The model fuses identities. This is why the whole system is text-based.
 
-## 3.8 THE ONE-IMAGE EXCEPTION (PRODUCTS ONLY)
+## 3.8 THE ONE-IMAGE EXCEPTION
 
-The **only** image we attach is a **product**, and only ever **one per prompt**.
+> **Story sandbox note.** In the ad swarm this section is about attaching a
+> product photograph. There are no products here, so what remains is the general
+> rule about attaching *anything* — which is now mostly superseded by Part XIV,
+> where the character reference sheet is the one image a story scene carries.
 
-**Why products are different:** a product is a rigid object with fixed geometry and printed artwork. It has no expression to drift, no pose to reconcile. It is exactly the kind of thing image-conditioning is good at.
+**Why rigid objects are different from faces:** a rigid object has fixed geometry and no expression to drift, so image-conditioning handles it well. A face does not, which is why identity lives in the Locked Character Block and not in an attachment.
 
-**The rules:**
-1. **One image per prompt. Never two.** Four logos in one prompt (SWIPE + Wave + APS + Afrimoney) = fusion and garbage. That's what compositing is for.
+**The rules, when any image is attached at all:**
+1. **One image per prompt. Never two.** Two references in one prompt fuse into garbage. That is what compositing is for.
 2. **Quarantine the reference.** State explicitly what to take and what to ignore:
-> `"Match the BUCKET DESIGN and LABEL from the attached product image exactly... IMPORTANT: take ONLY the tub/label design from the reference â€” do NOT use any kitchen background, flyer layout, or surrounding scene from the image."`
-This clause exists because a reference flyer's kitchen background bled into unrelated scenes. It is mandatory.
-3. **Describe the product in words anyway.** The image is confirmation; the words are the specification.
-> `"the white lid, the green 'Sidrah Salaam' leaf logo, the bold 'GROUNDNUT PASTE / DEYGEH' wordmark with gold underline, '100% GROUNDNUT â€” MADE IN THE GAMBIA', and the 'NET WEIGHT 4.5Kg' badge"`
-4. **Character + product in one prompt = character in text, product as the image.** Never both as images.
+> `"Take ONLY the object itself from the attached reference â€” do NOT use its background, its lighting, or any surrounding scene from the image."`
+This clause exists because a reference image's background bled into unrelated scenes. It is mandatory.
+3. **Describe the thing in words anyway.** The image is confirmation; the words are the specification. If the attachment failed to load, the prompt must still be complete on its own.
+4. **A story ELEMENT is never hero-shot.** Keeping an object consistent is a continuity job, not a presentation job. See Part XV Â§15.9.
 

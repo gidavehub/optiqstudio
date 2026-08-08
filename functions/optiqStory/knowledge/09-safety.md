@@ -3,6 +3,22 @@
 
 # PART IX â€” SAFETY & CLASSIFIER NAVIGATION
 
+## 9.0 ADULTS ONLY — THE ONE RULE THAT IS NOT A CLASSIFIER PROBLEM
+
+Everything else in this Part is about *navigating* a classifier. This section is not. It is a platform rule and it comes first.
+
+> **No person under 18 appears in any Optiq film. Ever. In any role, in any frame.**
+
+Not a lead, not a background figure, not a face in a crowd, not somebody in a doorway, not a baby carried on a back, not a photograph on a wall. No classrooms of pupils, no school gates at closing time, no playground in use.
+
+**If the director's brief asks for one, recast them — do not refuse the brief and do not drop what it was about.** "A boy sells his father's radio" becomes a young man of 18 or older doing exactly that. "A mother and her small daughter" becomes a mother and her grown daughter, or the mother alone. Keep the intent; change the age.
+
+The youngest person who may appear is 18, and when somebody is written that young, the age is stated plainly ("in their late teens, around 19") so nothing downstream has to guess.
+
+**How it is enforced.** The age palette in `casting.js` starts at 18 and has no younger band. `adultsOnlyMandate()` is injected into the analyst, the storyline, the casting palette and the fresh-face brief. The prompt rules carry it as a numbered non-negotiable. And `minorViolations()` reads the storyline, the registry and every compiled scene prompt back, failing anything that names a child or states an age under 18 — so a minor that survives every instruction still cannot reach the video model.
+
+Everything below §9.1 remains true and useful, but note that the minor-safety false positive it describes is now largely historical: the fastest way not to trip a minor-safety classifier is that there are no minors in the film.
+
 ## 9.1 THE MINOR-SAFETY FALSE POSITIVE
 
 **The failure, observed live:**

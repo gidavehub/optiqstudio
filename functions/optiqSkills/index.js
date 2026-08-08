@@ -63,7 +63,7 @@ const STORY_LIBRARY = [
     register: "warm, funny, heartwarming character comedy with a running gag",
     pattern:
       "Running-gag kindness story: a likeable character keeps just missing the thing everyone loves (proof of demand), receives an act of kindness, discovers the product secret, and is visibly transformed.",
-    bestFor: "food/nutrition products, child or youth protagonist, kindness angle, product-as-secret reveal",
+    bestFor: "food/nutrition products, young-adult protagonist, kindness angle, product-as-secret reveal",
   },
   {
     id: "from-our-soil",
@@ -114,12 +114,30 @@ function storyLibraryIndexText() {
   ).join("\n");
 }
 
+/**
+ * Warning stapled to every reference film handed to a skill.
+ *
+ * The library is six REAL delivered client ads, and some of them were made
+ * before the adults-only rule existed — film 02's lead is a ten-year-old. The
+ * records are not rewritten, because they are the historical account of what was
+ * actually shipped; instead every one of them arrives with this in front of it,
+ * so a skill reading them learns the machinery and never the cast. The JS gate
+ * in casting.js (`minorViolations`) is the backstop if it does anyway.
+ */
+const LIBRARY_ADULTS_ONLY_WARNING = `⚠ READ BEFORE THE FILM BELOW — THESE ARE HISTORICAL RECORDS, NOT CASTING BRIEFS.
+Some of these ads were delivered before Optiq's adults-only rule and feature
+children on camera. That is no longer permitted: NO person under 18 appears in any
+Optiq film, in any role, in any frame. Learn these films' STRUCTURE — the stakes,
+the escalation, the payoff mechanics, the running gag, the shot discipline — and
+never their cast. Wherever one of them stars a child, the equivalent character in
+your film is an adult of 18 or older doing the same thing.`;
+
 function referenceFilmBriefs(ids) {
   const chosen = STORY_LIBRARY.filter((f) => (ids || []).includes(f.id));
   // Never dump more than two films into a context window.
   return chosen
     .slice(0, 2)
-    .map((f) => loadDoc(f.file))
+    .map((f) => `${LIBRARY_ADULTS_ONLY_WARNING}\n\n${loadDoc(f.file)}`)
     .join("\n\n---\n\n");
 }
 

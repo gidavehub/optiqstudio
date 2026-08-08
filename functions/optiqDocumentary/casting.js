@@ -1,41 +1,49 @@
-// ─── OPTIQ SKILLS — THE CASTING DIRECTOR ────────────────────────────────────
+// ─── OPTIQ DOCUMENTARY — WHO IS ON CAMERA ───────────────────────────────────
 //
-// Why this module exists.
+// The documentary sandbox's own copy of the casting machinery. It shares no code
+// with the ad swarm or the story sandbox, and it inverts their default.
 //
-// Every film was coming out starring the same person. Not because the swarm was
-// ignoring instructions, but because it was following them perfectly: the
-// casting-registry skill reads `03-character-consistency.md`, whose canonical
-// Locked Character Block is Nyima — "deep warm dark-brown skin… neat
-// medium-length black box braids" — and the scene-builders read
-// `exemplar-scene.md`, which stars the man in the rust camp-collar shirt. Those
-// examples are there to teach the FORMAT. A language model reads them as the
-// answer. Add a prompt rule that demanded "rich, deep dark skin tone" on every
-// person and the result was inevitable: one complexion, one hairstyle, one
-// build, film after film.
+// Why this module exists at all.
 //
-// The important consequence: you cannot fix this with a sterner instruction.
-// Identical inputs land a sampler in the same basin every run, so "be more
-// varied" produces the same cast with more adjectives. What breaks it is a
-// DIFFERENT INPUT per film — an explicit casting palette, drawn fresh each run,
-// that the registry has to build toward. That is `castingDirective()`.
+// Every film this platform made was coming out starring the same person — not
+// because the swarm ignored instructions but because it followed them perfectly:
+// the doctrine's worked examples ARE a cast, and a language model reads an
+// example as the answer. You cannot fix that with a sterner instruction, because
+// identical inputs land a sampler in the same basin every run. What breaks it is
+// a DIFFERENT INPUT per film: an explicit palette, drawn fresh, that the writer
+// has to build toward.
+//
+// Why it is inverted here.
+//
+// A drama needs the same face in nine clips, so the story sandbox defaults every
+// scene to the locked recurring cast. A DOCUMENTARY does not. It is about a
+// subject, a place, a process or a system — and the people in it are the people
+// who happen to be doing that work today. A documentary that keeps cutting back
+// to one lead has quietly become a character piece, which is the story sandbox's
+// job and not this one's.
+//
+// So in this sandbox:
+//   • "fresh-faces" is the DEFAULT and the normal answer. The people in a scene
+//     are one-offs, described inside that scene, never locked and never carried
+//     to another one.
+//   • "no-people" is common and often the strongest scene in the film: hands out
+//     of frame, an object, a machine, a road, a room.
+//   • "recurring" exists but is RATIONED. It is right only when the film is
+//     genuinely following one person through the whole thing, and even then the
+//     cap is small — see RECURRING_SUBJECT_CAP.
 //
 // What did NOT change: casting stays Black and Gambian, and the literal keyword
-// "Black" stays mandatory in every prompt (models have rendered
-// under-described people as other ethnicities, which is the whole reason that
-// rule exists). The variety is a spread ACROSS the real range of Black Gambian
-// complexions, hair, ages and builds — not a licence to cast someone else.
+// "Black" stays mandatory in every prompt (models have rendered under-described
+// people as other ethnicities, which is the whole reason that rule exists). The
+// variety is a spread ACROSS the real range of Black Gambian complexions, hair,
+// ages and builds — not a licence to cast someone else.
 
 "use strict";
 
 // ─── THE PALETTES ───────────────────────────────────────────────────────────
 // Each entry is written as prompt-ready description language, because whatever
-// is drawn here has to survive into a Locked Character Block verbatim.
+// is drawn here has to survive into a scene prompt verbatim.
 
-/**
- * The complexion range. Every band is a Black Gambian / West African skin tone —
- * this is the spread that exists in any real Gambian street, and the thing the
- * old "rich, deep dark skin tone" rule flattened out.
- */
 const COMPLEXIONS = [
   "very deep blue-black skin with a soft matte finish",
   "deep ebony skin with a natural healthy sheen",
@@ -44,12 +52,11 @@ const COMPLEXIONS = [
   "medium warm-brown skin with a soft glow",
   "golden-brown skin with warm amber undertones",
   "light copper-brown skin with visible warm undertones",
-  "fair caramel-brown skin, noticeably lighter than her surroundings",
+  "fair caramel-brown skin, noticeably lighter than those around them",
   "deep umber-brown skin with cool undertones",
   "mid-toned chestnut-brown skin, matte",
 ];
 
-/** Hair. The single strongest visual differentiator between two characters. */
 const HAIR_WOMEN = [
   "long thin black box braids worn loose past the shoulders",
   "short natural black afro, hand-picked and even",
@@ -121,7 +128,7 @@ const BUILDS = [
  */
 const DISTINCTIVE_MARKERS = [
   "a small raised mole high on one cheekbone",
-  "a noticeable gap between the two front teeth, visible when smiling",
+  "a noticeable gap between the two front teeth",
   "thick-rimmed black reading glasses worn constantly",
   "a thin pale scar through one eyebrow",
   "deeply hooded eyes that make the gaze look heavy",
@@ -133,7 +140,7 @@ const DISTINCTIVE_MARKERS = [
   "unusually long lashes over deep-set eyes",
   "a strong square jaw with a visible chin cleft",
   "freckles scattered across the nose and upper cheeks",
-  "a slight squint in one eye",
+  "hands visibly marked by the work — cracked knuckles, a taped finger, stained nails",
 ];
 
 // The doctrine's own worked examples. These are FORMAT teaching aids, and the
@@ -152,53 +159,56 @@ const HOUSE_DEFAULTS = [
 // ─── DRAWING A PALETTE ──────────────────────────────────────────────────────
 
 // The draw itself lives in ./rng.js, shared with the creative provocation. The
-// algorithm is fixed: a stored film's seed has to keep reproducing its cast.
+// algorithm is fixed: a stored film's seed has to keep reproducing its people.
 const { makeRng, hashSeed, sample } = require("./rng");
 
 /**
- * The casting palette for one film.
+ * How many recurring subjects a documentary may lock.
  *
- * `seed` should be stable per film (the project id) so a resumed or retried
- * generation casts the same people; pass nothing for a fresh random draw.
- * `castSize` is how many named characters the storyline actually needs.
+ * Small on purpose. A documentary follows a subject, not a protagonist, and the
+ * moment three people are carried across the film it has become a drama with the
+ * dialogue removed. One is the normal answer when the film follows somebody at
+ * all; two is the ceiling.
  */
-function drawCastingPalette(seed, castSize = 3) {
+const RECURRING_SUBJECT_CAP = 2;
+
+function drawSubjectPalette(seed, size = 4) {
   const rng = makeRng(seed === undefined ? (Math.random() * 0xffffffff) >>> 0 : hashSeed(seed));
-  const size = Math.max(1, Math.min(castSize, 8));
+  const n = Math.max(2, Math.min(size, 8));
   return {
-    complexions: sample(COMPLEXIONS, Math.max(size, 2), rng),
-    hairWomen: sample(HAIR_WOMEN, Math.max(size, 2), rng),
-    hairMen: sample(HAIR_MEN, Math.max(size, 2), rng),
-    facialHair: sample(FACIAL_HAIR, Math.max(size, 2), rng),
-    ages: sample(AGE_BANDS, Math.max(size, 2), rng),
-    builds: sample(BUILDS, Math.max(size, 2), rng),
-    markers: sample(DISTINCTIVE_MARKERS, Math.max(size, 2), rng),
+    complexions: sample(COMPLEXIONS, n, rng),
+    hairWomen: sample(HAIR_WOMEN, n, rng),
+    hairMen: sample(HAIR_MEN, n, rng),
+    facialHair: sample(FACIAL_HAIR, Math.max(2, Math.min(n, FACIAL_HAIR.length)), rng),
+    ages: sample(AGE_BANDS, n, rng),
+    builds: sample(BUILDS, n, rng),
+    markers: sample(DISTINCTIVE_MARKERS, n, rng),
   };
 }
 
 /**
- * The casting directive handed to the casting-registry skill.
+ * The people directive handed to the registry skill.
  *
- * This is the load-bearing part of the whole module: it is a different block of
- * text on every film, so the registry cannot converge on one cast the way it did
- * when its only inputs were a fixed doctrine and a fixed exemplar.
+ * A different block of text on every film, so the registry cannot converge on
+ * one look the way it did when its only inputs were a fixed doctrine and a fixed
+ * exemplar.
  */
 function castingDirective(seed, castSize = 3) {
-  const p = drawCastingPalette(seed, castSize);
+  const p = drawSubjectPalette(seed, castSize);
   const list = (items) => items.map((i) => `  - ${i}`).join("\n");
 
-  return `═══ CASTING PALETTE FOR THIS FILM (BINDING) ═══
+  return `═══ THE PEOPLE IN THIS FILM (BINDING) ═══
 This palette is drawn fresh for every film. It exists because films kept coming
 out starring the same person — one complexion, one hairstyle, one build. Treat it
-as the casting call you have been handed, not as suggestions.
+as the call sheet you have been handed, not as suggestions.
 
-EVERY on-screen person is still a BLACK Gambian / West African person, and the
-literal word "Black" still appears in every character's description. That does
-not change and is not what this palette is about. What changes is that Black
-Gambian people are not one look, and this cast must show that.
+EVERY on-screen person is a BLACK Gambian / West African person, and the literal
+word "Black" appears in every person's description. That does not change and is
+not what this palette is about. What changes is that Black Gambian people are not
+one look, and this film must show that.
 
-SKIN — assign a DIFFERENT complexion from this list to each named character. Do
-not give two characters the same one. Do not default all of them to the darkest:
+SKIN — assign a DIFFERENT complexion to each person you describe. Do not default
+all of them to the darkest:
 ${list(p.complexions)}
 
 HAIR — women in this film draw from:
@@ -209,131 +219,116 @@ ${list(p.hairMen)}
 FACIAL HAIR — for each man:
 ${list(p.facialHair)}
 
-AGE — spread the cast across these bands, not clustered on one:
+AGE — spread the people across these bands, not clustered on one:
 ${list(p.ages)}
 
-BUILD / HEIGHT — a different one per character:
+BUILD / HEIGHT — a different one per person:
 ${list(p.builds)}
 
-DISTINGUISHING MARKER — give each character exactly ONE of these, and write it
-into their Locked Character Block. This does more for "these are different
-people" than any adjective:
+DISTINGUISHING MARKER — give anybody described in detail exactly ONE of these.
+This does more for "these are different people" than any adjective:
 ${list(p.markers)}
 
 HARD RULES
-1. No two characters in this film may share a complexion, a hairstyle, or a
-   build. If the storyline needs five people, that is five distinct looks.
-2. Spread the ages. A film where everyone is in their twenties is a failed cast.
+1. No two people described in this film may share a complexion, a hairstyle, or a
+   build.
+2. Spread the ages. A film where everyone is in their twenties is a failed cast,
+   and a documentary in particular will look staged.
 3. NEVER reproduce the doctrine's worked examples. "Box braids", "deep warm
-   dark-brown skin", "soft oval face", "naturally thick eyebrows", and the
-   rust/camp-collar shirt are teaching aids showing you the FORMAT of a Locked
-   Character Block — they are not this film's cast, and copying them is the exact
-   failure this palette exists to stop. Write new people.
-4. Wardrobe colours must also differ per character, and must not be rust.
-5. Background people follow the same spread: a crowd where every face is the
-   same tone is the cliché the doctrine warns about.
+   dark-brown skin", "soft oval face", "naturally thick eyebrows" and the
+   rust/camp-collar shirt are teaching aids showing you the FORMAT — they are not
+   this film's people, and copying them is the exact failure this palette exists
+   to stop.
+4. Clothing is WORKWEAR, not costume: what somebody doing this job actually wears,
+   marked by the work — stained, faded, tucked, taped, rolled. Nobody in a
+   documentary is dressed for the camera.
+5. NOBODY LOOKS AT THE LENS, nobody poses, nobody smiles for the camera, and
+   nobody speaks. These are people who have not noticed they are being filmed.
 
 ${ADULTS_ONLY_MANDATE}`;
 }
 
 // ─── PER-SCENE CASTING ──────────────────────────────────────────────────────
-//
-// The casting SHAPE above is a decision about the whole film. This is the one
-// underneath it, and it was missing entirely: what does THIS scene need?
-//
-// The pipeline could only express one answer — "the locked cast" — and so every
-// scene got the locked cast. Worse, a scene that named nobody fell through to a
-// default that pasted EVERY character in the film into it, which is how a film
-// ends up with the same faces in ten consecutive scenes whatever the storyline
-// asked for.
-//
-// Three answers, chosen per scene:
-//
-//   recurring   — people we have met and will meet again. They carry a Locked
-//                 Character Block, a reference sheet, and the full consistency
-//                 machinery. Expensive, and worth it exactly when a face has to
-//                 survive across clips.
-//   fresh-faces — people who exist for these ten seconds and appear nowhere
-//                 else. No lock, no sheet, no consistency burden: they are
-//                 written fresh inside the scene. A market seller, a passenger,
-//                 a kid on a wall, the man who says one thing and is gone.
-//   no-people   — nobody on camera at all. A product on a table, a street, a
-//                 door, hands out of frame. Completely legitimate, frequently
-//                 the strongest scene in an ad, and previously unsayable.
-//
-// The point is that these are per-SCENE. A single film can lock two leads for
-// its bookends, run three montage scenes of complete strangers, and hold on the
-// product alone for the last ten seconds — and none of those choices should drag
-// the others along with them.
 
 const SCENE_CASTING_MODES = ["recurring", "fresh-faces", "no-people"];
-const DEFAULT_SCENE_CASTING = "recurring";
 
-/** Normalize whatever the storyline returned into one of the three modes. */
+/**
+ * The default when the outline does not say — and the one real difference from
+ * the other two sandboxes.
+ *
+ * There, an unspecified scene falls back to the locked cast, because their films
+ * are about people we follow. Here it falls back to one-off faces, because this
+ * film is about a subject and the reflex to be resisted is a documentary quietly
+ * acquiring a protagonist.
+ */
+const DEFAULT_SCENE_CASTING = "fresh-faces";
+
+/** Normalize whatever the outline returned into one of the three modes. */
 function sceneCasting(beat) {
   const raw = String(beat?.castingMode || "").trim().toLowerCase();
   if (SCENE_CASTING_MODES.includes(raw)) return raw;
-  // Absent (an older storyline, or a model that skipped the field): infer from
+  // Absent (an older outline, or a model that skipped the field): infer from
   // whether the beat names anybody, which is the honest reading of the data.
   return (beat?.charactersPresent || []).length > 0 ? "recurring" : DEFAULT_SCENE_CASTING;
 }
 
-/** The per-scene casting brief, for the storyline skill. */
+/** The per-scene people brief, for the outline skill. */
 function sceneCastingDirective() {
   return `═══ WHO IS IN EACH SCENE — CHOOSE PER SCENE ═══
-Set castingMode on every scene beat. This is a real choice each time, and getting
-it wrong in the safe direction is the platform's most persistent failure: films
-kept putting the same two locked faces in all nine scenes because that was the
-only thing the machinery could say.
+Set castingMode on every scene beat. In a documentary the answer is usually
+"fresh-faces" or "no-people", and that is not a compromise — it is what the
+format is.
 
-  "recurring"   — this scene features named characters we have met before or will
-                  meet again. Use it when a face genuinely has to be the SAME face
-                  across clips: the person the story is about, the relationship at
-                  the centre of it. List them in charactersPresent.
-  "fresh-faces" — the people in this scene appear in NO other scene. A seller, a
-                  passenger, a neighbour, a crowd, a stranger who does one thing
-                  and is gone. Leave charactersPresent EMPTY and describe what
-                  these people DO in the moment; the scene builder will invent
-                  them. Nobody here needs to look the same in any other scene, so
-                  the scene is freer, cheaper and usually more alive.
-  "no-people"   — nobody is on camera. The product on a counter, a street, a
-                  door closing, a pot, a phone screen, a sign. Ten seconds with no
-                  human in frame is often the best scene in an ad, and it can
-                  still be packed with events: things move, land, open, spill,
-                  switch on. Leave charactersPresent empty.
+  "fresh-faces" — THE DEFAULT. The people in this scene appear in NO other scene:
+                  whoever is doing this work today. A seller, a boatman, a
+                  welder, a queue, a crowd, a pair of hands. Leave
+                  charactersPresent EMPTY and describe what these people DO; the
+                  scene builder invents them to the palette. Nobody here has to
+                  look the same in any other scene, so the scene is freer,
+                  cheaper and far more alive.
+  "no-people"   — nobody on camera at all. An object, a machine, a road, a room,
+                  a surface, a tool, water, fire, hands out of frame. Common in a
+                  documentary and frequently the best scene in the film — and it
+                  can still be packed with events: things move, land, open, spill,
+                  boil, switch on, tip over. Leave charactersPresent empty.
+  "recurring"   — a named person the film follows across scenes. RATION THIS. Use
+                  it only when the film genuinely follows one individual all the
+                  way through, and even then keep it to one or two people in the
+                  whole film. List them in charactersPresent.
+
+WHY IT IS RATIONED: a documentary is about a subject, a place, a process or a
+system. The moment three faces start recurring, the film has quietly become a
+character drama with the dialogue removed — which is a different product on this
+platform, made by a different pipeline. If you find yourself wanting a lead in
+every scene, what you actually have is a story, and the director should be told
+that rather than handed a half-documentary.
 
 HOW TO DECIDE: ask what this specific scene needs, not what the film has been
-doing. A recurring lead does not have to appear in a scene just because they are
-the lead — if the beat is "the whole market already knows about it", that is
-fresh faces, and shoving the lead into it makes the film smaller. Equally, do not
-scatter fresh faces through a story that is about two people: that reads as a
-different film every ten seconds.
-
-A film may mix all three freely. What it may NOT do is default every scene to
-"recurring" because that is easiest.`;
+doing. If the beat is "the whole market is already at work", that is fresh faces.
+If the beat is "the salt, close, drying", that is no-people. A recurring subject
+does not have to appear in a scene just because they are the subject.`;
 }
 
 /**
  * A per-scene look palette for a scene of one-off people.
  *
  * Same mechanism as the film-wide palette, salted by scene number so scene 3's
- * strangers do not come out looking like scene 7's. Compact on purpose: these
+ * people do not come out looking like scene 7's. Compact on purpose: these
  * people get a good description, not a 200-word lock they will never need again.
  */
 function freshFaceDirective(seed, sceneNumber) {
   const rng = makeRng(hashSeed(`fresh:${sceneNumber}:${seed ?? Math.random()}`));
   const list = (items) => items.map((i) => `  - ${i}`).join("\n");
   return `═══ THIS SCENE'S PEOPLE ARE ONE-OFFS ═══
-Nobody in this scene appears anywhere else in the film. There is no Locked
-Character Block for them and there must not be one: do NOT paste any character
-lock into this prompt, and do NOT reuse the film's recurring cast here — those
-faces belong to their own scenes and putting them in this one collapses the film
-back into the same two people in every shot.
+Nobody in this scene appears anywhere else in the film. There is no locked block
+for them and there must not be one: do NOT paste any character lock into this
+prompt, and do NOT reuse a recurring subject here — that is how a documentary
+collapses into the same two faces in every shot.
 
 Write these people fresh, in the scene, with enough physical detail to render
 cleanly once. Each is explicitly a BLACK Gambian / West African person — that
-keyword is non-negotiable, exactly as it is for the locked cast — and they differ
-visibly from one another. Draw their looks from here:
+keyword is non-negotiable — and they differ visibly from one another. Draw their
+looks from here:
 
 COMPLEXIONS (spread them; not everyone the same tone):
 ${list(sample(COMPLEXIONS, 4, rng))}
@@ -344,19 +339,20 @@ ${list(sample(AGE_BANDS, 4, rng))}
 BUILDS:
 ${list(sample(BUILDS, 3, rng))}
 
-Give each of them something to DO — these are people caught mid-action, not
-extras arranged in a frame.
+Give each of them something to DO — these are people caught mid-work, not extras
+arranged in a frame. And remember what this film is: NOBODY SPEAKS, nobody's lips
+move in speech, nobody looks at the lens and nobody poses. They have not noticed
+the camera.
 
 ${ADULTS_ONLY_MANDATE}`;
 }
 
 /**
- * Which registry characters belong in a scene's prompt.
+ * Which registry subjects belong in a scene's prompt.
  *
- * The old behaviour when a beat named nobody was to fall back to the ENTIRE
- * registry, on the theory that some characters are better than none. It is the
- * opposite: it is what pasted the whole cast into scenes that were written to
- * have nobody in them. A scene that names nobody now gets nobody.
+ * A scene that names nobody gets nobody. The old ad-swarm behaviour — fall back
+ * to the ENTIRE registry on the theory that some people are better than none —
+ * is what pasted the whole cast into scenes written to have nobody in them.
  */
 function charactersForBeat(registry, beat) {
   const mode = sceneCasting(beat);
@@ -385,15 +381,18 @@ function recurringCharacterNames(sceneBeats) {
 }
 
 /**
- * Contradictions between a scene's casting mode and what it actually lists.
+ * Contradictions between a scene's casting mode and what it actually lists, plus
+ * the documentary-only check: has the film quietly acquired a cast?
  *
- * Cheap to catch here and expensive later: a "no-people" scene that names three
- * characters becomes a scene-builder that puts three people in a shot the
- * storyline wrote to be empty.
+ * Cheap to catch here and expensive later — a "no-people" scene that names three
+ * subjects becomes a scene-builder that puts three people in a shot the outline
+ * wrote to be empty.
  */
 function sceneCastingViolations(sceneBeats) {
   const violations = [];
-  for (const beat of (sceneBeats || []).filter(Boolean)) {
+  const beats = (sceneBeats || []).filter(Boolean);
+
+  for (const beat of beats) {
     const mode = sceneCasting(beat);
     const named = (beat.charactersPresent || []).filter((n) => String(n || "").trim());
     if (mode === "no-people" && named.length > 0) {
@@ -405,18 +404,46 @@ function sceneCastingViolations(sceneBeats) {
     if (mode === "fresh-faces" && named.length > 0) {
       violations.push(
         `Scene ${beat.sceneNumber} is cast "fresh-faces" but names ${named.join(", ")}. ` +
-          `Fresh faces appear in no other scene and carry no lock, so they are not named characters — ` +
-          `clear charactersPresent and describe what these one-off people DO in the moment instead.`
+          `Fresh faces appear in no other scene and carry no lock, so they are not named subjects — ` +
+          `clear charactersPresent and describe what these one-off people DO instead.`
       );
     }
     if (mode === "recurring" && named.length === 0) {
       violations.push(
-        `Scene ${beat.sceneNumber} is cast "recurring" but names nobody. Name the characters this scene ` +
-          `shares with the rest of the film, or re-cast it as "fresh-faces" (one-off people) or ` +
-          `"no-people" (nobody on camera).`
+        `Scene ${beat.sceneNumber} is cast "recurring" but names nobody. Name the subject this scene shares with ` +
+          `the rest of the film, or re-cast it as "fresh-faces" (one-off people) or "no-people" (nobody on camera).`
       );
     }
   }
+
+  // The documentary-only gate: too many people carried across the film.
+  const subjects = new Set();
+  for (const beat of beats) {
+    if (sceneCasting(beat) !== "recurring") continue;
+    for (const raw of beat.charactersPresent || []) {
+      const key = normalize(raw);
+      if (key) subjects.add(key);
+    }
+  }
+  if (subjects.size > RECURRING_SUBJECT_CAP) {
+    violations.push(
+      `This film carries ${subjects.size} recurring subjects (${[...subjects].join(", ")}) and a documentary may ` +
+        `carry at most ${RECURRING_SUBJECT_CAP}. Past that it has stopped being a film about its subject and become ` +
+        `a character drama with the dialogue removed. Keep the one or two the film genuinely follows, and re-cast ` +
+        `the rest of those scenes as "fresh-faces" — the people who happen to be doing that work in that scene.`
+    );
+  }
+
+  // And the opposite reflex: a film that put a face in literally every scene.
+  const withPeople = beats.filter((b) => sceneCasting(b) !== "no-people").length;
+  if (beats.length >= 6 && withPeople === beats.length) {
+    violations.push(
+      `Every scene in this film has people in it. A documentary needs at least one scene of nobody: the object, the ` +
+        `machine, the road, the surface, the empty room. Those are usually the strongest ten seconds in the film and ` +
+        `they are the cheapest to render well. Re-cast at least one scene as "no-people".`
+    );
+  }
+
   return violations;
 }
 
@@ -427,7 +454,7 @@ function normalize(text) {
 }
 
 /**
- * Which palette-relevant traits a Locked Character Block actually committed to.
+ * Which palette-relevant traits a subject block actually committed to.
  * Deliberately coarse: it looks for the vocabulary that carries a look, so it
  * can tell "these two are the same person" from "these two differ".
  */
@@ -452,45 +479,46 @@ function traitsOf(character) {
 }
 
 /**
- * Casting-variety violations for a whole registry.
+ * Variety violations for a whole registry.
  *
- * Returns human-readable strings aimed at a repair pass, empty when the cast is
- * genuinely varied. Single-character films are exempt from the "differ from each
- * other" checks — there is nothing to differ from — but still may not be cast
- * straight off the doctrine's examples.
+ * Returns human-readable strings aimed at a repair pass, empty when the people
+ * are genuinely varied. A film with one recurring subject is exempt from the
+ * "differ from each other" checks — there is nothing to differ from — but still
+ * may not be cast straight off the doctrine's examples.
  */
 function castingViolations(registry) {
   const characters = (registry?.characters || []).filter(Boolean);
   const violations = [];
   if (characters.length === 0) return violations;
 
-  // 1. Nobody may be lifted from the doctrine's worked examples.
+  if (characters.length > RECURRING_SUBJECT_CAP) {
+    violations.push(
+      `The registry locks ${characters.length} recurring subjects and a documentary may lock at most ` +
+        `${RECURRING_SUBJECT_CAP}. Keep only the one or two the film genuinely follows across scenes; everyone else ` +
+        `is written fresh inside their own scene and needs no block here.`
+    );
+  }
+
   for (const c of characters) {
     const text = normalize(`${c.lcb || ""} ${c.wardrobe || ""}`);
     const copied = HOUSE_DEFAULTS.filter((d) => text.includes(normalize(d)));
     if (copied.length > 0) {
       violations.push(
-        `${c.name || "A character"} is cast off the doctrine's worked examples (${copied.join(", ")}). ` +
-          `Those are FORMAT teaching aids, not this film's cast. Re-cast this character with a different ` +
-          `complexion, a different hairstyle and different wardrobe colours, and remove those phrases entirely.`
+        `${c.name || "A subject"} is cast off the doctrine's worked examples (${copied.join(", ")}). ` +
+          `Those are FORMAT teaching aids, not this film's people. Re-cast with a different complexion, a different ` +
+          `hairstyle and different clothing, and remove those phrases entirely.`
       );
     }
-  }
-
-  // 2. The "Black" keyword survives per character — the rule that stops a
-  //    person being rendered as another ethnicity.
-  for (const c of characters) {
     if (!/black/i.test(String(c.lcb || ""))) {
       violations.push(
-        `${c.name || "A character"}'s Locked Character Block never says "Black". ` +
-          `Every character must be explicitly described as a Black Gambian / Black West African person.`
+        `${c.name || "A subject"}'s locked block never says "Black". Every person must be explicitly described as a ` +
+          `Black Gambian / Black West African person.`
       );
     }
   }
 
   if (characters.length < 2) return violations;
 
-  // 3. Two characters may not share a look.
   const seen = [];
   for (const c of characters) {
     const t = traitsOf(c);
@@ -499,33 +527,13 @@ function castingViolations(registry) {
       const sameHair = t.hair.length > 0 && prev.traits.hair.some((h) => t.hair.includes(h));
       if (sameSkin && sameHair) {
         violations.push(
-          `${c.name || "A character"} and ${prev.name || "another character"} share both complexion and ` +
-            `hairstyle — they will read as the same person on screen. Re-cast one of them onto a different ` +
-            `complexion AND a different hairstyle from the casting palette.`
+          `${c.name || "A subject"} and ${prev.name || "another subject"} share both complexion and hairstyle — ` +
+            `they will read as the same person on screen. Re-cast one of them onto a different complexion AND a ` +
+            `different hairstyle from the palette.`
         );
       }
     }
     seen.push({ name: c.name, traits: t });
-  }
-
-  // 4. The cast as a whole must actually span the complexion range. This is the
-  //    check that catches the original symptom: everyone plausibly distinct on
-  //    paper, but every single one of them dark-skinned.
-  const distinctSkin = new Set();
-  let described = 0;
-  for (const c of characters) {
-    const t = traitsOf(c);
-    if (t.skin.length > 0) {
-      described++;
-      distinctSkin.add(t.skin[0]);
-    }
-  }
-  if (described >= 2 && distinctSkin.size < 2) {
-    violations.push(
-      `The whole cast shares one complexion ("${[...distinctSkin][0]}"). Black Gambian people are not one ` +
-        `shade — spread this cast across the palette's range, including at least one noticeably lighter ` +
-        `complexion, while keeping every person explicitly Black Gambian.`
-    );
   }
 
   return violations;
@@ -534,19 +542,17 @@ function castingViolations(registry) {
 /**
  * Did the film actually come out the shape the analyst asked for?
  *
- * The known failure this catches: the swarm agrees to an ensemble or a montage
- * and then quietly writes a single-hero film anyway, because one lead is the
- * easiest story to tell. Checked against the STORYLINE's beats rather than the
- * registry, since the beats are what the scene-builders actually implement.
+ * Reported rather than repaired, and checked against the OUTLINE's beats rather
+ * than the registry, since the beats are what the scene-builders implement. The
+ * failure it exists to catch is the one this format is prone to: the swarm
+ * agrees to a subject-led film and then writes a person-led one anyway, because
+ * following one hero is the easiest thing to write.
  */
 function castingShapeViolations(shape, sceneBeats) {
   const beats = (sceneBeats || []).filter(Boolean);
   const violations = [];
   if (beats.length < 2 || !shape) return violations;
 
-  // How many scenes each named character appears in. Only scenes cast
-  // "recurring" count: a fresh-faces scene's people are one-offs by definition,
-  // and a no-people scene has nobody to count.
   const appearances = new Map();
   for (const beat of beats) {
     if (sceneCasting(beat) !== "recurring") continue;
@@ -556,30 +562,29 @@ function castingShapeViolations(shape, sceneBeats) {
       appearances.set(name, (appearances.get(name) || 0) + 1);
     }
   }
-  if (appearances.size === 0) return violations;
 
-  const counts = [...appearances.values()].sort((a, b) => b - a);
-  const topShare = counts[0] / beats.length;
-  const recurring = counts.filter((c) => c >= 2).length;
-
-  if (shape === "no-hero-montage") {
-    if (recurring > 0) {
+  if (shape === "subject-led") {
+    if (appearances.size > 0) {
       violations.push(
-        `The casting shape is "no-hero-montage" — nobody recurs — but ${recurring} character(s) appear in more ` +
-          `than one scene. Re-cast so every scene features DIFFERENT people who appear nowhere else in the film.`
+        `The film's shape is "subject-led" — nobody recurs — but ${appearances.size} named subject(s) appear across ` +
+          `scenes (${[...appearances.keys()].join(", ")}). Re-cast those scenes as "fresh-faces": whoever happens to ` +
+          `be doing that work in that ten seconds.`
       );
     }
-  } else if (shape === "ensemble") {
-    if (appearances.size < 2) {
+    return violations;
+  }
+
+  if (shape === "one-subject") {
+    if (appearances.size === 0) {
       violations.push(
-        `The casting shape is "ensemble" but the film has only one named character. An ensemble needs two to four ` +
-          `recurring characters who all matter, in relationship with each other.`
+        `The film's shape is "one-subject" but no scene names anybody, so the person the film is supposedly ` +
+          `following never appears twice. Either name them in the scenes that follow them, or change the shape to ` +
+          `"subject-led".`
       );
-    } else if (topShare >= 0.9 && recurring < 2) {
+    } else if (appearances.size > 1) {
       violations.push(
-        `The casting shape is "ensemble" but one character carries ${Math.round(topShare * 100)}% of the scenes ` +
-          `with nobody else recurring — that is a single-lead film with extras. Give at least two characters real ` +
-          `presence across the film.`
+        `The film's shape is "one-subject" but ${appearances.size} people recur. Keep the one the film follows and ` +
+          `re-cast the others as fresh faces.`
       );
     }
   }
@@ -720,7 +725,7 @@ module.exports = {
   minorViolations,
   castingDirective,
   castingShapeViolations,
-  drawCastingPalette,
+  drawSubjectPalette,
   castingViolations,
   traitsOf,
   sceneCasting,
@@ -730,6 +735,8 @@ module.exports = {
   charactersForBeat,
   recurringCharacterNames,
   SCENE_CASTING_MODES,
+  DEFAULT_SCENE_CASTING,
+  RECURRING_SUBJECT_CAP,
   COMPLEXIONS,
   HAIR_WOMEN,
   HAIR_MEN,

@@ -61,7 +61,7 @@ const CREATIVE_ENGINES = [
   "THE RUNNING GAG — one specific thing goes wrong the same way three times, and the fourth time it goes right. The repetition IS the structure, and the payoff is the product.",
   "THE CONFIDENT EXPERT WHO IS WRONG — someone explains, with total authority, how a thing works. They are completely wrong. Somebody quieter is proved right without gloating.",
   "CHAIN REACTION — one small action in scene one sets off a sequence that gets progressively more out of hand, and the last domino is the payoff.",
-  "ROLE REVERSAL — the person who should know least knows most. A child instructs an adult, an apprentice corrects a master, a customer teaches the shopkeeper.",
+  "ROLE REVERSAL — the person who should know least knows most. The new hire instructs the veteran, an apprentice corrects a master, a customer teaches the shopkeeper.",
   "ENORMOUS SERIOUSNESS ABOUT A TINY STAKE — a trivial matter treated with the gravity of a heist. Nobody in the film finds it funny, which is what makes it funny.",
   "THE THING THAT WILL NOT COOPERATE — an object, an animal, a queue or a door actively refuses. The comedy is in the negotiation with it.",
   "AN AUDIENCE FORMS — a private moment acquires spectators, then commentary, then sides. The crowd becomes a character.",
@@ -287,7 +287,7 @@ person continuing to do what they were already doing, a reaction with nothing to
 react to.
 
 Count them before you write the scene. "She stirs the pot" is one beat and a dead
-scene. "She stirs, the spoon catches, she looks up, the child is already holding
+scene. "She stirs, the spoon catches, she looks up, her brother is already holding
 the lid out, she takes it without a word" is five, and it is the same ten seconds.
 
 THE FIRST THREE SECONDS decide whether the film is watched at all. This is social

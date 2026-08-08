@@ -9,6 +9,16 @@ export interface Scene {
   dialogue: string;
   sound: string;
   fullPrompt: string;
+  /**
+   * The voiceover line laid over this scene. Documentaries only.
+   *
+   * A documentary's footage is silent — `dialogue` is always empty — and its
+   * words are written by the swarm as part of the outline, then recorded over
+   * the finished cut in audio post. They live on the scene (rather than only in
+   * the project's `narrationScript`) so the script editor can show them beside
+   * the picture they belong to, and so the agent has one place to edit.
+   */
+  narration?: string;
 }
 
 export interface CharacterLock {
@@ -25,7 +35,12 @@ export interface Storyboard {
   scenes: Scene[];
   /** Extra outputs from the agentic Director's Room pipeline. */
   isStory?: boolean;
+  /** True for films built by functions/optiqDocumentary. */
+  isDocumentary?: boolean;
   storyArc?: string;
+  /** Documentary only: the one sentence the film lands, and how it lands it. */
+  thesis?: string;
+  theClose?: string;
   /** Historical name: since the no-music mandate this holds the film's UNSCORED
    * sound bed (locked silence + ambience), not a music spec. */
   musicSpec?: string;
@@ -219,7 +234,12 @@ export const LENGTH_PRICING_GMD: Record<ProjectLength, number> = {
 // between them is only where the VOICE comes from — see
 // functions/optiqSkills/knowledge/13-sound-policy.md.
 
-export type VideoTypeId = "short-film" | "short-film-story" | "dialogue-ad" | "voiceover-ad";
+export type VideoTypeId =
+  | "short-film"
+  | "short-film-story"
+  | "short-film-documentary"
+  | "dialogue-ad"
+  | "voiceover-ad";
 
 export interface VideoType {
   id: VideoTypeId;
@@ -297,7 +317,7 @@ export const VIDEO_TYPES: VideoType[] = [
     branded: true,
   },
   {
-    // The only unbranded type, and the only one built by functions/optiqStory.
+    // Unbranded, and the only type built by functions/optiqStory.
     // Not a card: it lives behind Short film, on its own screen.
     id: "short-film-story",
     title: "Original story",
@@ -309,22 +329,39 @@ export const VIDEO_TYPES: VideoType[] = [
     card: false,
     branded: false,
   },
+  {
+    // Unbranded, and the only type built by functions/optiqDocumentary. Also the
+    // only unbranded type whose footage is SILENT: nobody speaks on camera, and
+    // the film's words are narration written by the swarm and recorded over the
+    // finished cut. Like the story, it lives behind Short film rather than
+    // taking a fourth card on the picker.
+    id: "short-film-documentary",
+    title: "Documentary",
+    lengths: ["60s", "90s", "120s", "150s", "180s"],
+    clip: "/media/mode-short-film-documentary.mp4",
+    dialogueInVideo: false,
+    ttsVoiceover: true,
+    audioLabel: "Voiceover + composed score",
+    card: false,
+    branded: false,
+  },
 ];
 
 /** The types that appear on "What are we making?" — three, across at any width. */
 export const VIDEO_TYPE_CARDS: VideoType[] = VIDEO_TYPES.filter((t) => t.card);
 
-/** Both halves of the short-film choice: an advert, or a story told for itself. */
+/** Every branch of the short-film choice: an advert, a story, or a documentary. */
 export function isShortFilm(id?: VideoTypeId | string | null): boolean {
-  return id === "short-film" || id === "short-film-story";
+  return id === "short-film" || id === "short-film-story" || id === "short-film-documentary";
 }
 
 /**
- * The two things a short film can be, in the order they are shown.
+ * The three things a short film can be, in the order they are shown.
  *
  * The ADVERT comes first and is what picking "Short film" already means, so a
  * director who wants what this platform has always made does not have to choose
- * anything — they press Continue.
+ * anything — they press Continue. The other two are unbranded and each routes to
+ * its own storyboard system.
  */
 export interface ShortFilmMode {
   id: VideoTypeId;
@@ -346,6 +383,12 @@ export const SHORT_FILM_MODES: ShortFilmMode[] = [
     title: "Original story",
     blurb: "A story for its own sake. No brand, no pitch.",
     clip: "/media/mode-short-film-story.mp4",
+  },
+  {
+    id: "short-film-documentary",
+    title: "Documentary",
+    blurb: "Something real, told by a narrator.",
+    clip: "/media/mode-short-film-documentary.mp4",
   },
 ];
 

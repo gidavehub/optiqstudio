@@ -52,11 +52,11 @@ Deployed only when a constraint is load-bearing and the model will otherwise vio
 Examples from production:
 ```
 === ABSOLUTE RULES (follow strictly) ===
-- The boy's FACE must NEVER be visible. He stays turned AWAY from camera,
+- The player's FACE must NEVER be visible. He stays turned AWAY from camera,
   facing the goal, back to us, for the whole scene. No front-facing angle,
   no turn toward the lens, ever.
 - The CAMERA stays on the SIDE of the pitch, framed so we see ONLY: the SIDE
-  of the goalposts, the boy (from behind/side), and the ball.
+  of the goalposts, the player (from behind/side), and the ball.
 ```
 ```
 === IMPORTANT FRAMING NOTE ===

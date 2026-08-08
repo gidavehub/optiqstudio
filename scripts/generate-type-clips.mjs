@@ -8,15 +8,17 @@
  *   public/media/type-dialogue-ad.mp4
  *   public/media/type-voiceover-ad.mp4
  *
- * "What is this film for?" — the two short-film modes, shown only after Short
- * film is picked. These two have ONE job: make the difference between an advert
- * and an original story legible in about six seconds, muted, on a small card.
- * So they are deliberately a matched pair — same room-quality, same light, same
- * kind of people — differing in the one thing that actually differs: the advert
- * has a product in the frame and a transaction happening, the story has neither
- * and carries a private moment between two people instead.
+ * "What is this film for?" — the three short-film modes, shown only after Short
+ * film is picked. These have ONE job: make the difference between an advert, an
+ * original story and a documentary legible in about six seconds, muted, on a
+ * small card. So they are deliberately a matched set — same room-quality, same
+ * light, same kind of people — differing only in the thing that actually
+ * differs: the advert has a product in frame and a transaction happening; the
+ * story has neither and carries a private moment between two people; the
+ * documentary has nobody performing at all, just work being done, observed.
  *   public/media/mode-short-film-ad.mp4
  *   public/media/mode-short-film-story.mp4
+ *   public/media/mode-short-film-documentary.mp4
  *
  * Run: node scripts/generate-type-clips.mjs [--force] [only-id ...]
  *   --force        regenerate even if the file already exists
@@ -149,6 +151,23 @@ const CLIPS = [
       "of it. Both are centred in frame, the tin dead centre between them. NO product, NO packaging, NO label, NO " +
       "logo anywhere in the shot — just two people and something unsaid. It reads unmistakably as a scene from a " +
       "real film, caught mid-story at the moment something changes.",
+  },
+  {
+    id: "mode-short-film-documentary",
+    file: "mode-short-film-documentary.mp4",
+    prompt:
+      STYLE +
+      "MOTION: a patient observational hold that drifts slightly, as if the operator is standing back and letting " +
+      "the work happen. No push, no orbit. " +
+      "ACTION: A bright, sunlit Gambian workshop with whitewashed walls and daylight pouring in through an open " +
+      "shutter. A woman in her fifties with very deep dark skin and a printed coral headwrap, sleeves pushed up, " +
+      "works at a pale wooden bench dead centre in frame: she lifts a finished piece off the bench, turns it over " +
+      "once to check it, sets it on a stack that is already taller than the others, and immediately reaches for the " +
+      "next one. Behind her a younger man with golden-brown skin carries a crate past without stopping. NOBODY " +
+      "SPEAKS — no mouths moving, no lips moving in speech, no conversation, nobody looks at the lens, nobody poses. " +
+      "NO product being presented, NO packaging, NO label, NO logo. The hands and the work are the whole subject. " +
+      "It reads unmistakably as documentary footage: real work, caught as it happens, with a narrator's voice " +
+      "obviously belonging over the top of it.",
   },
 ];
 

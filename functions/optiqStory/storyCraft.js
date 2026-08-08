@@ -53,7 +53,7 @@ const STORY_ENGINES = [
   "THE THING TAKEN WITHOUT ASKING — borrowed, pocketed, used 'just this once'. The whole film is the race to put it back before it is missed, and the race is lost or won in the last scene.",
   "SOMEBODY IS ABOUT TO FIND OUT — the audience knows before the characters do. The tension is not the secret, it is watching the moment approach.",
   "THE PROMISE MADE TOO EASILY — a small promise made without thinking becomes very hard to keep. Keeping it is the story; what it costs is the ending.",
-  "TWO PEOPLE WHO CANNOT SAY THE THING — a parent and a child, two old friends, a couple. They talk around it for the whole film. One of them nearly says it.",
+  "TWO PEOPLE WHO CANNOT SAY THE THING — a parent and their grown child, two old friends, a couple. They talk around it for the whole film. One of them nearly says it.",
   "THE OUTSIDER WHO WILL NOT LEAVE — someone belongs here less than everyone else and refuses to go. Either the place changes or they do.",
   "THE INHERITANCE — something is left behind (a trade, a tool, a shop, a name) and somebody has to decide whether to carry it. They decide on camera.",
   "THE SUBSTITUTION — one thing is quietly swapped for another and everyone must be prevented from noticing. It gets harder every scene.",

@@ -72,7 +72,7 @@ WHAT AN IDEA HAS TO CLEAR — all five, or it is not a candidate:
 
 SCALE IS NOT STAKES. A borrowed dress can be worth more than a shipwreck. The
 domestic scale is the strongest available: a debt to a neighbour, a promise to a
-child, a lie about to be found out, something taken without asking. It renders
+brother, a lie about to be found out, something taken without asking. It renders
 beautifully, costs nothing, and every human alive has felt it. Reach for a
 disaster only when the story genuinely is one.
 
@@ -172,7 +172,7 @@ person continuing to do what they were already doing, a reaction with nothing to
 react to.
 
 Count them before you write the scene. "She stirs the pot" is one beat and a dead
-scene. "She stirs, the spoon catches, she looks up, the child is already holding
+scene. "She stirs, the spoon catches, she looks up, her brother is already holding
 the lid out, she takes it without a word" is five, and it is the same ten seconds.
 
 THE FIRST THREE SECONDS decide whether the film is watched at all. The viewer's

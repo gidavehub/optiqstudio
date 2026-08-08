@@ -20,7 +20,6 @@ const { GoogleAuth } = require("google-auth-library");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { callVertexWithRetry, withSdkRetry } = require("./vertexQuota");
-const { GoogleGenAI } = require("@google/genai");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1250,7 +1249,19 @@ exports.voiceGenerate = onRequest(
 //
 // Re-verify with `node scripts/probe-lyria3.mjs`.
 const LYRIA_MODEL = "lyria-3-pro-preview";
-const lyriaAi = new GoogleGenAI({ vertexai: true, project: "davelabs-tools", location: "global" });
+
+// Built on first use, not at module load. Constructing the SDK client costs
+// every function in this file a slice of its cold start, and only the music
+// paths ever touch it.
+let _lyriaAi = null;
+function getLyriaAi() {
+  if (!_lyriaAi) {
+    const { GoogleGenAI } = require("@google/genai");
+    _lyriaAi = new GoogleGenAI({ vertexai: true, project: "davelabs-tools", location: "global" });
+  }
+  return _lyriaAi;
+}
+
 // Returns { base64, mimeType, ext }. The Interactions API has no structured
 // negative-prompt field the way :predict did, so an exclusion is folded into
 // the prompt text.
@@ -1260,7 +1271,7 @@ async function lyriaGenerateOnce(prompt, negativePrompt = null) {
   const interaction = await withSdkRetry({
     db,
     model: LYRIA_MODEL,
-    fn: () => lyriaAi.interactions.create({ model: LYRIA_MODEL, input }),
+    fn: () => getLyriaAi().interactions.create({ model: LYRIA_MODEL, input }),
   });
 
   if (interaction.status !== "completed") {
@@ -1859,29 +1870,52 @@ exports.apiGenerateTTS = onRequest(
 
 const { runOptiqSkillsPipeline, reviseScene } = require("./optiqSkills/pipeline");
 
-// ─── THE TWO SWARMS ─────────────────────────────────────────────────────────
+// ─── THE THREE SWARMS ───────────────────────────────────────────────────────
 //
-// Optiq runs two completely separate storyboard systems, in two separate boxes
-// that share no code:
+// Optiq runs three completely separate storyboard systems, in three separate
+// boxes that share no code:
 //
-//   functions/optiqSkills/ → ADS. The short-film ad, the dialogue ad and the
-//                            narrated ad. This is the system that earns, it is
-//                            tuned, and nothing outside it may change it.
-//   functions/optiqStory/  → ORIGINAL STORIES. Entertainment short films with no
-//                            brand, no product and nothing being sold. Its own
-//                            doctrine, its own concept room, its own gates.
+//   functions/optiqSkills/      → ADS. The short-film ad, the dialogue ad and the
+//                                 narrated ad. This is the system that earns, it
+//                                 is tuned, and nothing outside it may change it.
+//   functions/optiqStory/       → ORIGINAL STORIES. Entertainment short films with
+//                                 no brand, no product and nothing being sold.
+//                                 Its own doctrine, concept room and gates.
+//   functions/optiqDocumentary/ → DOCUMENTARIES. Films that observe something real
+//                                 and argue something about it. Nothing is sold,
+//                                 NOBODY SPEAKS on camera, and the film's words
+//                                 are narration written by the swarm and recorded
+//                                 over the finished cut in audio post.
 //
 // This file is the ONLY place they meet, and all it does is choose. Everything
-// below routes on videoType and never mixes the two.
+// below routes on videoType and never mixes them.
 const {
   runOptiqStoryPipeline,
   reviseStoryScene,
   STORY_KIND,
   STORY_VIDEO_TYPE,
 } = require("./optiqStory/pipeline");
+const {
+  runOptiqDocumentaryPipeline,
+  reviseDocumentaryScene,
+  DOCUMENTARY_KIND,
+  DOCUMENTARY_VIDEO_TYPE,
+} = require("./optiqDocumentary/pipeline");
 
 /** True when a project belongs to the story sandbox rather than the ad swarm. */
 const isStoryFilm = (videoType) => videoType === STORY_VIDEO_TYPE;
+/** True when a project belongs to the documentary sandbox. */
+const isDocumentaryFilm = (videoType) => videoType === DOCUMENTARY_VIDEO_TYPE;
+
+/**
+ * Which box builds, revises and talks about a film. One lookup, used everywhere
+ * below, so a fourth kind is a line here rather than a hunt through the file.
+ */
+function filmSandbox(videoType) {
+  if (isDocumentaryFilm(videoType)) return "documentary";
+  if (isStoryFilm(videoType)) return "story";
+  return "ads";
+}
 
 exports.storyGenerate = onRequest(
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "512MiB" },
@@ -1986,9 +2020,14 @@ exports.storyboardGenerate = onDocumentCreated(
       const logo = materials[0]?.data || null;
 
       // Which box builds this film. An original story goes to the story sandbox
-      // and never touches the ad swarm; everything else runs exactly the code it
-      // always has.
-      const buildFilm = isStoryFilm(job.videoType) ? runOptiqStoryPipeline : runOptiqSkillsPipeline;
+      // and a documentary to the documentary sandbox; neither ever touches the ad
+      // swarm, and everything else runs exactly the code it always has.
+      const buildFilm =
+        {
+          documentary: runOptiqDocumentaryPipeline,
+          story: runOptiqStoryPipeline,
+          ads: runOptiqSkillsPipeline,
+        }[filmSandbox(job.videoType)];
       const storyboard = await buildFilm({
         vertexFetch,
         prompt: job.prompt,
@@ -2099,6 +2138,7 @@ exports.storyboardGenerate = onDocumentCreated(
         styleHeader: storyboard.styleHeader || "",
         characterLock: storyboard.characterLock || { name: "", description: "", wardrobe: "" },
         isStory: storyboard.isStory ?? null,
+        isDocumentary: storyboard.isDocumentary ?? null,
         // Echoed back from the pipeline so the stored project records the kind
         // the swarm actually built, not just the kind the wizard asked for.
         videoType: storyboard.videoType ?? null,
@@ -2113,6 +2153,14 @@ exports.storyboardGenerate = onDocumentCreated(
         // in view while it is being reworked.
         whatIsAtStake: storyboard.whatIsAtStake ?? null,
         theEnding: storyboard.theEnding ?? null,
+        // Documentary-sandbox extras, absent on every other kind. `thesis` and
+        // `theClose` are the film's spine; `narrationScript` is the film's WORDS,
+        // written by the outline skill and read back by audio post — which is why
+        // it is persisted rather than left to be re-derived from the pictures.
+        thesis: storyboard.thesis ?? null,
+        theClose: storyboard.theClose ?? null,
+        narratorNote: storyboard.narratorNote ?? null,
+        narrationScript: storyboard.narrationScript ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
         videoStatus,
@@ -2148,14 +2196,28 @@ exports.storyRevise = onRequest(
       await requireAuth(req);
       const {
         scenePrompt, revisionRequest, characterLock, styleHeader,
-        previousScenePrompt, nextScenePrompt, musicSpec, videoType,
+        previousScenePrompt, nextScenePrompt, musicSpec, videoType, narration,
       } = req.body;
       if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
 
-      // An original story is revised by its own reviser, which knows there is
-      // nothing to sell and refuses to write a brand back in. Every other kind
+      // Each sandbox revises its own films. The story reviser knows there is
+      // nothing to sell; the documentary reviser also knows nobody speaks and
+      // refuses to write dialogue, captions or a brand back in. Every other kind
       // of film goes through the ad swarm's reviser, unchanged.
-      const revisedPrompt = isStoryFilm(videoType)
+      const sandbox = filmSandbox(videoType);
+      const revisedPrompt = sandbox === "documentary"
+        ? await reviseDocumentaryScene({
+            vertexFetch,
+            scenePrompt,
+            revisionRequest,
+            characterLock,
+            styleHeader,
+            previousScenePrompt,
+            nextScenePrompt,
+            musicSpec,
+            narration,
+          })
+        : sandbox === "story"
         ? await reviseStoryScene({
             vertexFetch,
             scenePrompt,
@@ -2200,8 +2262,12 @@ exports.storyRevise = onRequest(
 const { runStorylineAgent } = require("./optiqSkills/agent");
 // The story sandbox's own agent — same loop and the same tool names, but its
 // system prompt knows the film sells nothing and its tools refuse to write a
-// brand back in. Aliased on import so the two never shadow each other.
+// brand back in. Aliased on import so the three never shadow each other.
 const { runStorylineAgent: runStoryAgent } = require("./optiqStory/agent");
+// And the documentary sandbox's, which additionally knows nobody speaks on
+// camera and can rewrite the film's narration — the one edit that changes what
+// a documentary says without costing a render.
+const { runDocumentaryAgent } = require("./optiqDocumentary/agent");
 
 // How much of the thread the agent carries into a turn. Reads of the film go
 // through tools, so this only has to hold the conversation.
@@ -2317,9 +2383,14 @@ exports.storylineAgent = onDocumentCreated(
       };
 
       // Which agent is on the other end of this chat. Decided per project, so a
-      // director working on a story talks to the story agent and a director
-      // working on an ad talks to exactly the agent they always have.
-      const runAgent = isStoryFilm(project.videoType) ? runStoryAgent : runStorylineAgent;
+      // director working on a story talks to the story agent, one working on a
+      // documentary talks to the documentary agent, and one working on an ad
+      // talks to exactly the agent they always have.
+      const runAgent = {
+        documentary: runDocumentaryAgent,
+        story: runStoryAgent,
+        ads: runStorylineAgent,
+      }[filmSandbox(project.videoType)];
       const result = await runAgent({
         vertexFetch,
         project,
@@ -2899,12 +2970,18 @@ exports.audioPost = onDocumentCreated(
         engineApi: { canvasForAspect, EDITOR_DOC_FIELD, EDITOR_DOC_REV_FIELD },
         project,
         projectId: job.projectId,
-        // Audio post reads three fields off this: the noun it calls the film in
+        // Audio post reads four fields off this: the noun it calls the film in
         // the Lyria prompt, whether the footage carries speech (footage gain),
-        // and whether a voiceover has to be written. A story is a talking film
-        // with no narration, and `filmKind` cannot resolve its id — it belongs to
-        // the other box — so the story sandbox supplies its own.
-        filmKind: isStoryFilm(project.videoType) ? STORY_KIND : filmKind(project.videoType),
+        // whether a voiceover has to be written, and — for a documentary —
+        // whether that voiceover was ALREADY WRITTEN by the swarm. A story is a
+        // talking film with no narration and a documentary is a silent film whose
+        // words already exist; `filmKind` cannot resolve either id, because they
+        // belong to the other boxes, so each sandbox supplies its own.
+        filmKind: {
+          documentary: DOCUMENTARY_KIND,
+          story: STORY_KIND,
+          ads: filmKind(project.videoType),
+        }[filmSandbox(project.videoType)],
         // The pass runs for minutes. This is how it sees the project as it is by
         // the time it has something to place, instead of laying the score onto a
         // snapshot taken before any of the work happened.

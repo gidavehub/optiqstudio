@@ -65,7 +65,7 @@ Three things make a stake work:
 2. **It belongs to a person we can see wanting it.** Wanting is physical: reaching, checking, hiding, counting, going back for it.
 3. **It can actually be lost.** A story where nothing could have gone wrong has no stakes, it has a schedule.
 
-**The domestic scale is the strongest scale.** A grandmother's approval, a debt to a neighbour, a promise to a child, a lie that is about to be found out, a thing borrowed without asking. These render beautifully, cost nothing, and every human on earth has felt them. Reach for a disaster only when the story genuinely is one.
+**The domestic scale is the strongest scale.** A grandmother's approval, a debt to a neighbour, a promise made to a brother, a lie that is about to be found out, a thing borrowed without asking. These render beautifully, cost nothing, and every human on earth has felt them. Reach for a disaster only when the story genuinely is one.
 
 ## 15.5 THE TURN
 
@@ -146,7 +146,7 @@ A longer run-time is not permission to slow down. A 180-second film is eighteen 
 
 Run it on the storyline before a single scene is built:
 
-1. **Say the film in one sentence, out loud.** If the sentence is a situation ("a family runs a shop") rather than a story ("a boy sells his father's shop radio to pay a debt he did not make"), it is not a film yet.
+1. **Say the film in one sentence, out loud.** If the sentence is a situation ("a family runs a shop") rather than a story ("a young man sells his father's shop radio to pay a debt he did not make"), it is not a film yet.
 2. **What does the lead WANT?** If you cannot say it in four words, the audience cannot either.
 3. **What goes wrong?** If nothing does, there is no film.
 4. **What is different at the end?** If the answer is "they feel better", there is no film.

@@ -207,6 +207,36 @@ function succeededClips(scenes, videoStatus) {
   return out;
 }
 
+/**
+ * The narration a documentary arrived with, keyed by scene INDEX (0-based).
+ *
+ * Two sources, in order: the `narrationScript` the swarm wrote onto the project,
+ * and — as the fallback, and the one that stays correct after the agent has been
+ * editing — the `narration` field on each scene. The stored script is a mirror;
+ * the scenes are what the agent and the script editor actually write to, so a
+ * disagreement between them is resolved in the scenes' favour.
+ *
+ * Returns null-safe: an empty map simply means the film has no script and audio
+ * post falls back to writing one.
+ */
+function scriptedNarration(project) {
+  const byIndex = new Map();
+  const scenes = project?.scenes || [];
+
+  for (const line of project?.narrationScript || []) {
+    const idx = Number(line?.sceneNumber) - 1;
+    if (!Number.isInteger(idx) || idx < 0) continue;
+    byIndex.set(idx, String(line.text || "").trim());
+  }
+  scenes.forEach((scene, idx) => {
+    if (scene && scene.narration !== undefined) {
+      byIndex.set(idx, String(scene.narration || "").trim());
+    }
+  });
+
+  return byIndex;
+}
+
 /** Build the Lyria prompt. The film's own sound spec is the brief. */
 function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote }) {
   const parts = [
@@ -317,6 +347,17 @@ async function runAudioPost({
   // Only narrated films need speakable windows. A dialogue film is scanned too —
   // cheaply, text-only — because the score still wants to know the film's shape.
   const narrating = !!filmKind.ttsVoiceover;
+
+  // A documentary arrives with its narration ALREADY WRITTEN, scene by scene, by
+  // the swarm that decided what the film argues. Everything below then changes
+  // shape: the scanner is looking for a home for a line that exists rather than
+  // for anywhere a voice might go, scenes the outline wrote silent are not
+  // scanned at all, and the write step becomes a FIT rather than an invention.
+  //
+  // The narrated ad works the other way round and always has: it has no script,
+  // so a model watches the pictures and writes one. Both paths converge again at
+  // the speak/refit loop.
+  const scripted = filmKind.narrationFromScript ? scriptedNarration(project) : null;
   let windows = [];
   let sceneSummaries = [];
 
@@ -325,6 +366,21 @@ async function runAudioPost({
     let scanned = 0;
     const scans = await mapWithConcurrency(clips, SCAN_CONCURRENCY, async (clip, i) => {
       const sceneDuration = durations[i];
+      const scriptedLine = scripted ? (scripted.get(clip.sceneIndex) || "") : null;
+      // Scripted silence is a decision the outline made deliberately (see
+      // §7.5 — the strongest moment in a documentary is usually the one the
+      // narrator shuts up for). Honour it, and save a Vertex call while we are
+      // at it: a scene with no line needs no window.
+      if (scripted && !scriptedLine) {
+        scanned += 1;
+        await stage("scanning", { scenesDone: scanned, scenesTotal: clips.length });
+        return {
+          summary: String(scenes[clip.sceneIndex]?.action || "").slice(0, 200),
+          onScreenText: "",
+          speech: false,
+          windows: [],
+        };
+      }
       try {
         const media = await fetchVideoBase64(clip.url);
         const result = await scanScene({
@@ -334,6 +390,7 @@ async function runAudioPost({
           sceneIndex: clip.sceneIndex,
           sceneCount: scenes.length,
           scene: scenes[clip.sceneIndex],
+          scriptedLine,
         });
         return result;
       } catch (err) {
@@ -378,14 +435,24 @@ async function runAudioPost({
   let chosenVoice = null;
   if (narrating && slots.length > 0) {
     await stage("writing");
-    const script = await writeNarration({
-      vertexFetch,
-      project,
-      filmKind,
-      slots,
-      sceneSummaries,
-      film,
-    });
+    const script = scripted
+      ? await fitNarrationScript({
+          vertexFetch,
+          project,
+          filmKind,
+          slots,
+          scripted,
+          sceneSummaries,
+          film,
+        })
+      : await writeNarration({
+          vertexFetch,
+          project,
+          filmKind,
+          slots,
+          sceneSummaries,
+          film,
+        });
     chosenVoice = narratorVoice(script.voiceId);
     report.voice = { id: script.voiceId in NARRATOR_VOICES ? script.voiceId : DEFAULT_VOICE_ID, ...chosenVoice };
     const styleDirection = script.styleDirection
@@ -602,8 +669,28 @@ async function runAudioPost({
 
 // ─── STEP 2: WATCHING ONE SCENE ─────────────────────────────────────────────
 
-async function scanScene({ vertexFetch, media, sceneDuration, sceneIndex, sceneCount, scene }) {
+async function scanScene({ vertexFetch, media, sceneDuration, sceneIndex, sceneCount, scene, scriptedLine = null }) {
+  // A documentary's line already exists and is going into this clip somewhere, so
+  // the scanner is not deciding WHETHER to narrate — it is finding the best home
+  // for a line of known length. Told how long that line is, it stops proposing
+  // 1.3-second slivers the refit loop would then have to shred the writing to fit.
+  const scriptedWords = scriptedLine ? String(scriptedLine).trim().split(/\s+/).filter(Boolean).length : 0;
+  const needed = scriptedWords ? Math.max(1.5, scriptedWords / 2.5) : 0;
+
   const system = `You are the FILM SCANNER for Optiq Studio's audio post-production pass. You are watching ONE ${sceneDuration.toFixed(2)}-second clip from a ${sceneCount}-scene film, and your output decides where a narrator's voice can go. Timing precision is the entire job: every second matters, and a window that is even half a second wrong puts a line of narration on top of the wrong picture.
+${
+    scriptedLine
+      ? `
+THIS SCENE'S NARRATION IS ALREADY WRITTEN. The narrator will say, over this clip:
+  "${scriptedLine}"
+That is ${scriptedWords} words, which takes about ${needed.toFixed(1)}s to read. Your job is to find the BEST
+single home for it inside this clip — the stretch where the picture is most
+settled and most legible, ideally at least ${needed.toFixed(1)}s long. Return ONE window, the best
+one. If nothing in the clip is that long, return the longest usable stretch you
+can find anyway and say so in the note; the line will be trimmed to fit rather
+than dropped.`
+      : ""
+}
 
 Report, in THIS CLIP'S OWN SECONDS (0 to ${sceneDuration.toFixed(2)} — never film-wide time):
 1. summary — what physically happens, in one or two sentences. Concrete actions, in order.
@@ -704,6 +791,151 @@ ${slotList}`;
   return JSON.parse(text);
 }
 
+// ─── STEP 3b: FITTING A SCRIPT THAT ALREADY EXISTS ──────────────────────────
+//
+// The documentary path. The words were written by the swarm's outline skill,
+// which is the only thing in the system that knew what the film was arguing
+// before the pictures existed. This step does NOT rewrite them: it maps each
+// scene's line to the slot found in that scene, trims only the lines that are
+// physically too long for the gap they landed in, and picks the voice.
+//
+// Deliberately not merged with writeNarration. That function's whole job is to
+// invent a voiceover from pictures, and a model given both a script and an
+// invitation to write will rewrite the script — which throws away the argument
+// and produces exactly the narrated slideshow the documentary sandbox exists to
+// prevent.
+
+async function fitNarrationScript({ vertexFetch, project, filmKind, slots, scripted, sceneSummaries, film }) {
+  // One line per scene, into that scene's roomiest slot. A scene with two slots
+  // gets its line in the better one and leaves the other silent — a documentary
+  // line is one thought and splitting it across a cut makes it two.
+  const bestSlotByScene = new Map();
+  for (const slot of slots) {
+    const current = bestSlotByScene.get(slot.sceneIndex);
+    if (!current || slot.available > current.available) bestSlotByScene.set(slot.sceneIndex, slot);
+  }
+
+  const placed = [];
+  const tooLong = [];
+  for (const [sceneIndex, slot] of bestSlotByScene) {
+    const text = String(scripted.get(sceneIndex) || "").trim();
+    if (!text) continue;
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (words <= slot.wordBudget) placed.push({ slotId: slot.id, text });
+    else tooLong.push({ slotId: slot.id, sceneIndex, text, words, slot });
+  }
+
+  // Nothing overran: no model call at all, and the director's words reach the
+  // recording booth exactly as written.
+  if (tooLong.length === 0) {
+    return {
+      voiceId: narratorVoiceIdFor(project),
+      styleDirection: String(project.narratorNote || "").slice(0, 160),
+      lines: placed,
+    };
+  }
+
+  const system = `You are TRIMMING the narration of an Optiq Studio ${filmKind.noun} so it fits the film that was actually shot. The script is already written and it is GOOD. You are not rewriting it and you are not improving it — you are making specific lines shorter because the gap in the picture is smaller than the line.
+
+RULES:
+• Hit the word count you are given, or go UNDER it. Over is a failure and costs another synthesis pass.
+• Keep the MEANING and the exact register. Cut words, never the point.
+• Cut adjectives, filler and preamble first. Then combine clauses. Then drop the least important idea.
+• Never end mid-thought. A shorter complete sentence beats a clipped long one.
+• Do not add anything. No new facts, no new numbers, no flourish, nothing the original line did not say.
+• Words only — no notes, no quotes, no explanation of what you cut.
+
+Return one line for each slotId given to you, and nothing else.`;
+
+  const list = tooLong
+    .map(
+      (t) =>
+        `slotId "${t.slotId}" (scene ${t.sceneIndex + 1}): the line is ${t.words} words but only ` +
+        `${t.slot.available.toFixed(2)}s of picture is available — cut it to AT MOST ${t.slot.wordBudget} words.\n` +
+        `  Line: ${t.text}`
+    )
+    .join("\n\n");
+
+  const summaries = sceneSummaries
+    .map((s) => `Scene ${s.sceneIndex + 1}: ${s.summary}`)
+    .join("\n");
+
+  try {
+    const response = await vertexFetch(`/publishers/google/models/${SCAN_MODEL}:generateContent`, {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Film: ${project.title || "(untitled)"} — ${film.duration.toFixed(1)}s total
+${project.thesis ? `What the film argues: ${project.thesis}` : ""}
+
+WHAT IS ON SCREEN, scene by scene (context only):
+${summaries}
+
+LINES TO TRIM:
+${list}`,
+            },
+          ],
+        },
+      ],
+      systemInstruction: { parts: [{ text: system }] },
+      generationConfig: {
+        temperature: 0.4,
+        responseMimeType: "application/json",
+        responseSchema: REWRITE_SCHEMA,
+      },
+    });
+    const text = response.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "{}";
+    const parsed = JSON.parse(text);
+    const trimmed = new Map(
+      (parsed.lines || [])
+        .filter((l) => l && l.slotId && String(l.text || "").trim())
+        .map((l) => [l.slotId, String(l.text).trim()])
+    );
+    for (const t of tooLong) {
+      // A line the trimmer dropped still ships as written: the speak/refit loop
+      // downstream will shorten it if it genuinely overruns, and shipping the
+      // author's words is always better than shipping none.
+      placed.push({ slotId: t.slotId, text: trimmed.get(t.slotId) || t.text });
+    }
+  } catch (err) {
+    console.warn(
+      "narration trim pass failed; using the script as written and letting the refit loop handle it:",
+      String(err?.message || err).slice(0, 160)
+    );
+    for (const t of tooLong) placed.push({ slotId: t.slotId, text: t.text });
+  }
+
+  return {
+    voiceId: narratorVoiceIdFor(project),
+    styleDirection: String(project.narratorNote || "").slice(0, 160),
+    lines: placed,
+  };
+}
+
+/**
+ * Pick a narrator for a film that came with its own script.
+ *
+ * The swarm writes a `narratorNote` ("slow, plain, no warmth added") rather than
+ * naming a voice, because voices are an audio-post concern. This maps the note
+ * onto the catalogue by the words that actually distinguish the voices, and
+ * falls back to the house default. Deliberately not a model call: it is one
+ * choice out of seven and it is not worth a round-trip.
+ */
+function narratorVoiceIdFor(project) {
+  const note = String(project?.narratorNote || "").toLowerCase();
+  if (!note) return DEFAULT_VOICE_ID;
+  if (/\b(deep|weighty|authorit|elder|grave|solemn|wise)\b/.test(note)) return "gambian-deep-male";
+  if (/\b(cinema|trailer|epic|sweeping|charismatic)\b/.test(note)) return "cinematic-deep";
+  if (/\b(young|bright|quick|fast|upbeat|energetic|excited|curious)\b/.test(note)) {
+    return /\b(man|male|his|he)\b/.test(note) ? "young-vibrant-male" : "young-vibrant-female";
+  }
+  if (/\b(plain|grounded|matter-of-fact|no performance|blunt|flat|dry)\b/.test(note)) return "grounded-male";
+  if (/\b(older|poised|measured|graceful|stately)\b/.test(note)) return "gambian-elder-female";
+  return DEFAULT_VOICE_ID;
+}
+
 // ─── STEP 5: CUTTING THE OVERRUNS ───────────────────────────────────────────
 
 async function rewriteOverruns({ vertexFetch, refits, project }) {
@@ -751,6 +983,8 @@ module.exports = {
   probeDurationFromUrl,
   scorePrompt,
   narratorVoice,
+  narratorVoiceIdFor,
+  scriptedNarration,
   voiceCatalogText,
   NARRATOR_VOICES,
   DEFAULT_VOICE_ID,

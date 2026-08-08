@@ -19,6 +19,7 @@
 const { reviseStoryScene } = require("./pipeline");
 const { sceneSoundViolations } = require("./soundPolicy");
 const { scenePurityViolations } = require("./storyCraft");
+const { minorViolations } = require("./casting");
 const {
   WORD_BUDGETS,
   countWords,
@@ -111,6 +112,9 @@ function sceneViolations(scene, project) {
   // video model for a soundtrack "clean" — and that clip's invented score
   // collides with the track Lyria composes for the finished cut.
   violations.push(...sceneSoundViolations(prompt));
+  // Adults only, platform-wide. check_film must never call a scene clean when
+  // there is somebody under 18 in it.
+  violations.push(...minorViolations(prompt, `Scene ${scene.sceneNumber}`));
   return { sceneNumber: scene.sceneNumber, words, violations };
 }
 

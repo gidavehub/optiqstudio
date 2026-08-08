@@ -33,7 +33,7 @@ Writing every character as one point in that space is not "consistent." It is **
 
 **V1 — One look per person, per film.** No two characters in the same film share a complexion, a hairstyle, or a build. Five characters means five distinct looks.
 
-**V2 — Spread the ages.** A cast clustered entirely in its twenties is a failed cast. Children, teenagers, working adults, elders — as the story allows.
+**V2 — Spread the ages, from 18 upward.** A cast clustered entirely in its twenties is a failed cast. Young adults, working adults in their thirties and forties, people in their fifties, elders — as the film allows. **Nobody under 18 ever appears in an Optiq film**, in any role, foreground or background; the youngest person you may write is 18, and when you write one that young, state the age plainly.
 
 **V3 — The doctrine's examples are format, never cast.** "Box braids", "deep warm dark-brown skin", "soft oval face", "naturally thick eyebrows", and the rust/camp-collar shirt are teaching aids. Reproducing them is the failure this part exists to stop. Learn the shape; write new people.
 

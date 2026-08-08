@@ -97,7 +97,7 @@ Scene blooms/dissolves into clean light â†’ logo settles centre with a glas
 
 **Pattern B â€” The Zoom-Out Handoff** (the house favourite).
 A locked or slow shot performs a **continuous zoom-out**, the subject becoming small in their world â†’ the scene dissolves â†’ the logo fades in and holds ~4â€“6s.
-> *Used in: Nyima at her desk; the SWIPE thriving business; the boy's drone celebration.*
+> *Used in: Nyima at her desk; the SWIPE thriving business; the striker's drone celebration.*
 
 **Pattern C â€” The Drone Rise.**
 One continuous aerial: subject celebrating â†’ the drone climbs, higher and higher â†’ the whole neighbourhood revealed â†’ dissolve â†’ logo. **No cuts, no ground shots.**
