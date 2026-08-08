@@ -258,10 +258,7 @@ export default function BoardShots() {
   );
 
   return (
-    // The logo pill and the account pill float over every screen at top-3/top-4
-    // and this face keeps them, so the page starts below where they land rather
-    // than underneath them.
-    <div className="flex h-full flex-col bg-background pt-16 text-foreground sm:pt-20">
+    <div className="flex h-full flex-col bg-background text-foreground">
       {/* ── TOP BAR ─────────────────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5 sm:px-4">
         <OptiqMark size={18} />
