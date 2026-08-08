@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronLeft, Edit3, Redo2, Undo2, Scissors, Trash2, Magnet,
+  ChevronLeft, Edit3, Images, Redo2, Undo2, Scissors, Trash2, Magnet,
   ZoomIn, ZoomOut, Loader2, Download, Zap, Film, Music2, AlertCircle,
 } from "lucide-react";
 import { doc as fsDoc, updateDoc } from "firebase/firestore";
@@ -408,6 +408,14 @@ export default function EditorStudio({ project }: EditorStudioProps) {
             className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
           >
             <Edit3 size={11} /> <span className="hidden md:inline">Script</span>
+          </button>
+          <button
+            onClick={() => router.push(`/dashboard/project/${project?.id}/board`)}
+            aria-label="Board shots"
+            title="Board shots"
+            className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
+          >
+            <Images size={11} /> <span className="hidden md:inline">Board</span>
           </button>
           {renderStatus === "succeeded" && renderUrl ? (
             <a

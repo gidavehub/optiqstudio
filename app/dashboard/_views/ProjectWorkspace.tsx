@@ -53,6 +53,7 @@ export default function ProjectWorkspace() {
   const router = useRouter();
 
   const openAgent = () => router.push(`/dashboard/project/${activeProjectId}/agent`);
+  const openBoard = () => router.push(`/dashboard/project/${activeProjectId}/board`);
 
   const project = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -261,6 +262,7 @@ export default function ProjectWorkspace() {
           onAgent={openAgent}
           onScript={() => setProductionMode("manual")}
           onTimeline={() => setProductionMode("auto-merge")}
+          onBoard={openBoard}
           onReset={resetDraft}
           agentRunning={agentRunning}
           done={renderTally.done}
@@ -428,6 +430,7 @@ export default function ProjectWorkspace() {
         onAgent={openAgent}
         onScript={() => setProductionMode("manual")}
         onTimeline={() => setProductionMode("auto-merge")}
+        onBoard={openBoard}
         onReset={resetDraft}
         agentRunning={agentRunning}
         done={renderTally.done}

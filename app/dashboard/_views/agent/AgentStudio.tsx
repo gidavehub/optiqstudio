@@ -20,7 +20,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Clapperboard, Edit3, Loader2, PanelLeft, Tv } from "lucide-react";
+import { ChevronLeft, Clapperboard, Edit3, Images, Loader2, PanelLeft, Tv } from "lucide-react";
 import { useAuth } from "../../../../components/AuthProvider";
 import OptiqMark from "../../../../components/OptiqMark";
 import { useEditorFlow } from "../../_flow/EditorFlowProvider";
@@ -100,6 +100,7 @@ export default function AgentStudio() {
     setProductionMode("auto-merge");
     router.push(`/dashboard/project/${activeProjectId}`);
   };
+  const goToBoard = () => router.push(`/dashboard/project/${activeProjectId}/board`);
 
   // Reference stills staged for the next message. Read as base64 up front, the
   // same way the Image and Video studio consoles do it, so send() only has to
@@ -273,6 +274,14 @@ export default function AgentStudio() {
             className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent-ink active:scale-95 sm:px-2.5"
           >
             <Tv size={12} /> <span className="hidden sm:inline">Timeline</span>
+          </button>
+          <button
+            onClick={goToBoard}
+            title="Board shots"
+            aria-label="Board shots"
+            className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent-ink active:scale-95 sm:px-2.5"
+          >
+            <Images size={12} /> <span className="hidden sm:inline">Board</span>
           </button>
         </div>
       </div>

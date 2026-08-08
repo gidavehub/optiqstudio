@@ -18,10 +18,10 @@
 // that happens to float.
 
 import React from "react";
-import { Edit3, Tv, Undo2 } from "lucide-react";
+import { Edit3, Images, Tv, Undo2 } from "lucide-react";
 import OptiqMark from "../../../../components/OptiqMark";
 
-export type WorkspaceFace = "agent" | "manual" | "auto-merge";
+export type WorkspaceFace = "agent" | "manual" | "auto-merge" | "board";
 
 interface WorkspaceModeBarProps {
   /** Which face is on screen. "agent" is a route, the other two are modes. */
@@ -29,6 +29,7 @@ interface WorkspaceModeBarProps {
   onAgent: () => void;
   onScript: () => void;
   onTimeline: () => void;
+  onBoard: () => void;
   onReset?: () => void;
   /** Pulses the agent tab while a turn is rewriting the film server-side. */
   agentRunning?: boolean;
@@ -42,6 +43,7 @@ export default function WorkspaceModeBar({
   onAgent,
   onScript,
   onTimeline,
+  onBoard,
   onReset,
   agentRunning = false,
   done,
@@ -61,6 +63,7 @@ export default function WorkspaceModeBar({
     { key: "agent", label: "Optiq Agent", icon: <OptiqMark size={13} />, onClick: onAgent },
     { key: "manual", label: "Script", icon: <Edit3 size={13} className="shrink-0" />, onClick: onScript },
     { key: "auto-merge", label: "Timeline", icon: <Tv size={13} className="shrink-0" />, onClick: onTimeline },
+    { key: "board", label: "Board", icon: <Images size={13} className="shrink-0" />, onClick: onBoard },
   ];
 
   // Only the ways OUT. The face you're on is not a destination.
@@ -68,9 +71,10 @@ export default function WorkspaceModeBar({
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-3 z-30 flex justify-center px-3 sm:top-4">
-      <div className="glass pointer-events-auto flex items-center gap-1 rounded-full px-1.5 py-1.5">
-        {/* Two destinations, so both labels fit even on a phone — no icon-only
-            collapse to guess at. */}
+      <div className="glass pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto scrollbar-none rounded-full px-1.5 py-1.5">
+        {/* Three destinations now the board is one of them. Still labelled
+            rather than collapsed to icons — the pill scrolls sideways on a
+            narrow phone instead, which beats guessing at a glyph. */}
         {faces.map(({ key, label, icon, onClick }) => (
           <button
             key={key}
