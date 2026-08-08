@@ -12,7 +12,7 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  RefreshCw, AlertCircle, Tv, Play,
+  RefreshCw, AlertCircle, Tv, Play, Camera,
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { activeTakeIndex, sceneTakes } from "../_flow/types";
@@ -25,10 +25,12 @@ import MobileScriptDeck from "./script/MobileScriptDeck";
 import SceneDialogue from "./script/SceneDialogue";
 import ScenePromptBlock from "./script/ScenePromptBlock";
 import SceneReferenceImages from "./script/SceneReferenceImages";
+import SceneShotBoard from "./script/SceneShotBoard";
 import SceneRewriteBar from "./script/SceneRewriteBar";
 import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
 import WorkspaceModeBar from "./script/WorkspaceModeBar";
 import { gridBox, previewBox } from "../_shared/aspect";
+import { boardCoverage, sceneSetups, shotBoardStatusLabel } from "../_flow/shotBoard";
 
 /** Every storyboard scene renders as a 10-second clip. */
 const SCENE_SECONDS = 10;
@@ -43,6 +45,7 @@ export default function ProjectWorkspace() {
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
+    shotBoard, shotBoardStage, shotBoardProgress, shotBoardBusy, buildShotBoard,
     goHome, projects, activeProjectId, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
@@ -103,6 +106,11 @@ export default function ProjectWorkspace() {
       goHome();
     }
   };
+
+  // One shot-board pass runs for the whole film, so its state is read once here
+  // rather than per scene card.
+  const shotBoardStatus = shotBoardStatusLabel(shotBoardStage, shotBoardProgress);
+  const boardTally = boardCoverage(shotBoard, storyboard?.scenes.length ?? 0);
 
   // Scene clips sit in a grid, so they use the grid rule: landscape fills the
   // column, portrait is height-capped and centred. The generating screen is a
@@ -330,8 +338,21 @@ export default function ProjectWorkspace() {
               ? `${renderTally.failed} scene${renderTally.failed === 1 ? "" : "s"} didn't render — retry above, or continue with what's ready`
               : picture
                 ? audioStageLabel(audioStage)
-                : `Crafting your scenes — ${percent}%`}
+                : // The film is photographed BEFORE anything is rendered, and on a
+                  // long film that is a few minutes of nothing visibly happening.
+                  // Saying so is the difference between a wait and a hang.
+                  shotBoardBusy
+                  ? shotBoardStatus
+                  : `Crafting your scenes — ${percent}%`}
           </p>
+
+          {shotBoardBusy && !picture && !stalled && (
+            <p className="mx-auto max-w-xs text-center text-[11px] leading-relaxed text-ink-3">
+              Every location, every prop and every camera angle is being
+              photographed first, so the rooms, the seating and the objects stay
+              the same from one clip to the next. Filming starts when they land.
+            </p>
+          )}
 
           {/* The second half of the wait, and the one nobody was told about: the
               clips are all in and the film is being scored and narrated. */}
@@ -395,6 +416,10 @@ export default function ProjectWorkspace() {
           onOpenTimeline={() => setProductionMode("auto-merge")}
           onOpenAgent={openAgent}
           agentRunning={agentRunning}
+          sceneSetups={(idx) => sceneSetups(shotBoard, idx)}
+          shotBoardBusy={shotBoardBusy}
+          shotBoardStatus={shotBoardStatus}
+          onPhotograph={(idx, keepDesign) => void buildShotBoard([idx], keepDesign)}
         />
         {confirmModal}
       </>
@@ -428,6 +453,42 @@ export default function ProjectWorkspace() {
           <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">{storyboard.title}</h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">{storyboard.concept}</p>
         </div>
+
+        {/* The shot board, film-wide. One pass covers every scene, so the whole
+            film is photographed from here; the per-scene strip below re-shoots a
+            single scene. Films made before the board existed arrive with nothing
+            photographed, which is what this bar is mostly for. */}
+        {sceneCount > 0 && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[28px] border border-line bg-surface px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold text-foreground">
+                {shotBoardStatus}
+                {boardTally.photographed > 0 && !shotBoardBusy && (
+                  <span className="ml-1.5 font-semibold text-muted">
+                    · {boardTally.photographed}/{sceneCount} scenes, {boardTally.frames} frames
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted">
+                Every location, prop and camera angle photographed before anything
+                is filmed — so the rooms, the seating and the objects hold from one
+                clip to the next.
+              </p>
+            </div>
+            <button
+              onClick={() => void buildShotBoard()}
+              disabled={shotBoardBusy}
+              className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-foreground px-4 py-2 text-[11px] font-bold text-background transition-all hover:bg-ink-2 disabled:opacity-40"
+            >
+              <Camera size={12} />
+              {boardTally.photographed === 0
+                ? "Photograph the film"
+                : boardTally.photographed < sceneCount
+                  ? "Photograph the rest"
+                  : "Photograph again"}
+            </button>
+          </div>
+        )}
 
         {/* Scene cards. The film-wide locks (character, style, music) used to sit
             above this; they're machinery, not something a user came here to read,
@@ -482,6 +543,18 @@ export default function ProjectWorkspace() {
                     revising={!!status.revising}
                     onChange={(v) => patchStatus({ revisionInput: v })}
                     onRevise={() => void reviseScenePrompt(idx)}
+                  />
+
+                  {/* The frames this clip is actually built from. Above the
+                      reference images because once a scene is photographed the
+                      frames are what the render attaches — the references below
+                      are what it falls back to when it isn't. */}
+                  <SceneShotBoard
+                    setups={sceneSetups(shotBoard, idx)}
+                    aspect={aspectRatio}
+                    busy={shotBoardBusy}
+                    status={shotBoardStatus}
+                    onPhotograph={(keepDesign) => void buildShotBoard([idx], keepDesign)}
                   />
 
                   <SceneReferenceImages

@@ -104,6 +104,7 @@ ${doctrineIndexText()}
 • NEVER PUT MUSIC IN A SCENE PROMPT. The clips are generated with no music at all — only diegetic sound, ambience and dialogue. The score is composed separately by Lyria 3 Pro against the finished cut. Music baked into a clip cannot be removed, collides with the composed score, and only a paid re-render undoes it. When the director wants a different musical feel, that is rescore_film, not a prompt edit.
 • YOU CAN SHOOT AND SCORE, AND BOTH SPEND MONEY. render_scene starts a real render; rescore_film re-composes the whole score and re-records the narration. Call them ONLY when the director has asked for it in this conversation — never speculatively, never as a bonus alongside a rewrite they did ask for. When you do, say what it cost and that it runs in the background. If you are unsure whether they meant "change the words" or "change the film", ask.
 • Rendering costs nothing while the ad's prepaid allowance lasts (it covers one render of every scene). After that a re-render is charged. render_scene tells you which applied — pass that on rather than guessing.
+• THE FILM IS PHOTOGRAPHED BEFORE IT IS SHOT. Every scene has a SHOT BOARD: a still of each location, a still of each object whose look must not change, and one photographed frame per camera setup — and those frames are attached to the render as the clip's own frames. That is what stops the room, the seating and the props drifting between clips. \`get_shot_board\` reads it, \`photograph_scenes\` builds or rebuilds it. When the director says two scenes don't match, that a car's driver and passenger swapped, or that a document or a phone screen changed between shots, READ THE BOARD FIRST — the answer is nearly always in a location's geometry — then re-photograph the scenes at fault. And after you rewrite a scene, re-photograph it: frames made from the old words quietly contradict the new ones.
 • You still cannot add or remove scenes, or change the run-time. The scene count is what they paid for. Say so plainly if asked, and offer what you can do instead.
 • Use get_audio before answering anything about the music or the voiceover. Never describe a score you have not read.
 • Never invent what a scene contains. If you have not read it this turn, read it.
@@ -200,6 +201,7 @@ async function runStorylineAgent({
   // than pretending to work.
   renderScene,
   rescoreFilm,
+  buildShotBoard,
 }) {
   const steps = [];
   let touchedFilm = false;
@@ -217,6 +219,7 @@ async function runStorylineAgent({
     },
     renderScene,
     rescoreFilm,
+    buildShotBoard,
     // Long-running tools call this so the work log ticks over instead of
     // sitting on "Reworking the whole storyline" for three minutes.
     progress: async (detail) => {

@@ -99,11 +99,16 @@ const SKILL_KNOWLEDGE = {
     "13-sound-policy.md",
     "15-story-craft.md",
   ],
+  // 16 rides with the reviser because a director revising a scene AFTER seeing
+  // its frames talks in the shot board's language — "make the second angle
+  // wider", "lose the insert" — and a reviser that has never heard of a setup
+  // answers by rewriting the action instead.
   "scene-reviser": [
     "02-prompt-architecture.md",
     "05-craft-modules.md",
     "10-failure-catalog.md",
     "13-sound-policy.md",
+    "16-shot-board.md",
     "15-story-craft.md",
   ],
 };
@@ -142,6 +147,10 @@ const DOCTRINE_MODULES = {
   "character-references": {
     file: "14-character-references.md",
     title: "Character reference images — consistency by picture as well as paragraph",
+  },
+  "shot-board": {
+    file: "16-shot-board.md",
+    title: "The shot board — set plates, prop plates and one photographed frame per camera setup, and why the rooms stopped drifting",
   },
   exemplar: { file: "exemplar-scene.md", title: "A gold-standard scene prompt at full density" },
 };

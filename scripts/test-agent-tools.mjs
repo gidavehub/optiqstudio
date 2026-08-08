@@ -241,6 +241,99 @@ test("the director's score direction outranks the derived tone in the prompt", (
   assert(/No vocals/i.test(prompt), "the instrumental-only rule was lost");
 });
 
+// ── photograph_scenes / get_shot_board ──────────────────────────────────────
+
+await testAsync("photograph_scenes turns scene NUMBERS into board indexes", async () => {
+  let seen = null;
+  const ctx = ctxFor(makeProject(), {
+    buildShotBoard: async (indexes, keepDesign) => {
+      seen = { indexes, keepDesign };
+    },
+  });
+  const result = await tools.callTool("photograph_scenes", { sceneNumbers: [2, 3], keepDesign: true }, ctx);
+  assert(result.started, `did not start: ${JSON.stringify(result)}`);
+  // Scene 2 is index 1 — the off-by-one that would silently photograph the
+  // wrong scenes, and the reason this test exists.
+  assert(JSON.stringify(seen.indexes) === "[1,2]", `indexes were ${JSON.stringify(seen.indexes)}`);
+  assert(seen.keepDesign === true, "keepDesign was dropped");
+});
+
+await testAsync("photograph_scenes with no scenes means the whole film", async () => {
+  let seen = "unset";
+  const ctx = ctxFor(makeProject(), {
+    buildShotBoard: async (indexes) => {
+      seen = indexes;
+    },
+  });
+  const result = await tools.callTool("photograph_scenes", {}, ctx);
+  assert(result.started && seen.length === 0, `result: ${JSON.stringify(result)}, indexes: ${JSON.stringify(seen)}`);
+});
+
+await testAsync("photograph_scenes refuses a scene that does not exist", async () => {
+  let called = false;
+  const ctx = ctxFor(makeProject(), {
+    buildShotBoard: async () => {
+      called = true;
+    },
+  });
+  const result = await tools.callTool("photograph_scenes", { sceneNumbers: [99] }, ctx);
+  assert(!called && /No scene matches 99/.test(result.error || ""), `result: ${JSON.stringify(result)}`);
+});
+
+await testAsync("photograph_scenes will not stack a second pass on a running one", async () => {
+  let called = false;
+  const ctx = ctxFor(makeProject({ shotBoardStage: "framing" }), {
+    buildShotBoard: async () => {
+      called = true;
+    },
+  });
+  const result = await tools.callTool("photograph_scenes", {}, ctx);
+  assert(!called && /already being photographed/.test(result.note || ""), `result: ${JSON.stringify(result)}`);
+});
+
+await testAsync("photograph_scenes runs again once a pass finished or failed", async () => {
+  for (const stage of ["ready", "failed", "partial"]) {
+    let called = false;
+    const ctx = ctxFor(makeProject({ shotBoardStage: stage }), {
+      buildShotBoard: async () => {
+        called = true;
+      },
+    });
+    await tools.callTool("photograph_scenes", {}, ctx);
+    assert(called, `stage "${stage}" blocked a new pass`);
+  }
+});
+
+await testAsync("get_shot_board reads the board rather than guessing at it", async () => {
+  const project = makeProject({
+    shotBoardStage: "ready",
+    shotBoard: {
+      continuity: {
+        locations: [
+          { key: "taxi", name: "Inside the taxi", scenes: [2, 3], geometry: "The steering wheel is on the LEFT; Modou drives.", vehicle: true },
+        ],
+      },
+      setPlates: [{ key: "taxi", name: "Inside the taxi", url: "https://x/taxi.png" }],
+      propPlates: [{ key: "letter", name: "The bank letter", kind: "document", detail: "TRUST BANK GAMBIA" }],
+      scenes: {
+        // Firestore hands index keys back as strings — the tool must read both.
+        1: { sceneNumber: 2, coverage: "Two setups.", shots: [{ time: "0.0–5.0s", label: "Wide", camera: "c", blocking: "b", entry: "straight-into-action", url: "https://x/f1.png" }] },
+      },
+    },
+  });
+  const result = await tools.callTool("get_shot_board", {}, ctxFor(project));
+  assert(result.locations[0].vehicle && /steering wheel is on the LEFT/.test(result.locations[0].geometry), "the vehicle geometry never made it back");
+  assert(result.locations[0].photographed === true, "the set plate was not reported");
+  assert(result.objects[0].detail === "TRUST BANK GAMBIA", "the object's readable detail was lost");
+  assert(result.scenes[1].setups[0].photographed === true, "scene 2's frame was not reported");
+  assert(result.scenes[0].setups.length === 0, "scene 1 has no setups and must say so");
+});
+
+await testAsync("get_shot_board says plainly when a film has never been photographed", async () => {
+  const result = await tools.callTool("get_shot_board", {}, ctxFor(makeProject()));
+  assert(/never run/.test(result.stage) && /photograph_scenes/.test(result.note || ""), `result: ${JSON.stringify(result)}`);
+});
+
 // ── get_audio ───────────────────────────────────────────────────────────────
 
 await testAsync("get_audio reports what is actually on the tracks", async () => {

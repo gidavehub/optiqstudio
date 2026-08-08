@@ -16,11 +16,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Tv } from "lucide-react";
 import OptiqMark from "../../../../components/OptiqMark";
 import {
-  Scene, SceneImage, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
+  Scene, SceneImage, ShotFrame, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
 import SceneDialogue from "./SceneDialogue";
 import ScenePromptBlock from "./ScenePromptBlock";
 import SceneReferenceImages from "./SceneReferenceImages";
+import SceneShotBoard from "./SceneShotBoard";
 import SceneRenderPanel, { SceneRenderStatus } from "./SceneRenderPanel";
 import SceneRewriteBar from "./SceneRewriteBar";
 
@@ -48,6 +49,11 @@ interface MobileScriptDeckProps {
   agentRunning: boolean;
   /** The ad's shape, forwarded to every scene panel in the deck. */
   aspect?: string | null;
+  /** This scene's camera setups, photographed — see SceneShotBoard. */
+  sceneSetups: (sceneIndex: number) => ShotFrame[];
+  shotBoardBusy: boolean;
+  shotBoardStatus: string;
+  onPhotograph: (sceneIndex: number, keepDesign: boolean) => void;
 }
 
 export default function MobileScriptDeck({
@@ -69,6 +75,10 @@ export default function MobileScriptDeck({
   onOpenTimeline,
   onOpenAgent,
   agentRunning,
+  sceneSetups,
+  shotBoardBusy,
+  shotBoardStatus,
+  onPhotograph,
 }: MobileScriptDeckProps) {
   // One page per scene, and nothing else — page i IS scene i.
   const pageCount = storyboard.scenes.length;
@@ -198,6 +208,14 @@ export default function MobileScriptDeck({
                 revising={!!status.revising}
                 onChange={(v) => patchStatus(sceneIndex, { revisionInput: v })}
                 onRevise={() => void reviseScenePrompt(sceneIndex)}
+              />
+
+              <SceneShotBoard
+                setups={sceneSetups(sceneIndex)}
+                aspect={aspect}
+                busy={shotBoardBusy}
+                status={shotBoardStatus}
+                onPhotograph={(keepDesign) => onPhotograph(sceneIndex, keepDesign)}
               />
 
               <SceneReferenceImages

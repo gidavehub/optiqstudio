@@ -45,6 +45,111 @@ export interface SceneImage {
 
 export type SceneImagesMap = Record<number, SceneImage[]>;
 
+// ── The shot board ──────────────────────────────────────────────────────────
+//
+// The film, photographed before it is filmed: a still of every location, a still
+// of every object whose look must not change, and one frame per camera setup
+// inside every scene. Those frames are then attached to the scene's render as
+// the clip's own frames — which is what stops the room, the seating and the
+// props drifting between clips.
+//
+// Entirely SERVER-OWNED. Built by functions/shotBoard (see functions/shotBoardRun.js),
+// read here, and never written by the client — the same rule audioStage follows,
+// for the same reason: an autosave echoing stale status over a running job is how
+// a finished pass ends up looking unfinished forever.
+
+/** One camera setup, and the still that was photographed of it. */
+export interface ShotFrame {
+  id?: string;
+  order: number;
+  /** "0.0–5.0s" — where this setup sits inside the ten seconds. */
+  time: string;
+  /** Six words, for the strip. "Low wide from the passenger footwell". */
+  label: string;
+  camera: string;
+  blocking: string;
+  /** The frozen instant this still shows. */
+  firstFrame: string;
+  /** What moves across this setup's seconds once the clip is running. */
+  motion: string;
+  entry: "straight-into-action" | "held-then-moves";
+  characters?: string[];
+  propKeys?: string[];
+  /** Absent until the frame has actually been photographed. */
+  url?: string;
+  path?: string;
+  mimeType?: string;
+  renderedAt?: string;
+}
+
+export interface SceneShotBoard {
+  sceneNumber: number;
+  locationKey: string | null;
+  /** The designer's own one-line account of how the scene is covered. */
+  coverage: string;
+  shots: ShotFrame[];
+  builtAt?: string;
+}
+
+/** A location, and the empty-room plate photographed of it. */
+export interface ShotBoardPlate {
+  key: string;
+  name: string;
+  scenes?: number[];
+  /** Locations only: where things are, including who sits where in a vehicle. */
+  geometry?: string;
+  /** Objects only: what must stay legible and identical every time. */
+  detail?: string;
+  kind?: string;
+  vehicle?: boolean;
+  url?: string;
+  path?: string;
+  mimeType?: string;
+}
+
+export interface ShotBoard {
+  continuity?: {
+    locations?: ShotBoardPlate[];
+    props?: ShotBoardPlate[];
+  };
+  setPlates?: ShotBoardPlate[];
+  propPlates?: ShotBoardPlate[];
+  /** Keyed by 0-based scene index. Firestore hands the keys back as strings. */
+  scenes?: Record<string | number, SceneShotBoard>;
+  violations?: string[];
+  notes?: string[];
+  builtAt?: string;
+}
+
+/**
+ * "framing" and the rest are working states; "ready", "partial" and "failed" are
+ * terminal. "partial" is honest rather than broken — some scenes are photographed
+ * and the rest render from their prompts, exactly as every film did before the
+ * board existed.
+ */
+export type ShotBoardStage =
+  | "queued"
+  | "designing"
+  | "plating"
+  | "framing"
+  | "ready"
+  | "partial"
+  | "failed"
+  | null;
+
+export const SHOT_BOARD_WORKING_STAGES = ["queued", "designing", "plating", "framing"];
+
+export interface ShotBoardProgress {
+  step?: string;
+  scenesDone?: number;
+  scenesTotal?: number;
+  platesDone?: number;
+  platesTotal?: number;
+  framesDone?: number;
+  framesTotal?: number;
+  queuedForContinuation?: number;
+}
+
 export type SceneStatus = "idle" | "rendering" | "succeeded" | "failed";
 
 /** One generated clip for a scene. Every render mints a take; none are thrown

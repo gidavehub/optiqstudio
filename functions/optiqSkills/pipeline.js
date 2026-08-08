@@ -1226,6 +1226,22 @@ ${JSON.stringify(scene, null, 2)}`,
     // and the agent's tools all address it by that name.
     musicSpec: registry.soundSpec,
     ambienceSpec: registry.ambienceSpec,
+    /**
+     * The world locks, kept on the project for the shot board (see
+     * ./shotBoard.js and ../shotBoardRun.js).
+     *
+     * These already live inside every scene prompt, pasted verbatim — but only as
+     * prose, mixed into two thousand words. The continuity supervisor that
+     * photographs this film has to know which locations and objects the swarm
+     * ALREADY committed to, so it extends those locks rather than authoring a
+     * second, contradictory set. The characters are deliberately not here: they
+     * have their own reference sheets, which are a better record than the text.
+     */
+    consistencyRegistry: {
+      products: registry.products || [],
+      elements: registry.elements || [],
+      recurringSets: registry.recurringSets || [],
+    },
   };
 }
 
