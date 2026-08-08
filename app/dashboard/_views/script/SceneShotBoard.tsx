@@ -28,9 +28,28 @@ interface SceneShotBoardProps {
   onPhotograph: (keepDesign: boolean) => void;
 }
 
+/**
+ * The strip shows one thumbnail per ATTACHED STILL, not per setup.
+ *
+ * A setup whose camera travels is photographed twice — where it starts and where
+ * it arrives — and both stills ride along with the render. Drawing only the
+ * opening frame would hide half of what the clip is actually built from, which
+ * is the one thing this strip exists to prevent.
+ */
+function stripStills(setups: ShotFrame[]) {
+  const stills: { setup: ShotFrame; url?: string; ends: boolean }[] = [];
+  for (const setup of setups) {
+    stills.push({ setup, url: setup.url, ends: false });
+    if (setup.end?.url) stills.push({ setup, url: setup.end.url, ends: true });
+  }
+  return stills;
+}
+
 export default function SceneShotBoard({ setups, aspect, busy, status, onPhotograph }: SceneShotBoardProps) {
   const [selected, setSelected] = useState(0);
-  const shot = setups[Math.min(selected, Math.max(setups.length - 1, 0))];
+  const stills = stripStills(setups);
+  const current = stills[Math.min(selected, Math.max(stills.length - 1, 0))];
+  const shot = current?.setup;
   const photographed = setups.filter((s) => s.url).length;
 
   return (
@@ -69,26 +88,26 @@ export default function SceneShotBoard({ setups, aspect, busy, status, onPhotogr
       ) : (
         <>
           <div className="mt-2.5 flex gap-2 overflow-x-auto scrollbar-none">
-            {setups.map((setup, i) => (
+            {stills.map(({ setup, url, ends }, i) => (
               <button
-                key={setup.id || `${setup.order}-${setup.time}`}
+                key={`${setup.id || `${setup.order}-${setup.time}`}${ends ? "-end" : ""}`}
                 onClick={() => setSelected(i)}
-                title={setup.label}
+                title={ends ? `${setup.label} — where it ends` : setup.label}
                 style={aspectStyle(aspect)}
                 className={`relative w-28 shrink-0 overflow-hidden rounded-2xl border bg-background transition-colors sm:w-32 ${
                   i === selected ? "border-accent-line" : "border-line hover:border-line-2"
                 }`}
               >
-                {setup.url ? (
+                {url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={setup.url} alt={setup.label} className="h-full w-full object-cover" />
+                  <img src={url} alt={setup.label} className="h-full w-full object-cover" />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center text-muted">
                     <Camera size={14} className={busy ? "animate-pulse" : ""} />
                   </span>
                 )}
                 <span className="absolute bottom-1 left-1 rounded-full bg-background/85 px-1.5 py-0.5 text-[9px] font-bold text-ink-2 backdrop-blur-sm">
-                  {setup.time}
+                  {ends ? "ends on" : setup.time}
                 </span>
               </button>
             ))}
@@ -102,6 +121,9 @@ export default function SceneShotBoard({ setups, aspect, busy, status, onPhotogr
               <p className="text-[10px] text-muted">
                 {shot.entry === "held-then-moves" ? "Holds, then " : "Straight in — "}
                 {shot.motion}
+                {shot.cameraMove && shot.cameraMove !== "locked"
+                  ? ` · camera ${shot.cameraMove.replace(/-/g, " ")}`
+                  : ""}
               </p>
             </div>
           )}

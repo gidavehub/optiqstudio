@@ -9,6 +9,21 @@ export interface Scene {
   dialogue: string;
   sound: string;
   fullPrompt: string;
+  /**
+   * The short prompt a PHOTOGRAPHED scene renders from.
+   *
+   * Once a scene has frames, everything the long prompt said about how things
+   * look is carried by the pictures instead — far more exactly — so the render
+   * uses a few hundred words of what HAPPENS: the beats, the dialogue verbatim
+   * with the voice that says it, every sound, and where the camera goes.
+   *
+   * Server-owned, written by the shot board. Empty or absent whenever the scene
+   * has no frames, or when the compressor could not write one that kept every
+   * line of dialogue — in which case `fullPrompt` renders, as it always did.
+   * Cleared on revision, because a brief compressed from the old script is a
+   * brief that ignores the revision. Always read through `renderPrompt()`.
+   */
+  framedPrompt?: string;
 }
 
 export interface CharacterLock {
@@ -73,51 +88,149 @@ export interface ShotFrame {
   /** What moves across this setup's seconds once the clip is running. */
   motion: string;
   entry: "straight-into-action" | "held-then-moves";
+  /** Whether the camera itself travels across this setup's seconds. */
+  cameraMove?: "locked" | "pan" | "tilt" | "push-in" | "pull-back" | "track" | "handheld-drift";
+  /** The frozen instant this setup ARRIVES at, when it goes somewhere different. */
+  endFrame?: string;
+  /** Which dressed arrangement this setup looks at, or "" for a wide of the place. */
+  settingKey?: string;
+  /** True when this setup shoots back toward where a wide establishing angle stands. */
+  reverseAngle?: boolean;
   characters?: string[];
-  propKeys?: string[];
+  objectKeys?: string[];
   /** Absent until the frame has actually been photographed. */
   url?: string;
   path?: string;
   mimeType?: string;
   renderedAt?: string;
+  /**
+   * The still this setup ENDS on, for setups whose camera or action carries the
+   * frame somewhere different. Photographed from the first frame, and attached
+   * to the render right after it, so a pan is specified by both of its ends
+   * instead of by one end and a sentence.
+   */
+  end?: {
+    url?: string;
+    path?: string;
+    mimeType?: string;
+    renderedAt?: string;
+  };
 }
 
 export interface SceneShotBoard {
   sceneNumber: number;
-  locationKey: string | null;
+  environmentKey: string | null;
   /** The designer's own one-line account of how the scene is covered. */
   coverage: string;
   shots: ShotFrame[];
+  /** The short render prompt, mirrored onto the scene itself as `framedPrompt`. */
+  framedPrompt?: string;
   builtAt?: string;
 }
 
-/** A location, and the empty-room plate photographed of it. */
-export interface ShotBoardPlate {
+/**
+ * One state of one thing: how it looks across the scenes it is true for.
+ *
+ * The base state is how a thing starts; every other state is a change from the
+ * one before it, and its plate is photographed FROM that one — which is how the
+ * meal that gets eaten in scene 2 is still eaten in scene 9.
+ */
+export interface ShotBoardState {
   key: string;
   name: string;
   scenes?: number[];
-  /** Locations only: where things are, including who sits where in a vehicle. */
+  isBase?: boolean;
+  /** What is physically different from the state before. Empty on the base. */
+  change?: string;
+}
+
+/** A place the film is shot in. */
+export interface ShotBoardEnvironment {
+  key: string;
+  name: string;
+  scenes?: number[];
+  lock?: string;
+  /** Where things ARE, including who sits where in a vehicle. */
   geometry?: string;
-  /** Objects only: what must stay legible and identical every time. */
+  light?: string;
+  vehicle?: boolean;
+  needsSecondAngle?: boolean;
+  secondAngle?: string;
+  states?: ShotBoardState[];
+}
+
+/** A dressed arrangement inside a place — the tier that fixes what sits where. */
+export interface ShotBoardSetting {
+  key: string;
+  name: string;
+  environmentKey: string;
+  scenes?: number[];
+  lock?: string;
+  /** Exact positions, precise enough that two photographers would match them. */
+  layout?: string;
+  /** Where people go, by name: who sits in which chair, who stands where. */
+  seating?: string;
+  objectKeys?: string[];
+  states?: ShotBoardState[];
+}
+
+/** A thing whose exact appearance has to survive every cut. */
+export interface ShotBoardObject {
+  key: string;
+  name: string;
+  kind?: string;
+  scenes?: number[];
+  anchor?: string;
+  /** What must stay legible and identical every time. */
+  detail?: string;
+  states?: ShotBoardState[];
+}
+
+/**
+ * One photograph in the hierarchy, identified by which tier it belongs to, which
+ * thing it is of, and which STATE of that thing — the same table laid and cleared
+ * is two plates under one key.
+ */
+export interface ShotBoardPlate {
+  tier: "environment" | "environment-reverse" | "setting" | "object";
+  key: string;
+  stateKey: string;
+  name: string;
+  stateName?: string;
+  scenes?: number[];
+  geometry?: string;
+  layout?: string;
   detail?: string;
   kind?: string;
   vehicle?: boolean;
+  environmentKey?: string;
   url?: string;
   path?: string;
   mimeType?: string;
+  builtAt?: string;
 }
 
 export interface ShotBoard {
-  continuity?: {
-    locations?: ShotBoardPlate[];
-    props?: ShotBoardPlate[];
+  /** The film's world: its places, the arrangements in them, its objects, their states. */
+  world?: {
+    environments?: ShotBoardEnvironment[];
+    settings?: ShotBoardSetting[];
+    objects?: ShotBoardObject[];
+    sceneWorld?: {
+      sceneNumber: number;
+      environmentKey: string;
+      settingKeys?: string[];
+      objectKeys?: string[];
+    }[];
   };
-  setPlates?: ShotBoardPlate[];
-  propPlates?: ShotBoardPlate[];
+  /** Every photograph, flat. Filter by `tier` to get one level of the hierarchy. */
+  plates?: ShotBoardPlate[];
   /** Keyed by 0-based scene index. Firestore hands the keys back as strings. */
   scenes?: Record<string | number, SceneShotBoard>;
   violations?: string[];
   notes?: string[];
+  /** What the run repaired on its own: a refused prompt rewritten, a lost picture re-taken. */
+  healed?: string[];
   builtAt?: string;
 }
 
@@ -132,12 +245,13 @@ export type ShotBoardStage =
   | "designing"
   | "plating"
   | "framing"
+  | "briefing"
   | "ready"
   | "partial"
   | "failed"
   | null;
 
-export const SHOT_BOARD_WORKING_STAGES = ["queued", "designing", "plating", "framing"];
+export const SHOT_BOARD_WORKING_STAGES = ["queued", "designing", "plating", "framing", "briefing"];
 
 export interface ShotBoardProgress {
   step?: string;
@@ -147,6 +261,8 @@ export interface ShotBoardProgress {
   platesTotal?: number;
   framesDone?: number;
   framesTotal?: number;
+  briefsDone?: number;
+  briefsTotal?: number;
   queuedForContinuation?: number;
 }
 

@@ -53,7 +53,7 @@ import {
   sceneTakes,
   videoType,
 } from "./types";
-import { renderAttachments } from "./shotBoard";
+import { renderAttachments, renderPrompt } from "./shotBoard";
 
 interface EditorFlowValue {
   // Auth passthrough (handy for views that only need these two)
@@ -1248,7 +1248,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         (status.status === "idle" || (status.status === "rendering" && !status.id)) &&
         !isPolling
       ) {
-        void generateVideoForScene(idx, scene.fullPrompt);
+        void generateVideoForScene(idx, renderPrompt(scene, status.customPrompt));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1289,6 +1289,12 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         updatedScenes[sceneIndex] = {
           ...scene,
           fullPrompt: res.revisedPrompt,
+          // The short shooting brief was compressed from the script as it read
+          // BEFORE this revision, so it no longer describes what the director
+          // just asked for. Dropping it sends the render back to the revised
+          // full prompt — correct, just longer-winded — until the scene is
+          // re-photographed and a new brief is written from the new script.
+          framedPrompt: "",
           action: `[REVISED] ${scene.action}`,
         };
         setStoryboard({ ...storyboard, scenes: updatedScenes });

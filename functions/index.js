@@ -3073,25 +3073,35 @@ exports.audioPost = onDocumentCreated(
 // Enqueued automatically at the end of storyboardGenerate, and by hand from the
 // script editor for films that pre-date it.
 //
-// SELF-CONTINUING. An 18-scene film is around sixty pictures against an 8/minute
-// image quota, which does not fit in one 540s invocation. So the run takes a soft
-// deadline, stops cleanly when it reaches it, and enqueues its own continuation —
-// which reuses every plate and frame already made and only builds what is missing.
-// `attempt` is the loop guard: four passes is roughly 200 pictures, past which
-// something is wrong and looping further only spends money.
-const SHOT_BOARD_MAX_ATTEMPTS = 4;
+// SELF-CONTINUING. An 18-scene film is now well over a hundred pictures against
+// an 8/minute image quota, which does not fit in one 540s invocation. So the run
+// takes a soft deadline, stops cleanly when it reaches it, and enqueues its own
+// continuation — which reuses every plate and frame already made and only builds
+// what is missing. `attempt` is the loop guard: past this many passes something
+// is wrong and looping further only spends money.
+//
+// Raised from four when the board grew its hierarchy. The pictures per film went
+// up (settings, states and end frames are all new tiers) and the per-picture time
+// went up with the pro image model, so a long film that used to finish in three
+// passes now wants six.
+const SHOT_BOARD_MAX_ATTEMPTS = 6;
 
 /**
  * Which image model photographs the film.
  *
- * Defaults to the model the character sheets already use, which is known-good on
- * this project. `gemini-3-pro-image` (Nano Banana 2 Pro) is the upgrade worth
- * making for prop plates — the flash tier garbles the legible text on a document
- * or a phone screen, which is half of what a prop plate is FOR. Switch with
- * VERTEX env config once scripts/probe-nano-banana-2.mjs has confirmed it
- * renders here; both ids route to the same global endpoint (see vertexFetch).
+ * `gemini-3-pro-image` (Nano Banana 2 Pro), and the reason is legibility. The
+ * flash tier garbles readable text on a document or a phone screen, which is half
+ * of what an object plate is FOR — a letter whose letterhead is nearly right in
+ * every shot is exactly the continuity error this whole system exists to kill.
+ *
+ * Verified on this project with scripts/probe-nano-banana-2.mjs: it renders at
+ * the global endpoint (same route as the flash tier — see vertexFetch), holds a
+ * correct letterhead and figure on a document plate, and correctly composites a
+ * character sheet plus a set plate plus a prop plate into one frame in the film's
+ * aspect ratio. It is roughly 25–40s a picture against the flash tier's ~15s,
+ * which is what SHOT_BOARD_MAX_ATTEMPTS above absorbs.
  */
-const SHOT_FRAME_MODEL = process.env.SHOT_FRAME_MODEL || "gemini-3.1-flash-image";
+const SHOT_FRAME_MODEL = process.env.SHOT_FRAME_MODEL || "gemini-3-pro-image";
 
 exports.shotBoard = onDocumentCreated(
   { document: "shotBoardJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 5 },
@@ -3147,6 +3157,61 @@ exports.shotBoard = onDocumentCreated(
       // image call is in flight when the deadline lands.
       const deadlineAt = Date.now() + 7 * 60 * 1000;
 
+      /**
+       * One picture from the image model.
+       *
+       * The error it throws carries WHY, and that matters more than it looks:
+       * the runner classifies transient failures (wait and ask again) apart from
+       * refusals (rewrite the prompt, then ask again), and it can only tell them
+       * apart from what is in this message. A bare "no image" would send every
+       * refusal into a retry loop that asks the same forbidden question four
+       * times and pays for it each time.
+       */
+      const generateImage = async (prompt, { aspectRatio, images } = {}) => {
+        const parts = [];
+        for (const image of images || []) {
+          if (image?.base64) {
+            parts.push({ inlineData: { mimeType: image.mimeType || "image/png", data: image.base64 } });
+          }
+        }
+        parts.push({ text: prompt });
+        const response = await vertexFetch(`/publishers/google/models/${SHOT_FRAME_MODEL}:generateContent`, {
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+            // Frames, place plates and arrangement plates are shot in the film's
+            // own shape — they become video frames, and a 3:4 still handed to a
+            // 16:9 render is an instruction to letterbox. Object plates ask 1:1.
+            imageConfig: { aspectRatio: aspectRatio || project.aspectRatio || "16:9" },
+          },
+        });
+        const candidate = response.candidates?.[0];
+        const part = candidate?.content?.parts?.find((p) => p.inlineData);
+        if (!part?.inlineData?.data) {
+          const finish = candidate?.finishReason || "none";
+          const block = response.promptFeedback?.blockReason || "";
+          const blockedRatings = (candidate?.safetyRatings || [])
+            .filter((r) => r.blocked)
+            .map((r) => r.category)
+            .join(", ");
+          // Any text the model returned instead of a picture is usually its own
+          // account of why it declined, and it is the most useful thing there is
+          // for the rewrite pass.
+          const said = (candidate?.content?.parts || [])
+            .map((p) => p.text || "")
+            .join(" ")
+            .trim()
+            .slice(0, 300);
+          throw new Error(
+            `the image model returned no image (finishReason=${finish}` +
+              `${block ? `, blockReason=${block}` : ""}` +
+              `${blockedRatings ? `, blocked=${blockedRatings}` : ""})` +
+              `${said ? ` — it said: ${said}` : ""}`
+          );
+        }
+        return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
+      };
+
       const report = await runShotBoard({
         vertexFetch,
         brain,
@@ -3161,34 +3226,31 @@ exports.shotBoard = onDocumentCreated(
         onStage: (stage, meta) => setStage(stage, meta ? { shotBoardProgress: meta } : {}),
 
         // Every Vertex media call in this project lives in this file, so the
-        // runner is handed the three it needs rather than reaching for them.
-        generateImage: async (prompt, { aspectRatio, images } = {}) => {
-          const parts = [];
-          for (const image of images || []) {
-            if (image?.base64) {
-              parts.push({ inlineData: { mimeType: image.mimeType || "image/png", data: image.base64 } });
-            }
-          }
-          parts.push({ text: prompt });
-          const response = await vertexFetch(`/publishers/google/models/${SHOT_FRAME_MODEL}:generateContent`, {
-            contents: [{ role: "user", parts }],
-            generationConfig: {
-              responseModalities: ["TEXT", "IMAGE"],
-              // Frames and set plates are shot in the film's own shape — they
-              // become video frames, and a 3:4 still handed to a 16:9 render is
-              // an instruction to letterbox. Prop plates ask for 1:1.
-              imageConfig: { aspectRatio: aspectRatio || project.aspectRatio || "16:9" },
-            },
-          });
-          const part = response.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
-          if (!part?.inlineData?.data) throw new Error("the image model returned no image");
-          return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
-        },
+        // runner is handed the four it needs rather than reaching for them.
+        generateImage,
         storeImage: async (path, base64, mimeType) => ({
           path,
           url: await uploadBase64(base64, path, mimeType),
         }),
         loadImage: (path) => downloadInputMedia(path),
+
+        // Re-takes a character sheet whose stored file has gone missing. The
+        // prompt belongs to the sandbox, not to the runner, so it is closed over
+        // here — same split as `brain`.
+        regenerateCharacterRef: async (ref) => {
+          const refBrain = isStoryFilm(project.videoType)
+            ? require("./optiqStory/characterRefs")
+            : require("./optiqSkills/characterRefs");
+          const image = await generateImage(refBrain.characterRefPrompt(ref), { aspectRatio: "3:4" });
+          const ext = String(image.mimeType).includes("jpeg") ? "jpg" : "png";
+          // A fresh path, never the old one: Storage caches generated media
+          // immutably, so re-using the missing file's path can serve the miss.
+          const path = `users/${job.uid}/projects/${job.projectId}/characters/${
+            ref.id || "char"
+          }-${Date.now().toString(36)}.${ext}`;
+          const url = await uploadBase64(image.base64, path, image.mimeType);
+          return { path, url, base64: image.base64, mimeType: image.mimeType };
+        },
       });
 
       // Re-read before writing. The board takes minutes, and in that time the
@@ -3199,9 +3261,25 @@ exports.shotBoard = onDocumentCreated(
       const fresh = await projectRef.get();
       const currentScenes = fresh.get("scenes") || project.scenes;
       const scenes = currentScenes.map((scene, idx) => {
-        const frames = (report.scenes[idx]?.shots || []).filter((s) => s.url);
+        const entry = report.scenes[idx];
+        const frames = (entry?.shots || [])
+          .filter((s) => s.url)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         if (frames.length === 0) return scene;
-        return { ...scene, fullPrompt: brain.applyShotBoardClause(scene.fullPrompt, frames) };
+
+        // Both prompts carry the board block, and both need it. The long prompt
+        // is the fallback whenever the short one is missing or has been cleared
+        // by a revision, and a fallback that renders with frames attached and
+        // nothing explaining them is worse than no frames at all.
+        const next = { ...scene, fullPrompt: brain.applyShotBoardClause(scene.fullPrompt, frames) };
+
+        // The short prompt a photographed scene actually renders from. Absent
+        // when the compressor could not write one that kept every line of
+        // dialogue — in which case the scene keeps rendering from the long one,
+        // which is correct, just longer-winded.
+        const framed = entry?.framedPrompt || "";
+        next.framedPrompt = framed ? brain.applyShotBoardClause(framed, frames) : "";
+        return next;
       });
 
       const more = !report.done && attempt < SHOT_BOARD_MAX_ATTEMPTS;
@@ -3210,14 +3288,27 @@ exports.shotBoard = onDocumentCreated(
         stripUndefined({
           scenes,
           shotBoard: {
-            continuity: report.continuity,
-            setPlates: report.setPlates,
-            propPlates: report.propPlates,
+            // The world bible: the places, the arrangements inside them, the
+            // objects, and every state each of those passes through. This is
+            // what a continuation pass reuses instead of re-deciding, so it is
+            // stored whole rather than summarised.
+            world: report.world,
+            // Every photograph, flat, keyed by (tier, thing, state). The tiers
+            // are ordered by dependency in shotBoardRun.js, not here.
+            plates: report.plates,
             scenes: report.scenes,
             violations: report.violations,
             notes: report.notes,
+            // What the run repaired on its own — a refused prompt it rewrote, a
+            // stored picture it found missing and re-took. Kept because a
+            // pipeline that silently heals itself is one nobody can debug.
+            healed: report.healed,
             builtAt: report.builtAt,
           },
+          // Only present when a character sheet had gone missing and was
+          // re-taken; the runner does not write the project, so this is where the
+          // mended paths land.
+          ...(report.characterRefs ? { characterRefs: report.characterRefs } : {}),
           // "partial" is an honest terminal state: some scenes are photographed
           // and the rest render from their prompts, exactly as they always did.
           shotBoardStage: report.done ? "ready" : more ? "framing" : "partial",
@@ -3231,9 +3322,12 @@ exports.shotBoard = onDocumentCreated(
       );
 
       await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+      const plateCount = (tier) => report.plates.filter((p) => p.tier === tier).length;
       console.log(
         `[shotboard ${job.projectId}] pass ${attempt}: ${report.framesRendered} frame(s), ` +
-          `${report.setPlates.length} set plate(s), ${report.propPlates.length} prop plate(s), ` +
+          `${plateCount("environment") + plateCount("environment-reverse")} place plate(s), ` +
+          `${plateCount("setting")} arrangement plate(s), ${plateCount("object")} object plate(s), ` +
+          `${Object.keys(report.framedPrompts).length} short prompt(s), ` +
           `${report.remaining.length} scene(s) left`
       );
 

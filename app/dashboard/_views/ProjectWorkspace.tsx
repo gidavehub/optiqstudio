@@ -30,7 +30,7 @@ import SceneRewriteBar from "./script/SceneRewriteBar";
 import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
 import WorkspaceModeBar from "./script/WorkspaceModeBar";
 import { gridBox, previewBox } from "../_shared/aspect";
-import { boardCoverage, sceneSetups, shotBoardStatusLabel } from "../_flow/shotBoard";
+import { boardCoverage, renderPrompt, sceneSetups, shotBoardStatusLabel } from "../_flow/shotBoard";
 
 /** Every storyboard scene renders as a 10-second clip. */
 const SCENE_SECONDS = 10;
@@ -303,7 +303,7 @@ export default function ProjectWorkspace() {
                     </>
                   ) : failed ? (
                     <button
-                      onClick={() => requestRender(idx, stat?.customPrompt || scene.fullPrompt)}
+                      onClick={() => requestRender(idx, renderPrompt(scene, stat?.customPrompt))}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-danger-soft p-3 text-center transition-colors hover:bg-danger-soft"
                     >
                       <AlertCircle size={20} className="text-danger" />
@@ -523,16 +523,16 @@ export default function ProjectWorkspace() {
                   <SceneDialogue scene={scene} />
 
                   <ScenePromptBlock
-                    value={status.customPrompt || scene.fullPrompt}
+                    value={renderPrompt(scene, status.customPrompt)}
                     editing={!!status.editingPrompt}
                     onChange={(v) => patchStatus({ customPrompt: v })}
                     onToggleEdit={() =>
                       patchStatus({
                         editingPrompt: !status.editingPrompt,
-                        customPrompt: status.customPrompt || scene.fullPrompt,
+                        customPrompt: renderPrompt(scene, status.customPrompt),
                       })
                     }
-                    onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, idx)}
+                    onCopy={() => copyToClipboard(renderPrompt(scene, status.customPrompt), idx)}
                     copied={copiedIndex === idx}
                   />
 
@@ -578,7 +578,7 @@ export default function ProjectWorkspace() {
                     url={status.url}
                     error={status.error}
                     cost={renderCost(idx)}
-                    onRender={() => requestRender(idx, status.customPrompt || scene.fullPrompt)}
+                    onRender={() => requestRender(idx, renderPrompt(scene, status.customPrompt))}
                     takes={sceneTakes(videoStatus[idx])}
                     activeTake={activeTakeIndex(videoStatus[idx])}
                     onSelectTake={(take) => selectSceneTake(idx, take)}
