@@ -24,7 +24,6 @@ import EditorStudio from "./editor/EditorStudio";
 import MobileScriptDeck from "./script/MobileScriptDeck";
 import SceneDialogue from "./script/SceneDialogue";
 import ScenePromptBlock from "./script/ScenePromptBlock";
-import SceneReferenceImages from "./script/SceneReferenceImages";
 import SceneShotBoard from "./script/SceneShotBoard";
 import SceneRewriteBar from "./script/SceneRewriteBar";
 import SceneRenderPanel, { SceneRenderStatus } from "./script/SceneRenderPanel";
@@ -43,8 +42,6 @@ export default function ProjectWorkspace() {
     pipelineStage, pipelineProgress,
     copyToClipboard, copiedIndex,
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
-    sceneImages, projectMaterials,
-    addSceneImages, attachMaterialToScene, removeSceneImage,
     shotBoard, shotBoardStage, shotBoardProgress, shotBoardBusy, buildShotBoard,
     goHome, projects, activeProjectId, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
@@ -402,11 +399,6 @@ export default function ProjectWorkspace() {
           storyboard={storyboard}
           videoStatus={videoStatus}
           setVideoStatus={setVideoStatus}
-          sceneImages={sceneImages}
-          projectMaterials={projectMaterials}
-          addSceneImages={addSceneImages}
-          attachMaterialToScene={attachMaterialToScene}
-          removeSceneImage={removeSceneImage}
           reviseScenePrompt={reviseScenePrompt}
           copyToClipboard={copyToClipboard}
           copiedIndex={copiedIndex}
@@ -545,29 +537,17 @@ export default function ProjectWorkspace() {
                     onRevise={() => void reviseScenePrompt(idx)}
                   />
 
-                  {/* The frames this clip is actually built from. Above the
-                      reference images because once a scene is photographed the
-                      frames are what the render attaches — the references below
-                      are what it falls back to when it isn't. */}
+                  {/* The frames this clip is built from, and the ONLY images
+                      the render attaches. There is no reference-image tray under
+                      this any more: character sheets and uploads build the board,
+                      the board is what the video model sees, and showing a second
+                      set of pictures beside it only implied otherwise. */}
                   <SceneShotBoard
                     setups={sceneSetups(shotBoard, idx)}
                     aspect={aspectRatio}
                     busy={shotBoardBusy}
                     status={shotBoardStatus}
                     onPhotograph={(keepDesign) => void buildShotBoard([idx], keepDesign)}
-                  />
-
-                  <SceneReferenceImages
-                    sceneIndex={idx}
-                    attached={sceneImages[idx] || []}
-                    available={projectMaterials.filter(
-                      (mat) =>
-                        mat.mimeType.startsWith("image/") &&
-                        !(sceneImages[idx] || []).some((img) => img.path === mat.path)
-                    )}
-                    onUpload={(files) => void addSceneImages(idx, files)}
-                    onAttach={(mat) => attachMaterialToScene(idx, mat)}
-                    onRemove={(imgIdx) => removeSceneImage(idx, imgIdx)}
                   />
                 </div>
 

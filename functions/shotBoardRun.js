@@ -1279,9 +1279,16 @@ function sceneStills(entry) {
  *   eight images on one video call, and §3.8's fusion warning does not care that
  *   some of them are frames.
  *
- * A scene with no frames falls back to exactly what it attached before this
- * feature existed. Both halves of this rule are mirrored in the client's
- * app/dashboard/_flow/shotBoard.ts — change one, change the other.
+ * A SCENE WITH NO FRAMES ATTACHES NOTHING. There is deliberately no fallback to
+ * the character sheets or the director's uploads, and this is a hard rule, not an
+ * oversight: those pictures exist to build the BOARD, and the board is the only
+ * thing the video model is ever shown. A studio portrait handed to the video
+ * model is the grey-backdrop contamination this whole system replaced, and a
+ * half-photographed film that quietly reverts to it is worse than one that
+ * renders from its words — because it looks like it is working.
+ *
+ * Mirrored in the client's app/dashboard/_flow/shotBoard.ts — change one, change
+ * the other.
  *
  * @param {object} project     the project doc
  * @param {number} sceneIndex  0-based
@@ -1290,11 +1297,7 @@ function sceneStills(entry) {
 function renderAttachments(project, sceneIndex) {
   const board = project?.shotBoard?.scenes || {};
   const entry = board[sceneIndex] ?? board[String(sceneIndex)];
-  const stills = sceneStills(entry);
-  if (stills.length > 0) return stills;
-
-  const fallback = project?.sceneImages || {};
-  return fallback[sceneIndex] ?? fallback[String(sceneIndex)] ?? [];
+  return sceneStills(entry);
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────

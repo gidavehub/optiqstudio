@@ -727,12 +727,12 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       });
 
       try {
-        // What rides along with the render: this scene's photographed FRAMES if
-        // it has been shot-boarded, and its reference images if it has not. The
-        // rule itself lives in ./shotBoard.ts, next to its server-side twin —
-        // the two paths must attach the same thing or a clip rendered by the
-        // agent comes out different from the identical clip rendered here.
-        const refs = renderAttachments(shotBoardRef.current, sceneImagesRef.current, sceneIndex);
+        // What rides along with the render: this scene's photographed FRAMES,
+        // and NOTHING else. No character sheets, no uploads, no fallback — the
+        // board is the only thing the video model is ever shown. The rule lives
+        // in ./shotBoard.ts beside its server-side twin, because the agent
+        // renders through that one and must attach exactly the same thing.
+        const refs = renderAttachments(shotBoardRef.current, sceneIndex);
         const res = await apiFetch<{ id: string }>("/api/video/generate", {
           method: "POST",
           body: JSON.stringify({

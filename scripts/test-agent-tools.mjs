@@ -308,13 +308,21 @@ await testAsync("get_shot_board reads the board rather than guessing at it", asy
   const project = makeProject({
     shotBoardStage: "ready",
     shotBoard: {
-      continuity: {
-        locations: [
-          { key: "taxi", name: "Inside the taxi", scenes: [2, 3], geometry: "The steering wheel is on the LEFT; Modou drives.", vehicle: true },
+      // The hierarchy schema: a world of places / arrangements / objects, and one
+      // flat plate list carrying the photograph of every tier and every state.
+      world: {
+        environments: [
+          { key: "taxi", name: "Inside the taxi", scenes: [2, 3], geometry: "The steering wheel is on the LEFT; Modou drives.", light: "Hard midday sun.", vehicle: true },
         ],
+        settings: [
+          { key: "taxi-loaded", name: "The taxi, loaded", environmentKey: "taxi", scenes: [2, 3], layout: "Bags fill the rear footwell.", seating: "Modou left, Binta right." },
+        ],
+        objects: [{ key: "letter", name: "The bank letter", kind: "document", scenes: [2, 3], detail: "TRUST BANK GAMBIA" }],
       },
-      setPlates: [{ key: "taxi", name: "Inside the taxi", url: "https://x/taxi.png" }],
-      propPlates: [{ key: "letter", name: "The bank letter", kind: "document", detail: "TRUST BANK GAMBIA" }],
+      plates: [
+        { tier: "environment", key: "taxi", url: "https://x/taxi.png" },
+        { tier: "setting", key: "taxi-loaded", url: "https://x/taxi-loaded.png" },
+      ],
       scenes: {
         // Firestore hands index keys back as strings — the tool must read both.
         1: { sceneNumber: 2, coverage: "Two setups.", shots: [{ time: "0.0–5.0s", label: "Wide", camera: "c", blocking: "b", entry: "straight-into-action", url: "https://x/f1.png" }] },
@@ -322,9 +330,12 @@ await testAsync("get_shot_board reads the board rather than guessing at it", asy
     },
   });
   const result = await tools.callTool("get_shot_board", {}, ctxFor(project));
-  assert(result.locations[0].vehicle && /steering wheel is on the LEFT/.test(result.locations[0].geometry), "the vehicle geometry never made it back");
-  assert(result.locations[0].photographed === true, "the set plate was not reported");
+  assert(result.places[0].vehicle && /steering wheel is on the LEFT/.test(result.places[0].geometry), "the vehicle geometry never made it back");
+  assert(result.places[0].photographed === true, "the place plate was not reported");
+  assert(/Modou left/.test(result.arrangements[0].whoGoesWhere || ""), "the arrangement's seating was lost");
+  assert(result.arrangements[0].photographed === true, "the arrangement plate was not reported");
   assert(result.objects[0].detail === "TRUST BANK GAMBIA", "the object's readable detail was lost");
+  assert(result.objects[0].photographed === false, "an object with no plate must not claim one");
   assert(result.scenes[1].setups[0].photographed === true, "scene 2's frame was not reported");
   assert(result.scenes[0].setups.length === 0, "scene 1 has no setups and must say so");
 });

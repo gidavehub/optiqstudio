@@ -7,7 +7,6 @@
 import {
   Scene,
   SceneImage,
-  SceneImagesMap,
   SceneShotBoard,
   ShotBoard,
   ShotBoardPlate,
@@ -83,7 +82,13 @@ export function sceneStills(board: ShotBoard | null | undefined, sceneIndex: num
  *   eight images on one video call, and the fusion warning in doctrine §3.8 does
  *   not care that some of them are frames.
  *
- * A scene with no frames attaches exactly what it always did.
+ * A SCENE WITH NO FRAMES ATTACHES NOTHING. There is deliberately no fallback to
+ * the character sheets or the director's uploads, and this is a hard rule, not an
+ * oversight: those pictures exist to build the BOARD, and the board is the only
+ * thing the video model is ever shown. A studio portrait handed to the video
+ * model is the grey-backdrop contamination this whole system replaced, and a
+ * half-photographed film that quietly reverts to it is worse than one that
+ * renders from its words — because it looks like it is working.
  *
  * This is the twin of `renderAttachments` in functions/shotBoardRun.js — the
  * agent renders through that one, the editor through this one, and they must
@@ -91,12 +96,9 @@ export function sceneStills(board: ShotBoard | null | undefined, sceneIndex: num
  */
 export function renderAttachments(
   board: ShotBoard | null | undefined,
-  sceneImages: SceneImagesMap,
   sceneIndex: number
 ): SceneImage[] {
-  const stills = sceneStills(board, sceneIndex);
-  if (stills.length > 0) return stills;
-  return sceneImages[sceneIndex] || [];
+  return sceneStills(board, sceneIndex);
 }
 
 /**

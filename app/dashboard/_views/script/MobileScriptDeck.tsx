@@ -16,12 +16,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Tv } from "lucide-react";
 import OptiqMark from "../../../../components/OptiqMark";
 import {
-  Scene, SceneImage, ShotFrame, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
+  Scene, ShotFrame, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
 import { renderPrompt } from "../../_flow/shotBoard";
 import SceneDialogue from "./SceneDialogue";
 import ScenePromptBlock from "./ScenePromptBlock";
-import SceneReferenceImages from "./SceneReferenceImages";
 import SceneShotBoard from "./SceneShotBoard";
 import SceneRenderPanel, { SceneRenderStatus } from "./SceneRenderPanel";
 import SceneRewriteBar from "./SceneRewriteBar";
@@ -30,11 +29,6 @@ interface MobileScriptDeckProps {
   storyboard: Storyboard;
   videoStatus: VideoStatusMap;
   setVideoStatus: React.Dispatch<React.SetStateAction<VideoStatusMap>>;
-  sceneImages: Record<number, SceneImage[]>;
-  projectMaterials: SceneImage[];
-  addSceneImages: (sceneIndex: number, files: FileList | File[]) => Promise<void>;
-  attachMaterialToScene: (sceneIndex: number, material: SceneImage) => void;
-  removeSceneImage: (sceneIndex: number, imageIndex: number) => void;
   reviseScenePrompt: (sceneIndex: number) => Promise<void>;
   copyToClipboard: (text: string, index: number) => void;
   copiedIndex: number | null;
@@ -62,11 +56,6 @@ export default function MobileScriptDeck({
   storyboard,
   videoStatus,
   setVideoStatus,
-  sceneImages,
-  projectMaterials,
-  addSceneImages,
-  attachMaterialToScene,
-  removeSceneImage,
   reviseScenePrompt,
   copyToClipboard,
   copiedIndex,
@@ -217,19 +206,6 @@ export default function MobileScriptDeck({
                 busy={shotBoardBusy}
                 status={shotBoardStatus}
                 onPhotograph={(keepDesign) => onPhotograph(sceneIndex, keepDesign)}
-              />
-
-              <SceneReferenceImages
-                sceneIndex={sceneIndex}
-                attached={sceneImages[sceneIndex] || []}
-                available={projectMaterials.filter(
-                  (mat) =>
-                    mat.mimeType.startsWith("image/") &&
-                    !(sceneImages[sceneIndex] || []).some((img) => img.path === mat.path)
-                )}
-                onUpload={(files) => void addSceneImages(sceneIndex, files)}
-                onAttach={(mat) => attachMaterialToScene(sceneIndex, mat)}
-                onRemove={(imgIdx) => removeSceneImage(sceneIndex, imgIdx)}
               />
             </div>
           ) : null}

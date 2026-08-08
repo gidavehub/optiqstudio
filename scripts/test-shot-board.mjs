@@ -473,9 +473,27 @@ check(
   attached[0].name.includes("0.0–5.0s") && attached[1].name.includes("ends on") && attached[2].name.includes("5.0–10.0s"),
   `(${attached.map((a) => a.name).join(" | ")})`
 );
+// The rule that matters most, and the one that was wrong: an unphotographed
+// scene attaches NOTHING. Character sheets and uploads build the board; the
+// board is the only thing the video model is ever shown. A fallback here puts a
+// grey studio portrait back in front of the video model, which is exactly the
+// contamination this whole system exists to replace.
 check(
-  "an unphotographed scene falls back to its reference images",
-  renderAttachments({ shotBoard: { scenes: {} }, sceneImages: { 0: [{ path: "a", url: "b" }] } }, 0).length === 1
+  "an unphotographed scene attaches NOTHING — no fallback to reference images",
+  renderAttachments(
+    { shotBoard: { scenes: {} }, sceneImages: { 0: [{ name: "char sheet", path: "a", url: "b" }] } },
+    0
+  ).length === 0
+);
+check(
+  "and neither does a scene whose stills all failed",
+  renderAttachments(
+    {
+      shotBoard: { scenes: { 0: { shots: [{ order: 0, time: "0.0–10.0s", label: "Wide" }] } } },
+      sceneImages: { 0: [{ name: "char sheet", path: "a", url: "b" }] },
+    },
+    0
+  ).length === 0
 );
 check("a film with no board at all still renders", renderAttachments({}, 0).length === 0);
 

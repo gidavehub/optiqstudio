@@ -74,17 +74,11 @@ export default function SceneShotBoard({ setups, aspect, busy, status, onPhotogr
       </div>
 
       {setups.length === 0 ? (
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] text-ink-3">{busy ? status : "This scene hasn't been photographed."}</span>
-          <button
-            onClick={() => onPhotograph(false)}
-            disabled={busy}
-            className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            <Camera size={11} />
-            Photograph this scene
-          </button>
-        </div>
+        // No call to action here. The board builds itself behind every film, so
+        // an empty strip means "not yet", not "you forgot to press something" —
+        // and a button that says otherwise makes the automatic path look broken.
+        // The one manual trigger a film ever needs is the film-wide bar above.
+        <p className="mt-2.5 text-[11px] text-ink-3">{busy ? status : "Not photographed yet."}</p>
       ) : (
         <>
           <div className="mt-2.5 flex gap-2 overflow-x-auto scrollbar-none">
