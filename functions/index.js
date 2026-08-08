@@ -621,11 +621,6 @@ async function vertexFetch(path, body) {
   let url;
   if (
     path.includes("gemini-3.1-flash-image") ||
-    // Nano Banana 2 Pro, the shot board's optional upgrade for prop plates whose
-    // whole job is legible text (see SHOT_FRAME_MODEL). Same global endpoint as
-    // every other image model — routed here so setting the env var cannot
-    // silently send it to us-east4, where it 404s.
-    path.includes("gemini-3-pro-image") ||
     path.includes("gemini-omni-flash-preview") ||
     path.includes("gemini-3.5-flash") ||
     path.includes("gemini-3.1-flash-tts-preview") // Gemini 3.1 Flash TTS: serves at global, 404s at us-east4
@@ -2120,52 +2115,16 @@ exports.storyboardGenerate = onDocumentCreated(
         theEnding: storyboard.theEnding ?? null,
         musicSpec: storyboard.musicSpec ?? null,
         ambienceSpec: storyboard.ambienceSpec ?? null,
-        // The world locks (sets, objects, product anchors) the swarm committed
-        // to. Kept so the shot board photographs the film the script already
-        // describes instead of inventing a second version of it.
-        consistencyRegistry: storyboard.consistencyRegistry ?? null,
         videoStatus,
         sceneImages,
         pipelineStage: "ready",
         pipelineError: null,
         pipelineProgress: null,
-        // The board is built by its own job, behind this one — see exports.shotBoard.
-        // `shotBoardStartedAt` is the escape hatch: an auto-produced film waits
-        // for its board before it renders, so a job that never fires (a failed
-        // enqueue, a bad deploy) would otherwise hold the film forever. The
-        // client ignores a working stage older than one pass's ceiling. Same
-        // deal as agentStartedAt.
-        shotBoardStage: "queued",
-        shotBoardStartedAt: new Date().toISOString(),
-        shotBoardError: null,
         updatedAt: new Date().toISOString(),
       }));
 
       await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
       console.log(`[storyboard ${job.projectId}] ready (${storyboard.scenes.length} scenes)`);
-
-      // ── Photograph the film ────────────────────────────────────────────────
-      // Enqueued here rather than by the client so it happens for every film,
-      // whether or not anyone is still watching the tab. Best-effort: if this
-      // write fails the storyboard is still ready and the director can build the
-      // board by hand from the script editor.
-      await db
-        .collection("shotBoardJobs")
-        .add({
-          uid: job.uid,
-          projectId: job.projectId,
-          status: "queued",
-          createdAt: new Date().toISOString(),
-        })
-        .catch(async (e) => {
-          console.error(`[storyboard ${job.projectId}] could not enqueue the shot board:`, e.message);
-          // Leaving the stage on "queued" would hold an auto-produced film at
-          // the door for a job that is never coming. A terminal stage lets it
-          // render exactly as it did before the board existed.
-          await projectRef
-            .update({ shotBoardStage: "failed", shotBoardError: "Could not start photographing this film" })
-            .catch(() => {});
-        });
     } catch (err) {
       console.error(`[storyboard ${job.projectId}] generation failed:`, err);
       await projectRef
@@ -2193,28 +2152,13 @@ exports.storyRevise = onRequest(
       } = req.body;
       if (!scenePrompt || !revisionRequest) return res.status(400).json({ error: "Missing prompt or request" });
 
-      // A revision must not lose the scene's shot board.
-      //
-      // The reviser re-compiles the whole prompt from scratch, so it would
-      // silently drop the block that tells the video model what the attached
-      // frames ARE — leaving the frames attached to the render with nothing
-      // explaining them, which is worse than not having them. The block is
-      // lifted off before the reviser sees it (it is a spec, not prose, and it
-      // is not the reviser's to rewrite) and put back afterwards untouched.
-      // The frames did not change; only the words around them did.
-      const shotBoardBrain = isStoryFilm(videoType)
-        ? require("./optiqStory/shotBoard")
-        : require("./optiqSkills/shotBoard");
-      const shotBoardBlock = shotBoardBrain.extractShotBoardClause(scenePrompt);
-      const bareScenePrompt = shotBoardBrain.stripShotBoardClause(scenePrompt);
-
       // An original story is revised by its own reviser, which knows there is
       // nothing to sell and refuses to write a brand back in. Every other kind
       // of film goes through the ad swarm's reviser, unchanged.
-      const revised = isStoryFilm(videoType)
+      const revisedPrompt = isStoryFilm(videoType)
         ? await reviseStoryScene({
             vertexFetch,
-            scenePrompt: bareScenePrompt,
+            scenePrompt,
             revisionRequest,
             characterLock,
             styleHeader,
@@ -2224,7 +2168,7 @@ exports.storyRevise = onRequest(
           })
         : await reviseScene({
             vertexFetch,
-            scenePrompt: bareScenePrompt,
+            scenePrompt,
             revisionRequest,
             characterLock,
             styleHeader,
@@ -2233,7 +2177,6 @@ exports.storyRevise = onRequest(
             musicSpec,
             videoType,
           });
-      const revisedPrompt = shotBoardBrain.restoreShotBoardClause(revised, shotBoardBlock);
       return res.status(200).json({ revisedPrompt });
     } catch (err) {
       console.error("storyRevise error:", err);
@@ -2432,15 +2375,6 @@ exports.storylineAgent = onDocumentCreated(
           if (usedPrepaid) cost = 0;
           else await chargeCredits(job.uid, cost, `Video clip (${duration}s, from the agent)`);
 
-          // The same stills the script editor's render button attaches: this
-          // scene's shot-board frames, or its reference images when it has no
-          // frames. The agent used to render with nothing attached at all, which
-          // quietly made every clip it shot less consistent than the identical
-          // clip shot from the editor.
-          const attachments = require("./shotBoardRun")
-            .renderAttachments(project, sceneIndex)
-            .filter((img) => img.path);
-
           const genRef = db.collection("generations").doc();
           await genRef.set({
             uid: job.uid,
@@ -2451,13 +2385,6 @@ exports.storylineAgent = onDocumentCreated(
             cost,
             durationSeconds: duration,
             aspectRatio: project.aspectRatio || "16:9",
-            // `shared` keeps the generation-delete sweep away from files that
-            // live on the project rather than on this generation.
-            images: attachments.map((img) => ({
-              path: img.path,
-              mimeType: img.mimeType || "image/png",
-              shared: true,
-            })),
             // Lets processVideoGeneration hand the allowance back if the render
             // fails, so a failure never quietly costs a paid-for scene.
             prepaidProjectId: usedPrepaid ? job.projectId : null,
@@ -2477,31 +2404,6 @@ exports.storylineAgent = onDocumentCreated(
           await projectRef.update({ videoStatus, updatedAt: new Date().toISOString() });
 
           return { id: genRef.id, cost, usedPrepaid };
-        },
-
-        /**
-         * Photograph the film, or re-photograph part of it.
-         *
-         * `sceneIndexes` empty means the whole film. `keepDesign` re-shoots the
-         * existing setups without re-cutting them — which is what a director
-         * means by "try that frame again", as opposed to "cut it differently".
-         */
-        buildShotBoard: async (sceneIndexes, keepDesign) => {
-          await projectRef.update({
-            shotBoardStage: "queued",
-            // See the note in storyboardGenerate: this is what stops a job that
-            // never fires from holding an auto-produced film at the door.
-            shotBoardStartedAt: new Date().toISOString(),
-            shotBoardError: null,
-            updatedAt: new Date().toISOString(),
-          });
-          await db.collection("shotBoardJobs").add({
-            uid: job.uid,
-            projectId: job.projectId,
-            scope: sceneIndexes?.length ? { scenes: sceneIndexes, keepDesign: !!keepDesign } : null,
-            status: "queued",
-            createdAt: new Date().toISOString(),
-          });
         },
 
         /** Re-run audio post-production, optionally steering the new score. */
@@ -3052,302 +2954,6 @@ exports.audioPost = onDocumentCreated(
           audioStage: "failed",
           audioError: err.message || "Audio post-production failed",
           audioProgress: null,
-          updatedAt: new Date().toISOString(),
-        })
-        .catch(() => {});
-      await jobRef
-        .update({ status: "failed", error: err.message || "failed", finishedAt: new Date().toISOString() })
-        .catch(() => {});
-    }
-  }
-);
-
-// ─── THE SHOT BOARD ──────────────────────────────────────────────────────────
-//
-// Photographs a film before it is filmed: a set plate for every location, a prop
-// plate for every object that must not change, and one frame per camera setup
-// inside every scene. Those frames then ride along with the scene's video render
-// as the clip's own frames. See functions/shotBoardRun.js for the machinery and
-// optiqSkills/shotBoard.js for the doctrine.
-//
-// Enqueued automatically at the end of storyboardGenerate, and by hand from the
-// script editor for films that pre-date it.
-//
-// SELF-CONTINUING. An 18-scene film is now well over a hundred pictures against
-// an 8/minute image quota, which does not fit in one 540s invocation. So the run
-// takes a soft deadline, stops cleanly when it reaches it, and enqueues its own
-// continuation — which reuses every plate and frame already made and only builds
-// what is missing. `attempt` is the loop guard: past this many passes something
-// is wrong and looping further only spends money.
-//
-// Raised from four when the board grew its hierarchy. The pictures per film went
-// up (settings, states and end frames are all new tiers) and the per-picture time
-// went up with the pro image model, so a long film that used to finish in three
-// passes now wants six.
-const SHOT_BOARD_MAX_ATTEMPTS = 6;
-
-/**
- * Which image model photographs the film.
- *
- * `gemini-3-pro-image` (Nano Banana 2 Pro), and the reason is legibility. The
- * flash tier garbles readable text on a document or a phone screen, which is half
- * of what an object plate is FOR — a letter whose letterhead is nearly right in
- * every shot is exactly the continuity error this whole system exists to kill.
- *
- * Verified on this project with scripts/probe-nano-banana-2.mjs: it renders at
- * the global endpoint (same route as the flash tier — see vertexFetch), holds a
- * correct letterhead and figure on a document plate, and correctly composites a
- * character sheet plus a set plate plus a prop plate into one frame in the film's
- * aspect ratio. It is roughly 25–40s a picture against the flash tier's ~15s,
- * which is what SHOT_BOARD_MAX_ATTEMPTS above absorbs.
- */
-const SHOT_FRAME_MODEL = process.env.SHOT_FRAME_MODEL || "gemini-3-pro-image";
-
-exports.shotBoard = onDocumentCreated(
-  { document: "shotBoardJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 5 },
-  async (event) => {
-    const snap = event.data;
-    if (!snap) return;
-    const job = snap.data();
-    if (!job || !job.projectId || !job.uid) return;
-
-    const jobRef = snap.ref;
-    const projectRef = db.collection("projects").doc(job.projectId);
-    const attempt = Number(job.attempt) || 1;
-
-    const claimed = await db.runTransaction(async (tx) => {
-      const d = await tx.get(jobRef);
-      if (d.exists && (d.data().status || "queued") === "queued") {
-        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
-        return true;
-      }
-      return false;
-    });
-    if (!claimed) {
-      console.log(`[shotboard ${job.projectId}] job not queued, skipping`);
-      return;
-    }
-
-    const setStage = async (stage, extra = {}) => {
-      await projectRef
-        .update({ shotBoardStage: stage, shotBoardError: null, updatedAt: new Date().toISOString(), ...extra })
-        .catch(() => {});
-    };
-
-    // Re-stamped on every pass, not just the first, so the client's staleness
-    // ceiling only ever has to cover ONE invocation — a long film that takes
-    // four passes must not look stranded three passes in.
-    await setStage("designing", { shotBoardStartedAt: new Date().toISOString() });
-
-    try {
-      const psnap = await projectRef.get();
-      if (!psnap.exists) throw new Error("Project not found");
-      const project = { id: job.projectId, ...psnap.data() };
-      if (project.uid !== job.uid) throw new Error("Not your project");
-      if (!project.scenes?.length) throw new Error("This film has no scenes yet");
-
-      // Each box brings its own prompts; the runner brings none. Same split as
-      // audio post — see the note on the two swarms above.
-      const brain = isStoryFilm(project.videoType)
-        ? require("./optiqStory/shotBoard")
-        : require("./optiqSkills/shotBoard");
-      const { runShotBoard } = require("./shotBoardRun");
-
-      // Leave two minutes of the invocation for the writes below plus whatever
-      // image call is in flight when the deadline lands.
-      const deadlineAt = Date.now() + 7 * 60 * 1000;
-
-      /**
-       * One picture from the image model.
-       *
-       * The error it throws carries WHY, and that matters more than it looks:
-       * the runner classifies transient failures (wait and ask again) apart from
-       * refusals (rewrite the prompt, then ask again), and it can only tell them
-       * apart from what is in this message. A bare "no image" would send every
-       * refusal into a retry loop that asks the same forbidden question four
-       * times and pays for it each time.
-       */
-      const generateImage = async (prompt, { aspectRatio, images } = {}) => {
-        const parts = [];
-        for (const image of images || []) {
-          if (image?.base64) {
-            parts.push({ inlineData: { mimeType: image.mimeType || "image/png", data: image.base64 } });
-          }
-        }
-        parts.push({ text: prompt });
-        const response = await vertexFetch(`/publishers/google/models/${SHOT_FRAME_MODEL}:generateContent`, {
-          contents: [{ role: "user", parts }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-            // Frames, place plates and arrangement plates are shot in the film's
-            // own shape — they become video frames, and a 3:4 still handed to a
-            // 16:9 render is an instruction to letterbox. Object plates ask 1:1.
-            imageConfig: { aspectRatio: aspectRatio || project.aspectRatio || "16:9" },
-          },
-        });
-        const candidate = response.candidates?.[0];
-        const part = candidate?.content?.parts?.find((p) => p.inlineData);
-        if (!part?.inlineData?.data) {
-          const finish = candidate?.finishReason || "none";
-          const block = response.promptFeedback?.blockReason || "";
-          const blockedRatings = (candidate?.safetyRatings || [])
-            .filter((r) => r.blocked)
-            .map((r) => r.category)
-            .join(", ");
-          // Any text the model returned instead of a picture is usually its own
-          // account of why it declined, and it is the most useful thing there is
-          // for the rewrite pass.
-          const said = (candidate?.content?.parts || [])
-            .map((p) => p.text || "")
-            .join(" ")
-            .trim()
-            .slice(0, 300);
-          throw new Error(
-            `the image model returned no image (finishReason=${finish}` +
-              `${block ? `, blockReason=${block}` : ""}` +
-              `${blockedRatings ? `, blocked=${blockedRatings}` : ""})` +
-              `${said ? ` — it said: ${said}` : ""}`
-          );
-        }
-        return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
-      };
-
-      const report = await runShotBoard({
-        vertexFetch,
-        brain,
-        project,
-        projectId: job.projectId,
-        uid: job.uid,
-        // Set by a targeted re-roll from the script editor or the agent:
-        // { scenes: [0-based], keepDesign: true } re-photographs those scenes
-        // without re-cutting them.
-        scope: job.scope || null,
-        deadlineAt,
-        onStage: (stage, meta) => setStage(stage, meta ? { shotBoardProgress: meta } : {}),
-
-        // Every Vertex media call in this project lives in this file, so the
-        // runner is handed the four it needs rather than reaching for them.
-        generateImage,
-        storeImage: async (path, base64, mimeType) => ({
-          path,
-          url: await uploadBase64(base64, path, mimeType),
-        }),
-        loadImage: (path) => downloadInputMedia(path),
-
-        // Re-takes a character sheet whose stored file has gone missing. The
-        // prompt belongs to the sandbox, not to the runner, so it is closed over
-        // here — same split as `brain`.
-        regenerateCharacterRef: async (ref) => {
-          const refBrain = isStoryFilm(project.videoType)
-            ? require("./optiqStory/characterRefs")
-            : require("./optiqSkills/characterRefs");
-          const image = await generateImage(refBrain.characterRefPrompt(ref), { aspectRatio: "3:4" });
-          const ext = String(image.mimeType).includes("jpeg") ? "jpg" : "png";
-          // A fresh path, never the old one: Storage caches generated media
-          // immutably, so re-using the missing file's path can serve the miss.
-          const path = `users/${job.uid}/projects/${job.projectId}/characters/${
-            ref.id || "char"
-          }-${Date.now().toString(36)}.${ext}`;
-          const url = await uploadBase64(image.base64, path, image.mimeType);
-          return { path, url, base64: image.base64, mimeType: image.mimeType };
-        },
-      });
-
-      // Re-read before writing. The board takes minutes, and in that time the
-      // agent or the director may have rewritten a scene — so the clause is
-      // appended to the prompt as it is NOW, not as it was when the run started.
-      // applyShotBoardClause strips any previous block first, so this is safe to
-      // run over a scene that already carries one.
-      const fresh = await projectRef.get();
-      const currentScenes = fresh.get("scenes") || project.scenes;
-      const scenes = currentScenes.map((scene, idx) => {
-        const entry = report.scenes[idx];
-        const frames = (entry?.shots || [])
-          .filter((s) => s.url)
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        if (frames.length === 0) return scene;
-
-        // Both prompts carry the board block, and both need it. The long prompt
-        // is the fallback whenever the short one is missing or has been cleared
-        // by a revision, and a fallback that renders with frames attached and
-        // nothing explaining them is worse than no frames at all.
-        const next = { ...scene, fullPrompt: brain.applyShotBoardClause(scene.fullPrompt, frames) };
-
-        // The short prompt a photographed scene actually renders from. Absent
-        // when the compressor could not write one that kept every line of
-        // dialogue — in which case the scene keeps rendering from the long one,
-        // which is correct, just longer-winded.
-        const framed = entry?.framedPrompt || "";
-        next.framedPrompt = framed ? brain.applyShotBoardClause(framed, frames) : "";
-        return next;
-      });
-
-      const more = !report.done && attempt < SHOT_BOARD_MAX_ATTEMPTS;
-
-      await projectRef.update(
-        stripUndefined({
-          scenes,
-          shotBoard: {
-            // The world bible: the places, the arrangements inside them, the
-            // objects, and every state each of those passes through. This is
-            // what a continuation pass reuses instead of re-deciding, so it is
-            // stored whole rather than summarised.
-            world: report.world,
-            // Every photograph, flat, keyed by (tier, thing, state). The tiers
-            // are ordered by dependency in shotBoardRun.js, not here.
-            plates: report.plates,
-            scenes: report.scenes,
-            violations: report.violations,
-            notes: report.notes,
-            // What the run repaired on its own — a refused prompt it rewrote, a
-            // stored picture it found missing and re-took. Kept because a
-            // pipeline that silently heals itself is one nobody can debug.
-            healed: report.healed,
-            builtAt: report.builtAt,
-          },
-          // Only present when a character sheet had gone missing and was
-          // re-taken; the runner does not write the project, so this is where the
-          // mended paths land.
-          ...(report.characterRefs ? { characterRefs: report.characterRefs } : {}),
-          // "partial" is an honest terminal state: some scenes are photographed
-          // and the rest render from their prompts, exactly as they always did.
-          shotBoardStage: report.done ? "ready" : more ? "framing" : "partial",
-          shotBoardError: null,
-          shotBoardProgress: report.done || !more ? null : { queuedForContinuation: report.remaining.length },
-          // Server-owned counter, like scriptRevision: the client adopts the
-          // rewritten scene prompts when this moves.
-          scriptRevision: admin.firestore.FieldValue.increment(1),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
-      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
-      const plateCount = (tier) => report.plates.filter((p) => p.tier === tier).length;
-      console.log(
-        `[shotboard ${job.projectId}] pass ${attempt}: ${report.framesRendered} frame(s), ` +
-          `${plateCount("environment") + plateCount("environment-reverse")} place plate(s), ` +
-          `${plateCount("setting")} arrangement plate(s), ${plateCount("object")} object plate(s), ` +
-          `${Object.keys(report.framedPrompts).length} short prompt(s), ` +
-          `${report.remaining.length} scene(s) left`
-      );
-
-      if (more) {
-        await db.collection("shotBoardJobs").add({
-          uid: job.uid,
-          projectId: job.projectId,
-          attempt: attempt + 1,
-          scope: report.remaining.length ? { scenes: report.remaining } : null,
-          status: "queued",
-          createdAt: new Date().toISOString(),
-        });
-      }
-    } catch (err) {
-      console.error(`[shotboard ${job.projectId}] failed:`, err);
-      await projectRef
-        .update({
-          shotBoardStage: "failed",
-          shotBoardError: err.message || "Could not photograph this film",
-          shotBoardProgress: null,
           updatedAt: new Date().toISOString(),
         })
         .catch(() => {});

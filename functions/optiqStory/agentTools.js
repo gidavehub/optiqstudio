@@ -723,154 +723,6 @@ Everything else in the prompt stays as it is. Recompile in the canonical block o
   },
 
   {
-    name: "photograph_scenes",
-    label: (a) =>
-      a?.sceneNumbers?.length ? `Photographing scene ${a.sceneNumbers.join(", ")}` : "Photographing the film",
-    description:
-      "Build or rebuild the film's SHOT BOARD: a still of every location, a still of every object that must not change, and one photographed frame for every camera setup inside a scene. Those frames are then attached to the scene's render as the clip's own frames, which is what keeps the room, the seating, the props and the angles identical from one clip to the next. Call this when the director complains that scenes don't match, that a car's driver and passenger have swapped, that a document or a phone screen changed between shots, or when they ask to see the storyboard as pictures. Also call it after rewriting a scene, so its frames match what the scene now says. Runs in the background and takes a few minutes; frames appear in the script editor as they land.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        sceneNumbers: {
-          type: "ARRAY",
-          items: { type: "INTEGER" },
-          description:
-            "Which scenes to photograph, by their scene NUMBER as shown in the script. Leave empty to photograph every scene that has no frames yet.",
-        },
-        keepDesign: {
-          type: "BOOLEAN",
-          description:
-            "True to re-shoot the existing camera setups without re-cutting them — what a director means by 'try that frame again'. False (the default) re-decides how the scene is covered, which is what they mean by 'cut it differently'.",
-        },
-      },
-    },
-    run: async (args, ctx) => {
-      if (!ctx.buildShotBoard) {
-        return { error: "Photographing isn't available in this context." };
-      }
-      const scenes = ctx.project.scenes || [];
-      if (scenes.length === 0) {
-        return { error: "This film has no scenes to photograph yet." };
-      }
-      const stage = ctx.project.shotBoardStage;
-      if (stage && !["ready", "failed", "partial"].includes(stage)) {
-        return { note: "The film is already being photographed. Nothing started." };
-      }
-
-      // Scene NUMBERS are what the director and the script talk in; the board is
-      // keyed by index. Translating here rather than at the tool boundary keeps
-      // the off-by-one in exactly one place.
-      const indexes = (args.sceneNumbers || [])
-        .map((n) => scenes.findIndex((s, i) => Number(s.sceneNumber ?? i + 1) === Number(n)))
-        .filter((i) => i >= 0);
-      if ((args.sceneNumbers || []).length > 0 && indexes.length === 0) {
-        return { error: `No scene matches ${(args.sceneNumbers || []).join(", ")}.` };
-      }
-
-      try {
-        await ctx.buildShotBoard(indexes, !!args.keepDesign);
-        return {
-          started: true,
-          scenes: indexes.length ? args.sceneNumbers : "every scene that isn't photographed yet",
-          note:
-            "Photographing now, in the background. Locations and objects are shot first, then every camera setup. A long film takes a few passes and the frames appear in the script editor as they land.",
-        };
-      } catch (err) {
-        return { error: String(err?.message || err).slice(0, 300) };
-      }
-    },
-  },
-
-  {
-    name: "get_shot_board",
-    label: () => "Reading the shot board",
-    description:
-      "Read what has been photographed for this film. The board is a hierarchy: PLACES with their fixed geometry (which side the steering wheel is on, what is through which opening), the dressed ARRANGEMENTS inside them with the exact layout of what sits where and who is placed where, the OBJECTS that have reference stills, the STATES each of those passes through as the film changes them, and the camera setups photographed for each scene with their timings. Call this before answering anything about angles, coverage, places, where an object sits, or why two scenes don't match — never guess at it.",
-    parameters: { type: "OBJECT", properties: {} },
-    run: async (_args, ctx) => {
-      const board = ctx.project.shotBoard || null;
-      if (!board) {
-        return {
-          stage: ctx.project.shotBoardStage || "never run",
-          note: "This film has not been photographed. photograph_scenes builds the board.",
-        };
-      }
-      const scenes = ctx.project.scenes || [];
-      const plates = board.plates || [];
-
-      // A thing counts as photographed once any state of it has a picture, and
-      // the state list is what tells the agent whether the film CHANGES it —
-      // which is the question behind most "why do these two scenes not match"
-      // complaints the director brings.
-      const photographed = (tier, key) => plates.some((p) => p.tier === tier && p.key === key && p.url);
-      const statesOf = (thing) =>
-        (thing.states || []).map((s) => ({
-          name: s.name,
-          scenes: s.scenes || [],
-          isBase: !!s.isBase,
-          change: s.change || null,
-          photographed: plates.some((p) => p.key === thing.key && p.stateKey === s.key && p.url),
-        }));
-
-      return {
-        stage: ctx.project.shotBoardStage || "unknown",
-        places: (board.world?.environments || []).map((e) => ({
-          name: e.name,
-          scenes: e.scenes,
-          geometry: e.geometry,
-          light: e.light,
-          vehicle: !!e.vehicle,
-          secondAngle: e.needsSecondAngle ? e.secondAngle : null,
-          photographed: photographed("environment", e.key),
-          states: statesOf(e),
-        })),
-        arrangements: (board.world?.settings || []).map((s) => ({
-          name: s.name,
-          inPlace: s.environmentKey,
-          scenes: s.scenes,
-          layout: s.layout,
-          whoGoesWhere: s.seating || null,
-          photographed: photographed("setting", s.key),
-          states: statesOf(s),
-        })),
-        objects: (board.world?.objects || []).map((o) => ({
-          name: o.name,
-          kind: o.kind,
-          scenes: o.scenes,
-          detail: o.detail || null,
-          photographed: photographed("object", o.key),
-          states: statesOf(o),
-        })),
-        scenes: scenes.map((scene, idx) => {
-          const entry = board.scenes?.[idx] ?? board.scenes?.[String(idx)] ?? null;
-          return {
-            sceneNumber: Number(scene.sceneNumber ?? idx + 1),
-            coverage: entry?.coverage || null,
-            rendersFrom: entry?.framedPrompt ? "the short shooting brief" : "the full scene prompt",
-            setups: (entry?.shots || []).map((s) => ({
-              time: s.time,
-              label: s.label,
-              camera: s.camera,
-              cameraMove: s.cameraMove || "locked",
-              blocking: s.blocking,
-              looksAtArrangement: s.settingKey || null,
-              entry: s.entry,
-              photographed: !!s.url,
-              endFramePhotographed: !!s.end?.url,
-            })),
-          };
-        }),
-        problems: [...(board.violations || []), ...(board.notes || [])],
-        // What the run fixed by itself — a prompt the image model refused and
-        // the pipeline rewrote, or a stored picture it found missing and re-took.
-        // Worth reading before answering "why does this scene look different".
-        selfRepaired: board.healed || [],
-        builtAt: board.builtAt || null,
-      };
-    },
-  },
-
-  {
     name: "get_audio",
     label: () => "Checking the film's audio",
     description:
@@ -925,12 +777,9 @@ const WRITE_TOOLS = new Set([
   "update_direction",
   "propagate_locks",
   // Not script writes, but they change the deliverable and cost real money, so
-  // the work log must flag them the same way. photograph_scenes is here because
-  // it rewrites every photographed scene's prompt as well as spending image
-  // quota — the director should see it in the log as work done to their film.
+  // the work log must flag them the same way.
   "render_scene",
   "rescore_film",
-  "photograph_scenes",
 ]);
 
 async function callTool(name, args, ctx) {
