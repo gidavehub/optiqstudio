@@ -9,14 +9,28 @@
  * scripts/probe-omni-interactions.mjs).
  */
 
-const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
 const { withSdkRetry } = require("./vertexQuota");
 
 const PROJECT_ID = process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "davelabs-tools";
 const MODEL = "gemini-omni-flash-preview";
 
-const ai = new GoogleGenAI({ vertexai: true, project: PROJECT_ID, location: "global" });
+// The SDK client is built on first use rather than at require time. Constructing
+// it eagerly runs Google's auth discovery during module load, which is on the
+// cold-start path of every function in this file's require graph — including the
+// ones that never generate a video.
+//
+// `admin` and `withSdkRetry` above must stay at the top: both are used inside
+// generateOmniVideo, and lazy-loading only the GenAI client once left them
+// undefined, which threw `ReferenceError: admin is not defined` on every render.
+let _ai = null;
+function getAi() {
+  if (!_ai) {
+    const { GoogleGenAI } = require("@google/genai");
+    _ai = new GoogleGenAI({ vertexai: true, project: PROJECT_ID, location: "global" });
+  }
+  return _ai;
+}
 
 const POLL_INTERVAL_MS = 5000;
 // processVideoGeneration runs with timeoutSeconds: 540 — leave headroom to
@@ -71,7 +85,7 @@ async function generateOmniVideo(prompt, media) {
     db,
     model: MODEL,
     fn: () =>
-      ai.interactions.create({
+      getAi().interactions.create({
         model: MODEL,
         input: buildInput(prompt, media),
         background: true,
@@ -93,7 +107,7 @@ async function generateOmniVideo(prompt, media) {
     // (db omitted) — just a light retry so a blip doesn't kill an in-flight job.
     current = await withSdkRetry({
       model: MODEL,
-      fn: () => ai.interactions.get(interaction.id),
+      fn: () => getAi().interactions.get(interaction.id),
       maxAttempts: 3,
       maxTotalWaitMs: 20000,
     });
