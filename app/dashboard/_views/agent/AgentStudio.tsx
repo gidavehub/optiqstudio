@@ -43,7 +43,7 @@ const SUGGESTIONS = [
 
 export default function AgentStudio() {
   const {
-    storyboard, activeProjectId, projects, projectsLoading, videoStatus,
+    storyboard, activeProjectId, projectLink, projects, projectsLoading, videoStatus,
     setProductionMode, goHome,
   } = useEditorFlow();
   const { user, apiFetch } = useAuth();
@@ -94,11 +94,11 @@ export default function AgentStudio() {
   // so leaving here means setting the mode and navigating in one go.
   const goToScript = () => {
     setProductionMode("manual");
-    router.push(`/dashboard/project/${activeProjectId}`);
+    router.push(projectLink());
   };
   const goToTimeline = () => {
     setProductionMode("auto-merge");
-    router.push(`/dashboard/project/${activeProjectId}`);
+    router.push(projectLink());
   };
 
   // Reference stills staged for the next message. Read as base64 up front, the

@@ -61,6 +61,7 @@ export default function BlueprintStage() {
     storyboard,
     projects,
     activeProjectId,
+    projectLink,
     aspectRatio,
     length,
     continueToBoard,
@@ -107,7 +108,7 @@ export default function BlueprintStage() {
     setStarting(true);
     try {
       await continueToBoard();
-      router.push(`/dashboard/project/${activeProjectId}/board`);
+      router.push(projectLink("board"));
     } finally {
       setStarting(false);
     }
@@ -339,7 +340,7 @@ export default function BlueprintStage() {
       <div className="fixed inset-x-0 bottom-0 border-t border-line bg-background/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
           <button
-            onClick={() => router.push(`/dashboard/project/${activeProjectId}/agent`)}
+            onClick={() => router.push(projectLink("agent"))}
             className="flex items-center gap-1.5 rounded-2xl border border-line px-4 py-2.5 text-xs font-bold transition-colors hover:border-line-2"
           >
             <MessageSquare size={12} /> Change something
@@ -352,7 +353,7 @@ export default function BlueprintStage() {
           </div>
 
           <button
-            onClick={boardStarted ? () => router.push(`/dashboard/project/${activeProjectId}/board`) : onContinue}
+            onClick={boardStarted ? () => router.push(projectLink("board")) : onContinue}
             disabled={starting || shotBoardBusy || scenes.length === 0}
             className="flex items-center gap-1.5 rounded-2xl bg-foreground px-5 py-2.5 text-xs font-bold text-background transition-all hover:bg-ink-2 disabled:opacity-40"
           >

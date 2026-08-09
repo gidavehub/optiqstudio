@@ -675,6 +675,36 @@ export function isExperimentalStory(id?: VideoTypeId | string | null): boolean {
   return id === "short-film-story-x";
 }
 
+/** The faces a project can be opened on. "" is the workspace itself. */
+export type ProjectFace = "" | "agent" | "board";
+
+/**
+ * Where a project lives.
+ *
+ * The experimental story has its OWN route tree — /dashboard/project/story/[id]
+ * rather than /dashboard/project/[id] — because it is not the same product. It
+ * runs in three gated stages, it renders from photographs instead of reference
+ * images, and it is the only type with a board. Bending one workspace to serve
+ * both meant every tweak to either had to be checked against the other; a
+ * separate tree means the story screens can be cut to the story without asking
+ * permission from the ad screens.
+ *
+ * ONE function decides it, because a link that guesses wrong lands the director
+ * on a workspace built for a different kind of film — and the two trees render
+ * different components off the same project id, so it fails confusingly rather
+ * than loudly.
+ */
+export function projectHref(
+  videoType: VideoTypeId | string | null | undefined,
+  id: string,
+  face: ProjectFace = ""
+): string {
+  const base = isExperimentalStory(videoType)
+    ? `/dashboard/project/story/${id}`
+    : `/dashboard/project/${id}`;
+  return face ? `${base}/${face}` : base;
+}
+
 /**
  * The four things a short film can be, in the order they are shown.
  *

@@ -69,6 +69,7 @@ export default function BoardShots() {
     continueToFilm,
     setProductionMode,
     activeProjectId,
+    projectLink,
     aspectRatio,
   } = useEditorFlow();
 
@@ -257,17 +258,17 @@ export default function BoardShots() {
 
   const goToScript = () => {
     setProductionMode("manual");
-    router.push(`/dashboard/project/${activeProjectId}`);
+    router.push(projectLink());
   };
   const goToTimeline = () => {
     setProductionMode("auto-merge");
-    router.push(`/dashboard/project/${activeProjectId}`);
+    router.push(projectLink());
   };
 
   /** Gate 2. Release the render pass, then follow it to the workspace. */
   const shootTheFilm = async () => {
     await continueToFilm();
-    router.push(`/dashboard/project/${activeProjectId}`);
+    router.push(projectLink());
   };
 
   const thumb = (still: Still, square: boolean | undefined, key: string) => (
@@ -298,7 +299,7 @@ export default function BoardShots() {
 
         <div className="flex shrink-0 items-center gap-1 border-l border-surface-2 pl-1.5 sm:pl-2.5">
           <button
-            onClick={() => router.push(`/dashboard/project/${activeProjectId}/agent`)}
+            onClick={() => router.push(projectLink("agent"))}
             title="Optiq Agent"
             aria-label="Optiq Agent"
             className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent-ink active:scale-95 sm:px-2.5"

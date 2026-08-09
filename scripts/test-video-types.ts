@@ -23,6 +23,7 @@ import {
   defaultLengthFor,
   isShortFilm,
   lengthSeconds,
+  projectHref,
   scenesForLength,
   videoType,
   formatRunTime,
@@ -458,6 +459,38 @@ test("only the experimental box has a shot board, and it is the long-form one", 
       );
     }
   }
+});
+
+test("each film type is routed to its own workspace tree", () => {
+  // The board, blueprint and agent screens are shared by both trees, so a link
+  // that guesses wrong lands the director on a workspace built for a different
+  // kind of film — and because both trees render off the same project id, it
+  // fails confusingly rather than loudly. projectHref is the only thing that
+  // decides, so this is the only place it has to be right.
+  assert(
+    projectHref("short-film-story-x", "abc") === "/dashboard/project/story/abc",
+    `experimental story went to ${projectHref("short-film-story-x", "abc")}`
+  );
+  assert(
+    projectHref("short-film-story-x", "abc", "board") === "/dashboard/project/story/abc/board",
+    "the board must stay inside the story tree"
+  );
+  assert(
+    projectHref("short-film-story-x", "abc", "agent") === "/dashboard/project/story/abc/agent",
+    "the agent must stay inside the story tree"
+  );
+  // Every OTHER type keeps the tree it has always had. An ad quietly moved to
+  // /project/story would render a workspace with no reference-image tray.
+  for (const type of VIDEO_TYPES) {
+    if (type.id === "short-film-story-x") continue;
+    assert(
+      projectHref(type.id, "abc") === "/dashboard/project/abc",
+      `${type.id} must stay on the original tree, got ${projectHref(type.id, "abc")}`
+    );
+  }
+  // A project doc written before this type existed carries no videoType at all.
+  assert(projectHref(null, "abc") === "/dashboard/project/abc", "an unknown type falls back to the ad tree");
+  assert(projectHref(undefined, "abc") === "/dashboard/project/abc", "a missing type falls back to the ad tree");
 });
 
 test("the experimental story's render prompt carries no appearance", () => {

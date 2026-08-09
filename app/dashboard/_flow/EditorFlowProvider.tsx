@@ -47,8 +47,10 @@ import {
   FIRST_WIZARD_STEP,
   DEFAULT_VIDEO_TYPE,
   SHOT_BOARD_WORKING_STAGES,
+  ProjectFace,
   defaultLengthFor,
   isExperimentalStory,
+  projectHref,
   recordTake,
   scenesForLength,
   sceneTakes,
@@ -164,6 +166,17 @@ interface EditorFlowValue {
   continueToBoard: () => Promise<void>;
   /** Gate 2 → stage 3: the board is approved, shoot every scene. */
   continueToFilm: () => Promise<void>;
+  /**
+   * A link to one of the ACTIVE project's faces, in whichever route tree it
+   * belongs to.
+   *
+   * The board, blueprint and agent screens are shared by both trees, so a
+   * hardcoded `/dashboard/project/${id}` in any of them silently throws an
+   * experimental story back onto the ad workspace — which renders, from the same
+   * project id, a screen built for a different kind of film. One helper, so
+   * there is one thing to get right.
+   */
+  projectLink: (face?: ProjectFace) => string;
 
   // Handlers
   startSpeechRecognition: (target?: DictationTarget) => void;
@@ -399,7 +412,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const openProject = useCallback(
     (proj: any) => {
       loadProjectState(proj);
-      router.push(`/dashboard/project/${proj.id}`);
+      router.push(projectHref(proj.videoType, proj.id));
     },
     [loadProjectState, router]
   );
@@ -1035,7 +1048,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       const projectId = docRef.id;
       setActiveProjectId(projectId);
       setRouteProjectId(projectId);
-      router.push(`/dashboard/project/${projectId}`);
+      router.push(projectHref(videoTypeId, projectId));
 
       // 2. Upload brand materials, then record them on the project.
       const uploadedMaterials = await uploadBrandMaterials(projectId);
@@ -1214,6 +1227,16 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       setError(err instanceof Error ? err.message : "Could not start rendering");
     }
   }, [activeProjectId]);
+
+  const projectLink = useCallback(
+    (face: ProjectFace = "") =>
+      projectHref(
+        (activeProjectDoc?.videoType as VideoTypeId | undefined) ?? videoTypeId,
+        activeProjectId || "",
+        face
+      ),
+    [activeProjectDoc?.videoType, videoTypeId, activeProjectId]
+  );
 
   const requestAudioPost = useCallback(async () => {
     if (!user || !activeProjectId) return;
@@ -1508,7 +1531,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     shotBoard, shotBoardStage, shotBoardProgress, shotBoardError, shotBoardBusy, buildShotBoard,
-    isBoardFilm, continueToBoard, continueToFilm,
+    isBoardFilm, continueToBoard, continueToFilm, projectLink,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,
     generateStoryboard, allScenesRendered, generateVideoForScene, selectSceneTake, reviseScenePrompt,

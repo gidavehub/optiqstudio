@@ -50,7 +50,11 @@ const clampPx = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi,
 const RENDER_STALE_MS = 12 * 60 * 1000;
 
 export default function EditorStudio({ project }: EditorStudioProps) {
-  const { setProductionMode, goHome, audioStage, audioReport, requestAudioPost } = useEditorFlow();
+  // projectLink, not a hardcoded path: this studio is shared by both project
+  // trees, and an experimental story sent to /dashboard/project/[id]/agent lands
+  // on a workspace built for a different kind of film.
+  const { setProductionMode, goHome, audioStage, audioReport, requestAudioPost, projectLink } =
+    useEditorFlow();
   const { apiFetch } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
@@ -394,7 +398,7 @@ export default function EditorStudio({ project }: EditorStudioProps) {
           {/* This editor owns its navigation (the floating WorkspaceModeBar is
               hidden here), so both other faces have to be reachable from it. */}
           <button
-            onClick={() => router.push(`/dashboard/project/${project?.id}/agent`)}
+            onClick={() => router.push(projectLink("agent"))}
             aria-label="Optiq Agent"
             title="Optiq Agent"
             className="flex items-center gap-1.5 rounded-xl bg-surface border border-line px-2.5 sm:px-3 py-1.5 text-[11px] font-semibold hover:bg-surface-2 hover:text-accent-ink active:scale-95 transition-all"
