@@ -446,7 +446,7 @@ exports.sweepRateLimits = onSchedule(
  * Verifies the user ID token and returns the hosted checkout link.
  */
 exports.modemPayCheckout = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60, secrets: [MODEMPAY_API_KEY] },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 60, secrets: [MODEMPAY_API_KEY] },
   async (req, res) => {
     try {
       if (req.method !== "POST") {
@@ -984,7 +984,7 @@ exports.transcribeAudio = onRequest(
 
 exports.enhancePrompt = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1023,7 +1023,7 @@ exports.enhancePrompt = onRequest(
 
 exports.imageGenerate = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1096,7 +1096,7 @@ exports.imageGenerate = onRequest(
 
 exports.voiceGenerate = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1336,7 +1336,7 @@ async function ttsGenerate(text, voiceName, style) {
 
 exports.musicGenerate = onRequest(
   // Longer timeout so a per-minute quota wait can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1392,7 +1392,7 @@ exports.musicGenerate = onRequest(
 );
 
 exports.videoGenerate = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1551,8 +1551,21 @@ async function runVideoGeneration(id, ref, gen) {
 // video doc, so generation happens without any client involvement. Must run in
 // us-central1 because the Firestore database is the nam5 multi-region (Eventarc
 // delivers nam5 Firestore events there); the rest of the API stays in us-east4.
+// MEMORY: 2GiB, raised from 512MiB, and it is not optional.
+//
+// This function holds every reference image for a render in memory as base64,
+// at the same time as the generated video's own base64 coming back. At one or
+// two character sheets that fitted in 512MiB. A PHOTOGRAPHED film attaches up to
+// five board stills per scene (MAX_STILLS_PER_SCENE), which measured 572MiB and
+// killed the instance.
+//
+// The failure mode is the expensive kind and it is why the headroom is generous:
+// the Vertex interaction is created BEFORE the memory peak, so an OOM means the
+// clip was paid for, the instance died, and the generation doc is left at
+// "processing" — which the claim transaction above then refuses to retry. Money
+// spent, no clip, and a scene that spins forever.
 exports.processVideoGeneration = onDocumentCreated(
-  { document: "generations/{id}", region: "us-central1", timeoutSeconds: 540, memory: "512MiB", maxInstances: 10 },
+  { document: "generations/{id}", region: "us-central1", timeoutSeconds: 540, memory: "2GiB", maxInstances: 10 },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -1566,7 +1579,7 @@ exports.processVideoGeneration = onDocumentCreated(
 // longer drives generation (processVideoGeneration does). "processing" is an
 // internal in-flight state surfaced to the client as "generating".
 exports.videoStatus = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       const user = await requireAuth(req);
@@ -1628,7 +1641,7 @@ async function requireApiKey(req) {
 
 exports.apiGenerateImage = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1699,7 +1712,7 @@ exports.apiGenerateImage = onRequest(
 );
 
 exports.apiGenerateVideo = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1751,7 +1764,7 @@ exports.apiGenerateVideo = onRequest(
 // Pure status read for API consumers. Generation is driven server-side by the
 // processVideoGeneration Firestore trigger, so this only reports progress.
 exports.apiGetVideoStatus = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 60 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 60 },
   async (req, res) => {
     try {
       const developer = await requireApiKey(req);
@@ -1784,7 +1797,7 @@ exports.apiGetVideoStatus = onRequest(
 
 exports.apiGenerateTTS = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -1931,7 +1944,7 @@ function filmSandbox(videoType) {
 }
 
 exports.storyGenerate = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "512MiB" },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -2384,7 +2397,7 @@ exports.storyXBlueprint = onDocumentCreated(
 
 exports.storyRevise = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -2794,7 +2807,7 @@ function compileRunCommand(cmd) {
 
 
 exports.projectCompile = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 540, memory: "1GiB" },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 540, memory: "1GiB" },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -2989,7 +3002,7 @@ function renderLocalName(url, index) {
 }
 
 exports.renderJobV2 = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 5, timeoutSeconds: 540, memory: "2GiB", cpu: 2 },
+  { region: "us-east4", cors: true, maxInstances: 2, timeoutSeconds: 540, memory: "2GiB", cpu: 2 },
   async (req, res) => {
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
@@ -3589,7 +3602,7 @@ exports.shotBoard = onDocumentCreated(
 );
 
 exports.mediaProbe = onRequest(
-  { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 120, memory: "1GiB" },
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 120, memory: "1GiB" },
   async (req, res) => {
     const os = require("os");
     const fs = require("fs");
