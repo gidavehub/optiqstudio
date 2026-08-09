@@ -1,19 +1,21 @@
 "use client";
 
 // Video Studio — thin page shell. State, API handlers, and polling live here;
-// the UI panels are split into ./_components. Clicking a project card opens
-// the dedicated detail route /dashboard/video/[id].
+// the frame (island / rail / dock) comes from ../_shell. Clicking a project
+// card opens the dedicated detail route /dashboard/video/[id].
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import SettingsRail from "./_components/SettingsRail";
 import StudioProjectsGrid from "../_shared/StudioProjectsGrid";
-import AspectRatioStrip from "../_shared/AspectRatioStrip";
 import { VIDEO_ASPECTS } from "../_shared/aspectOptions";
-import BottomPromptConsole from "./_components/BottomPromptConsole";
+import StudioShell from "../_shell/StudioShell";
+import StudioDock from "../_shell/StudioDock";
+import DockAttachments, { DockAttachment } from "../_shell/DockAttachments";
+import { RailGroup, RailChoice, RailShapes } from "../_shell/StudioRail";
+import { STUDIO_NAV } from "../_shell/nav";
+import { useDictation } from "../_shared/useDictation";
 import { useGenerationHistory } from "../_shared/useGenerationHistory";
 import { useReusePrompt } from "../_shared/useReusePrompt";
 import { takePromptHandoff } from "../_shared/promptHandoff";
@@ -55,6 +57,9 @@ function VideoWorkspace() {
 
   const pollRefs = useRef<{ [key: string]: ReturnType<typeof setInterval> }>({});
   const reusePrompt = useReusePrompt();
+  // Dictation moved out of the input bar and onto its own dock tile — the mic
+  // is a decision, not a 16px glyph wedged between a paperclip and a wand.
+  const dictation = useDictation(setPrompt);
 
   // The wall. `useGenerationHistory` merges server truth over local state
   // instead of replacing it, so the optimistic card added below survives every
@@ -222,7 +227,7 @@ function VideoWorkspace() {
     try {
       const data = await apiFetch<{ prompt: string }>("/api/enhance", {
         method: "POST",
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, kind: "video" }),
       });
       setPrompt(data.prompt);
     } catch (err) {
@@ -329,100 +334,135 @@ function VideoWorkspace() {
     }, 320);
   };
 
+  // Everything staged for the next shot, in one list the dock can draw.
+  const attachments: DockAttachment[] = [
+    ...images.map((img) => ({ id: img.id, kind: "image" as const, preview: img.preview })),
+    ...(videoFile ? [{ id: "__video__", kind: "video" as const, preview: videoFile.preview }] : []),
+    ...(audioFile ? [{ id: "__audio__", kind: "audio" as const, name: audioFile.name }] : []),
+  ];
+
+  const removeAttachment = (id: string) => {
+    if (id === "__video__") setVideoFile(null);
+    else if (id === "__audio__") setAudioFile(null);
+    else setImages((prev) => prev.filter((i) => i.id !== id));
+  };
+
   return (
-    <div className="flex h-full flex-col sm:flex-row overflow-hidden bg-background text-foreground">
-      {/* Settings & Financial Comparison Rail */}
-      <SettingsRail
-        aspect={aspect}
-        setAspect={setAspect}
-        duration={duration}
-        setDuration={setDuration}
-        perSecondCost={perSecondCost}
-      />
+    <StudioShell
+      navItems={STUDIO_NAV}
+      activeId="video"
+      title="All shots"
+      railLabel="Shot setup"
+      onDropFiles={handleDropFiles}
+      dropHint="Drop stills, clips or a voice reference"
+      rail={
+        <>
+          <RailGroup title="Shape" hint="Where it will be watched">
+            <RailShapes
+              options={VIDEO_ASPECTS}
+              value={aspect}
+              onChange={(v) => setAspect(v as (typeof ASPECTS)[number])}
+            />
+          </RailGroup>
 
-      {/* Main Viewport Stage */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-background relative">
-        {/* Dynamic Canvas Area — only the project wall scrolls */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          {/* Header navigation bar */}
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-line">
-            <div>
-              <span className="text-[10px] tabular-nums font-bold text-muted uppercase tracking-widest block">
-                CREATIVE FLOW
-              </span>
-              <h2 className="text-[18px] font-bold tracking-tight text-foreground mt-1">All Projects &amp; Stills</h2>
+          <RailGroup title="Length" hint="You pay per second">
+            <div className="space-y-2">
+              {DURATIONS.map((d) => (
+                <RailChoice
+                  key={d}
+                  label={`${d} seconds`}
+                  selected={d === duration}
+                  onSelect={() => setDuration(d)}
+                  icon="clock"
+                  trailing={
+                    <span
+                      className={`text-[14px] font-bold tabular-nums ${
+                        d === duration ? "text-background" : "text-ink-3"
+                      }`}
+                    >
+                      {(perSecondCost * d).toFixed(0)}
+                    </span>
+                  }
+                />
+              ))}
             </div>
-          </div>
-
-          <StudioProjectsGrid
-            pageSize={12}
-            items={history.map((h) => ({
-              id: h.id,
-              status: h.status,
-              prompt: h.prompt,
-              mediaUrl: h.videoUrl,
-              aspectRatio: h.aspectRatio,
-              createdAt: h.createdAt,
-            }))}
-            mediaType="video"
-            openedMenuId={openedMenuId}
-            setOpenedMenuId={setOpenedMenuId}
-            deletingIds={deletingIds}
-            freshIds={freshIds}
-            onOpen={(item) => {
-              if (!item.id.startsWith("temp_")) router.push(`/dashboard/video/${item.id}`);
-            }}
-            onDelete={(id, e) => deleteProject(id, e)}
-            onReuse={(id, e) => void handleReuse(id, e)}
-          />
-        </div>
-
-        {/* Dynamic Error Status Alerts */}
-        {error && (
-          <div className="mx-8 mb-4 rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger flex items-center justify-between animate-rise">
-            <span>Error: {error}</span>
-            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* Mobile-only compact settings — desktop uses the left rail */}
-        <div className="flex items-center gap-2 overflow-x-auto border-t border-line bg-background/90 px-4 py-2.5 backdrop-blur-md scrollbar-none sm:hidden">
-          <AspectRatioStrip options={VIDEO_ASPECTS} value={aspect} onChange={(v) => setAspect(v as (typeof ASPECTS)[number])} />
-          <span className="h-5 w-px shrink-0 bg-surface-2" />
-          {DURATIONS.map((d) => (
-            <button
-              key={d}
-              onClick={() => setDuration(d)}
-              className={`shrink-0 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-                d === duration ? "border-accent bg-surface text-foreground" : "border-line bg-background text-ink-3"
-              }`}
-            >
-              {d}s
-            </button>
-          ))}
-        </div>
-
-        {/* ── FLEXIBLE BOTTOM PROMPT CONSOLE ── */}
-        <BottomPromptConsole
-          prompt={prompt}
-          setPrompt={setPrompt}
-          enhance={() => void enhance()}
-          enhancing={enhancing}
-          phase={phase}
-          onGenerate={triggerGenerate}
-          images={images}
-          removeImage={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
-          videoFile={videoFile}
-          clearVideoFile={() => setVideoFile(null)}
-          audioFile={audioFile}
-          clearAudioFile={() => setAudioFile(null)}
-          onAttachMediaFiles={handleAttachMediaFiles}
-          onAttachAudioFile={attachAudio}
-          onDropFiles={handleDropFiles}
+          </RailGroup>
+        </>
+      }
+      dock={() => (
+        <StudioDock
+          tiles={[
+            {
+              id: "media",
+              label: "Add media",
+              icon: "addMedia",
+              badge: images.length + (videoFile ? 1 : 0),
+              file: { accept: "image/*,video/*", multiple: true, onFiles: handleAttachMediaFiles },
+            },
+            {
+              id: "voice",
+              label: "Voice ref",
+              icon: "waveform",
+              badge: audioFile ? 1 : 0,
+              file: {
+                accept: "audio/*",
+                onFiles: (files) => files[0] && attachAudio(files[0]),
+              },
+            },
+            {
+              id: "dictate",
+              label: dictation.recording ? "Stop" : "Dictate",
+              icon: dictation.recording ? "micOff" : "voice",
+              danger: dictation.recording,
+              onSelect: dictation.toggle,
+            },
+            {
+              id: "enhance",
+              label: "Enhance",
+              icon: "enhance",
+              busy: enhancing,
+              disabled: !prompt.trim() || enhancing,
+              onSelect: () => void enhance(),
+            },
+          ]}
+          value={dictation.recording && dictation.interim ? `${prompt} ${dictation.interim}`.trim() : prompt}
+          setValue={setPrompt}
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording
+              ? "Listening…"
+              : "A slow dolly through a rain-soaked neon market at night…"
+          }
+          onSubmit={triggerGenerate}
+          busy={phase === "generating"}
+          hint={`GMD ${calculatedCost.toFixed(0)} · ${duration}s · ${aspect}`}
+          attachments={<DockAttachments items={attachments} onRemove={removeAttachment} />}
+          error={error}
+          onDismissError={() => setError(null)}
         />
-      </main>
+      )}
+    >
+      <StudioProjectsGrid
+        pageSize={12}
+        items={history.map((h) => ({
+          id: h.id,
+          status: h.status,
+          prompt: h.prompt,
+          mediaUrl: h.videoUrl,
+          aspectRatio: h.aspectRatio,
+          createdAt: h.createdAt,
+        }))}
+        mediaType="video"
+        openedMenuId={openedMenuId}
+        setOpenedMenuId={setOpenedMenuId}
+        deletingIds={deletingIds}
+        freshIds={freshIds}
+        onOpen={(item) => {
+          if (!item.id.startsWith("temp_")) router.push(`/dashboard/video/${item.id}`);
+        }}
+        onDelete={(id, e) => deleteProject(id, e)}
+        onReuse={(id, e) => void handleReuse(id, e)}
+      />
 
       <ConfirmGenerationModal
         isOpen={confirmOpen}
@@ -434,7 +474,7 @@ function VideoWorkspace() {
         description={`${duration}s video clip`}
         actionLabel="Generate Video"
       />
-    </div>
+    </StudioShell>
   );
 }
 

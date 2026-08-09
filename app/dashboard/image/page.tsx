@@ -1,19 +1,21 @@
 "use client";
 
-// Image Studio — rebuilt one-for-one on the Video Studio layout: a minimal
-// settings rail (aspect ratio), a wall of past stills in the centre, and a
-// bottom prompt console. Clicking a still opens /dashboard/image/[id].
+// Image Studio — one-for-one with the Video Studio: the same floating island,
+// the same bold rail, the same two-layer dock. Clicking a still opens
+// /dashboard/image/[id].
 
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import SettingsRail from "./_components/SettingsRail";
 import StudioProjectsGrid from "../_shared/StudioProjectsGrid";
-import AspectRatioStrip from "../_shared/AspectRatioStrip";
 import { IMAGE_ASPECTS } from "../_shared/aspectOptions";
-import BottomPromptConsole from "./_components/BottomPromptConsole";
+import StudioShell from "../_shell/StudioShell";
+import StudioDock from "../_shell/StudioDock";
+import DockAttachments from "../_shell/DockAttachments";
+import { RailGroup, RailShapes, RailStat } from "../_shell/StudioRail";
+import { STUDIO_NAV } from "../_shell/nav";
+import { useDictation } from "../_shared/useDictation";
 import { useGenerationHistory } from "../_shared/useGenerationHistory";
 import { useReusePrompt } from "../_shared/useReusePrompt";
 import { takePromptHandoff } from "../_shared/promptHandoff";
@@ -36,6 +38,8 @@ function ImageWorkspace() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   const reusePrompt = useReusePrompt();
+  // The mic is a dock tile now, not a glyph inside the input bar.
+  const dictation = useDictation(setPrompt);
 
   // The server is the only thing that charges; this is purely what we quote.
   const generationCost = pricing?.costs.image ?? 10;
@@ -88,7 +92,7 @@ function ImageWorkspace() {
     try {
       const data = await apiFetch<{ prompt: string }>("/api/enhance", {
         method: "POST",
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, kind: "image" }),
       });
       setPrompt(data.prompt);
     } catch (err) {
@@ -175,72 +179,115 @@ function ImageWorkspace() {
     }, 320);
   };
 
+  // The Shape tile cycles rather than opening a menu: one tap, one change,
+  // and the tile itself always says which shape you're on.
+  const shapeIndex = Math.max(0, IMAGE_ASPECTS.findIndex((a) => a.id === aspectRatio));
+  const shape = IMAGE_ASPECTS[shapeIndex];
+  const cycleShape = () => setAspectRatio(IMAGE_ASPECTS[(shapeIndex + 1) % IMAGE_ASPECTS.length].id);
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
-      <SettingsRail aspectRatio={aspectRatio} setAspectRatio={setAspectRatio} />
-
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
-            <div>
-              <span className="block tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
-                CREATIVE FLOW
-              </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Stills &amp; Artwork</h2>
-            </div>
-          </div>
-
-          <StudioProjectsGrid
-            pageSize={25}
-            items={history.map((h) => ({
-              id: h.id,
-              status: h.status,
-              prompt: h.prompt,
-              mediaUrl: h.imageUrl || null,
-              aspectRatio: h.aspectRatio,
-              createdAt: h.createdAt,
-            }))}
-            mediaType="image"
-            openedMenuId={openedMenuId}
-            setOpenedMenuId={setOpenedMenuId}
-            deletingIds={deletingIds}
-            freshIds={freshIds}
-            onOpen={(item) => {
-              if (!item.id.startsWith("temp_")) router.push(`/dashboard/image/${item.id}`);
-            }}
-            onDelete={(id, e) => deleteGeneration(id, e)}
-            onReuse={(id, e) => void handleReuse(id, e)}
-            emptyTitle="No stills generated yet"
-            emptyHint="Describe an image below and watch it appear on the wall."
+    <StudioShell
+      navItems={STUDIO_NAV}
+      activeId="image"
+      title="All stills"
+      railLabel="Shape"
+      onDropFiles={(files) => files.filter((f) => f.type.startsWith("image/")).forEach(attachImage)}
+      dropHint="Drop a style or composition reference"
+      rail={
+        <>
+          <RailGroup title="Shape" hint="Tap the one you want">
+            <RailShapes options={IMAGE_ASPECTS} value={aspectRatio} onChange={setAspectRatio} />
+          </RailGroup>
+          <RailStat
+            label="Per still"
+            value={String(generationCost)}
+            unit="GMD"
+            note="Charged only when the image lands."
           />
-        </div>
-
-        {error && (
-          <div className="mx-8 mb-4 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger">
-            <span>Error: {error}</span>
-            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* Mobile-only compact settings — desktop uses the left rail */}
-        <div className="border-t border-line bg-background/90 px-4 py-2.5 backdrop-blur-md sm:hidden">
-          <AspectRatioStrip options={IMAGE_ASPECTS} value={aspectRatio} onChange={setAspectRatio} />
-        </div>
-
-        <BottomPromptConsole
-          prompt={prompt}
-          setPrompt={setPrompt}
-          enhance={() => void handleEnhance()}
-          enhancing={enhancing}
-          generating={generating}
-          onGenerate={triggerGenerate}
-          images={images}
-          attachImage={attachImage}
-          removeImage={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
+        </>
+      }
+      dock={() => (
+        <StudioDock
+          tiles={[
+            {
+              id: "reference",
+              label: "Reference",
+              icon: "addMedia",
+              badge: images.length,
+              file: {
+                accept: "image/*",
+                multiple: true,
+                onFiles: (files) => files.forEach(attachImage),
+              },
+            },
+            {
+              id: "dictate",
+              label: dictation.recording ? "Stop" : "Dictate",
+              icon: dictation.recording ? "micOff" : "voice",
+              danger: dictation.recording,
+              onSelect: dictation.toggle,
+            },
+            {
+              id: "enhance",
+              label: "Enhance",
+              icon: "enhance",
+              busy: enhancing,
+              disabled: !prompt.trim() || enhancing,
+              onSelect: () => void handleEnhance(),
+            },
+            {
+              id: "shape",
+              label: "Shape",
+              icon: shape.w > shape.h ? "landscape" : shape.w < shape.h ? "portrait" : "squareShape",
+              value: shape.label,
+              onSelect: cycleShape,
+            },
+          ]}
+          value={dictation.recording && dictation.interim ? `${prompt} ${dictation.interim}`.trim() : prompt}
+          setValue={setPrompt}
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording
+              ? "Listening…"
+              : "A bioluminescent jellyfish drifting through a deep-sea trench…"
+          }
+          onSubmit={triggerGenerate}
+          busy={generating}
+          hint={`GMD ${generationCost} · ${aspectRatio}`}
+          attachments={
+            <DockAttachments
+              items={images.map((img) => ({ id: img.id, kind: "image" as const, preview: img.preview }))}
+              onRemove={(id) => setImages((prev) => prev.filter((i) => i.id !== id))}
+            />
+          }
+          error={error}
+          onDismissError={() => setError(null)}
         />
-      </main>
+      )}
+    >
+      <StudioProjectsGrid
+        pageSize={25}
+        items={history.map((h) => ({
+          id: h.id,
+          status: h.status,
+          prompt: h.prompt,
+          mediaUrl: h.imageUrl || null,
+          aspectRatio: h.aspectRatio,
+          createdAt: h.createdAt,
+        }))}
+        mediaType="image"
+        openedMenuId={openedMenuId}
+        setOpenedMenuId={setOpenedMenuId}
+        deletingIds={deletingIds}
+        freshIds={freshIds}
+        onOpen={(item) => {
+          if (!item.id.startsWith("temp_")) router.push(`/dashboard/image/${item.id}`);
+        }}
+        onDelete={(id, e) => deleteGeneration(id, e)}
+        onReuse={(id, e) => void handleReuse(id, e)}
+        emptyTitle="No stills yet"
+        emptyHint="Describe an image below and watch it land here."
+      />
 
       <ConfirmGenerationModal
         isOpen={confirmOpen}
@@ -252,7 +299,7 @@ function ImageWorkspace() {
         description="High-fidelity image generation"
         actionLabel="Generate Image"
       />
-    </div>
+    </StudioShell>
   );
 }
 
