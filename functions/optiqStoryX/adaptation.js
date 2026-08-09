@@ -245,18 +245,26 @@ function coverageViolations(storyline, sourceStory) {
     if (hits / terms.length < FILMED_SHARE) unfilmed.push(sentence);
   }
 
-  const missedShare = unfilmed.length / sentences.length;
-  if (missedShare <= 0.34) return [];
+  if (unfilmed.length === 0) return [];
 
+  // EVERY unfilmed event is reported, not a percentage over a tolerance. The
+  // director's instruction was "every single event mentioned in the story must
+  // be displayed — that is a must", and a gate that shrugs at four missing
+  // events because they are only 12% of the total is a gate that lets four
+  // events go missing.
+  //
+  // They are listed IN FULL and IN ORDER so the repair has something to act on:
+  // "roughly 20% is missing" is not actionable, and a list of the actual
+  // sentences is.
+  const missedShare = Math.round((unfilmed.length / sentences.length) * 100);
   return [
-    `${unfilmed.length} of the director's ${sentences.length} story sentences have no scene anywhere in this ` +
-      `film — roughly ${Math.round(missedShare * 100)}% of what they wrote is missing. That is not an ` +
-      `adaptation, it is a replacement. Events with no scene include: ` +
-      unfilmed
-        .slice(0, 5)
-        .map((x) => `"${x.length > 110 ? `${x.slice(0, 110)}…` : x}"`)
-        .join("  ·  ") +
-      `. Walk the source from its first sentence to its last and give every phase of it scenes of its own.`,
+    `${unfilmed.length} event(s) from the director's story — ${missedShare}% of it — have NO SCENE anywhere in ` +
+      `this film. Every event they wrote must be filmed; that is not a target, it is the requirement. The ` +
+      `events with no scene are, in order:\n` +
+      unfilmed.map((x, i) => `   ${i + 1}. ${x.length > 200 ? `${x.slice(0, 200)}…` : x}`).join("\n") +
+      `\nGive each of them at least one scene, in the place the story puts it. If that means taking scenes away ` +
+      `from a stretch you have covered several times over, take them — a repeated beat is worth less than an ` +
+      `event the director wrote and never got to see.`,
   ];
 }
 

@@ -346,9 +346,12 @@ test("a film that drops most of the director's story is caught", () => {
   const v = coverageViolations(theFailedFilm(), SOURCE_STORY);
   assert(v.length > 0, "dropping the story must be caught");
   assert(
-    v.some((x) => /is not an adaptation, it is a replacement/.test(x)),
+    v.some((x) => /have NO SCENE anywhere in this film/.test(x)),
     `expected the coverage fault: ${v.map((x) => x.slice(0, 80)).join(" | ")}`
   );
+  // Every missing event is enumerated, not summarised as a percentage — the
+  // director's rule is that every event gets filmed, and a repair needs the list.
+  assert(v[0].includes("   1. "), "the missing events must be listed, in order");
 });
 
 test("a faithful spread across the story's real locations PASSES", () => {
@@ -424,6 +427,84 @@ test("the gates do not fire on a legitimate short two-hander", () => {
   }));
   const v = repetitionViolations({ sceneBeats }, { numScenes: 6 });
   assert(v.length === 0, `a six-scene two-hander must pass: ${v.map((x) => x.slice(0, 100)).join(" | ")}`);
+});
+
+// ── APPEARANCE BELONGS TO THE PICTURES ──────────────────────────────────────
+//
+// The director's complaint, verbatim: the prompts and the agent kept checking
+// that physical appearance was present, when the board shots already carry it —
+// "if you start describing people there, it's going to cause a lot of confusion.
+// It's going to swap different outfits, haircuts, and I've seen this play out so
+// many other times."
+
+const { MANDATORY_PROMPT_RULES } = require_("../functions/optiqStoryX/pipeline.js");
+const { sceneViolations } = require_("../functions/optiqStoryX/agentTools.js");
+
+test("the prompt rules spend the budget on talk and action, not on faces", () => {
+  const r = MANDATORY_PROMPT_RULES;
+  assert(/IDENTIFY PEOPLE, DO NOT DESCRIBE THEM/.test(r), "rule 2 must forbid describing people");
+  assert(/NO face\. NO complexion\. NO build\. NO hair\./.test(r), "it must be explicit about what is banned");
+  assert(/THE SETTING IS ONE LINE/.test(r), "the room must not be inventoried");
+  assert(/DIALOGUE IS THE BIGGEST BLOCK ON THE PAGE/.test(r), "dialogue must be the priority");
+  assert(/THE FRAMES ARE RIGHT/.test(r), "the pictures must win a disagreement");
+  // And the old rules that caused it are gone.
+  assert(!/the word "Gambian" and specific Gambian setting details/i.test(r), "the Gambian-ladder rule must be gone");
+  assert(
+    !/Locked Character Block \(\d+–\d+ words per character/.test(r),
+    "the 150-200 word character block requirement must be gone"
+  );
+});
+
+test("the agent no longer polices appearance, and does police what matters", () => {
+  const project = {
+    musicSpec: "",
+    blueprint: { registry: { characters: [{ name: "Kaddy", voice: "Smoky, unhurried, mocking hum at the end of sentences." }] } },
+  };
+  // A prompt that does it RIGHT: identification only, packed with talk.
+  const good = {
+    sceneNumber: 4,
+    dialogue: [
+      "KADDY: You went in.",
+      "MODOU: I went nowhere.",
+      "KADDY: The box is empty.",
+      "MODOU: Then it was empty.",
+      "KADDY: Do not lie to me twice.",
+    ].join("\n"),
+    fullPrompt:
+      "CAST KEY. Kaddy, seated left, green wrapper. Modou, standing in the doorway, grey shirt. " +
+      "DIALOGUE. Kaddy — Smoky, unhurried, mocking hum at the end of sentences. KADDY: You went in. " +
+      "MODOU: I went nowhere. KADDY: The box is empty. MODOU: Then it was empty. KADDY: Do not lie to me twice. " +
+      "ACTION. 0.0s she lifts the lid. 3.0s he steps back. 6.0s she stands. " +
+      "SOUND. Room tone, the lid on wood. NO MUSIC of any kind. CAMERA. Locked wide. " +
+      "authored specific detail about what happens next and how it sounds ".repeat(200),
+  };
+  const clean = sceneViolations(good, project).violations;
+  assert(
+    !clean.some((v) => /Black|Gambian|Locked Character Block is missing/.test(v)),
+    `the agent must not demand appearance: ${clean.join(" | ")}`
+  );
+
+  // A prompt that PAINTS A PORTRAIT is now the thing that gets flagged.
+  const painted = { ...good, fullPrompt: `${good.fullPrompt} Kaddy has a warm dark-brown complexion and high cheekbones.` };
+  assert(
+    sceneViolations(painted, project).violations.some((v) => /describes how someone LOOKS/.test(v)),
+    "a prompt describing a complexion must be caught"
+  );
+
+  // And a scene that has gone quiet, or dropped a voice profile.
+  const quiet = { ...good, dialogue: "KADDY: You went in.", fullPrompt: good.fullPrompt };
+  assert(
+    sceneViolations(quiet, project).violations.some((v) => /spoken line/.test(v)),
+    "a thin scene must be caught"
+  );
+  const voiceless = {
+    ...good,
+    fullPrompt: good.fullPrompt.replace("Kaddy — Smoky, unhurried, mocking hum at the end of sentences. ", ""),
+  };
+  assert(
+    sceneViolations(voiceless, project).violations.some((v) => /VOICE PROFILE is missing/.test(v)),
+    "a dropped voice profile must be caught"
+  );
 });
 
 // ── THE WIRING ──────────────────────────────────────────────────────────────

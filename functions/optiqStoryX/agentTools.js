@@ -8,15 +8,43 @@
 // are free and instant. The write tools (rewrite_scene, patch_scene,
 // rewrite_film, update_direction, propagate_locks) go through the SAME
 // scene-reviser skill the script editor's "revise" box uses, so a prompt the
-// agent touched still obeys every house rule: locks verbatim, 1,500–2,000
-// words, the sound spec repeated, the Gambian environment, the canonical block
-// order. The agent cannot write a scene prompt freehand — that is deliberate.
+// agent touched still obeys every house rule for THIS film type: the dialogue
+// floor, the voice profiles verbatim, the sound spec repeated, the beat count.
+// The agent cannot write a scene prompt freehand — that is deliberate.
+//
+// WHAT IT DELIBERATELY DOES NOT CHECK, and this is the important part: appearance.
+// This film is photographed, so the stills carry every face, every outfit and
+// every room, and they are the only thing the video model is shown of them. A
+// gate that made the agent confirm the appearance description was present would
+// make the agent keep ADDING appearance description — which argues with the
+// photographs, and the model settles that argument by inventing a third version.
+// That is what swaps outfits between shots. See sceneViolations below.
 //
 // One thing the agent deliberately CANNOT do: spend money. It never renders a
 // clip and never touches the wallet. Rendering stays behind the user's own
 // confirm-price modal.
 
 const { reviseStoryScene } = require("./pipeline");
+const { countSpokenLines, MIN_LINES_PER_SCENE, MAX_LINES_PER_SCENE } = require("./creative");
+
+/**
+ * Appearance vocabulary that has no job in a photographed film's prompt.
+ *
+ * Deliberately narrow. A wardrobe colour in an identification line ("green
+ * wrapper, white headscarf") trips none of these, and neither does "she is
+ * soaked" as a change of state. What it catches is a prompt that has started
+ * painting a portrait instead of pointing at one.
+ */
+const LOOK_WORDS =
+  /\b(complexion|skin tone|dark-skinned|light-skinned|cheekbones|jawline|facial structure|locked character block)\b/i;
+
+/** Does this character have a spoken line here? "NAME:" is the house format. */
+function speaksIn(text, name) {
+  const clean = String(name || "").trim();
+  if (!clean) return false;
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\s*(\\([^)]*\\))?\\s*:`, "i").test(String(text || ""));
+}
 const { sceneSoundViolations } = require("./soundPolicy");
 const { scenePurityViolations } = require("./storyCraft");
 const { minorViolations } = require("./casting");
@@ -85,10 +113,44 @@ function sceneViolations(scene, project) {
       `Only ${words} words — under the ${WORD_BUDGETS.scenePromptMin}-word floor. Needs more authored specifics (environment items, background people, event sounds), never filler.`
     );
   }
-  const lock = project.characterLock?.description || "";
-  if (lock && !containsVerbatim(prompt, lock)) {
+  // NO Locked Character Block check, NO "Black" keyword check, NO "Gambian"
+  // check. All three live in the other sandboxes and all three are WRONG here.
+  //
+  // This film is PHOTOGRAPHED: still frames of every scene exist and are the only
+  // thing the video model is ever shown of how anything looks. A gate that asks
+  // the agent to make sure the appearance description is present is a gate that
+  // makes the agent ADD appearance description — which then argues with the
+  // photographs, and the model settles the argument by inventing a third version.
+  // That is what swaps outfits between shots and changes haircuts mid-scene.
+  //
+  // What the agent should be checking is everything the pictures CANNOT carry,
+  // which is what the three checks below are.
+  const spokenLines = countSpokenLines(scene.dialogue) || countSpokenLines(prompt);
+  if (spokenLines < MIN_LINES_PER_SCENE) {
     violations.push(
-      "The Locked Character Block is missing or paraphrased — it must appear verbatim, word for word, at the top of the prompt."
+      `Only ${spokenLines} spoken line(s). This film runs on talk — every 10-second scene needs ` +
+        `${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE} lines of real exchange, back to back. The pictures carry ` +
+        `everything else and can carry none of this.`
+    );
+  }
+  for (const c of project.blueprint?.registry?.characters || []) {
+    if (!c?.voice || !c?.name) continue;
+    // Only owed where they actually speak.
+    if (!speaksIn(prompt, c.name)) continue;
+    if (!containsVerbatim(prompt, c.voice)) {
+      violations.push(
+        `${c.name} speaks here but their locked VOICE PROFILE is missing. A face survives thirty clips because ` +
+          `thirty photographs say what it looks like; a voice survives only because every prompt repeats the same ` +
+          `words about it. Paste it verbatim before their first line.`
+      );
+    }
+  }
+  const painted = LOOK_WORDS.exec(prompt);
+  if (painted) {
+    violations.push(
+      `This prompt describes how someone LOOKS ("${painted[1]}"). The attached frames already show it, exactly. ` +
+        `Describing it again gives the model two accounts of one thing and it reconciles them by inventing a ` +
+        `third — cut it, and spend the words on dialogue, action, sound and camera instead.`
     );
   }
   if (project.musicSpec && !containsVerbatim(prompt, project.musicSpec)) {
@@ -98,16 +160,6 @@ function sceneViolations(scene, project) {
   }
   // This film sells nothing, so the ad apparatus is a defect wherever it appears.
   violations.push(...scenePurityViolations({ fullPrompt: prompt }));
-  if (!/\bblack\b/i.test(prompt)) {
-    violations.push(
-      'The keyword "Black" never appears — every on-screen person must be explicitly described as Black Gambian / Black West African.'
-    );
-  }
-  if (!/gambia/i.test(prompt)) {
-    violations.push(
-      'The word "Gambian" never appears — the setting must be unmistakably The Gambia unless the brief set it elsewhere.'
-    );
-  }
   // The no-music law. Without this, check_film would call a scene that asks the
   // video model for a soundtrack "clean" — and that clip's invented score
   // collides with the track Lyria composes for the finished cut.

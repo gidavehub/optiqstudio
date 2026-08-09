@@ -178,22 +178,45 @@ const STORY_KIND = {
  * photography does.
  */
 const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene's fullPrompt MUST satisfy ALL of these — no exceptions):
-0. WHAT THIS PROMPT IS FOR — this is the film's SCRIPT and its PHOTOGRAPHIC BRIEF. It is read by the director, and it is the source every still of this film is generated from: the places, the arrangements inside them, the objects, and one frame per camera setup. It is NOT the text that will be sent to the video model — a shorter brief is compiled from it once the stills exist. So write it for someone who has to PHOTOGRAPH this scene and has never seen it. Every specific you leave out is a specific two different pictures will each invent differently, and then the room changes between shots.
-1. LENGTH — every scene's fullPrompt is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. Every single thing visible in the frame is described. Density of authored specifics, not padding.
-2. GAMBIAN ENVIRONMENT — the word "Gambian" and specific Gambian setting details (via the specificity ladder, Rung 4 minimum) appear explicitly in every prompt. The scene is unmistakably The Gambia, West Africa, unless the director's premise explicitly sets the story elsewhere — a story may be set anywhere, and if it is, that place gets the same rung-4 specificity instead.
-3. BLACK PEOPLE — every single on-screen person is explicitly described with the keyword "Black" — a Black Gambian / Black West African person. Never leave skin tone implicit and never rely on "dark-skinned" alone; models have rendered under-described people as other ethnicities. State it plainly for the lead AND every background person. Each person's SPECIFIC complexion is then named exactly as the casting registry assigned it — anywhere along the real Black Gambian range, from very deep blue-black through dark brown and golden brown to light caramel-brown. Do NOT flatten everyone to "rich, deep dark skin": that produces films that all star the same person.
-4. CHARACTER CONSISTENCY — each Locked Character Block (${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words per character: skin, face shape, nose, lips, cheekbones, eyes, brows, hair, age, height, build, one distinguishing marker) appears VERBATIM, word-for-word identical, in every scene prompt featuring that character. Two characters = ~300–400 words of character blocks.
-4b. CASTING VARIETY — no two people in the same film share a complexion, a hairstyle or a build, and the cast is spread across ages rather than clustered on one. The doctrine's worked examples ("box braids", "deep warm dark-brown skin", the rust camp-collar shirt) teach you the FORMAT of a character block and must never be reproduced as this film's cast. Background crowds get the same spread — a crowd of one identical face and tone is the cliché rule 8 forbids.
-5. STORY ELEMENTS, NOT PRODUCTS — nothing in this film is a product and nothing is being sold. Objects the STORY needs (a tin, a phone, a dress, a boat, a knife, a letter) are ELEMENTS: each keeps the exact same anchor description verbatim in every scene it appears in, and its state is tracked if the story changes it. An element is never presented to the audience, never hero-shot, never turned label-out to camera. The test: is the camera showing this object to the CHARACTERS, or to the AUDIENCE? Shown to the audience, it is an ad shot — cut it.
-6. SCENE-ELEMENT CONSISTENCY — recurring physical elements and recurring sets keep an identical anchor description in every scene they appear in. An object never changes appearance between scenes.
-7. SOUND CONSISTENCY — the locked sound spec (${WORD_BUDGETS.soundMin}–${WORD_BUDGETS.soundMax} words locking the film's UNSCORED sound bed: the explicit absence of music, the quality of that silence, and the exact continuous ambience; NOT incidental birds/wind padding, and NEVER instruments/tempo/BPM/musical progression) is repeated VERBATIM in the sound block of every continuous scene, plus that scene's diegetic event sounds. Continuous scenes must sound like one unbroken recording.
-8. BACKGROUND AUTHORSHIP — the environment plus every visible item and every background person (age, clothing, position, what they are doing) gets ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} words. Every unspecified element is a vote for the cliché.
-9. THE STORY IS THE HERO — every scene advances ONE story with a beginning, a middle and an end. This scene serves a specific obligation in that story (the open, the want, the turn, an escalation, the climax or the landing) and it must visibly do that job. Nothing is being advertised, demonstrated, recommended or launched: there is no logo, no tagline, no call to action, no brand card, no closing plate and no narrator anywhere in this film.
-10. CUTS WITHIN SCENES — scenes are not always one continuous shot. When the storyline plans cuts, the 10s scene contains those hard cuts, each with its own timestamped beat and shot description.
-10b. DENSITY — every 10-second scene carries at least ${MIN_BEATS_PER_SCENE} distinct beats (aim for ${TARGET_BEATS_PER_SCENE}), each a CHANGE OF STATE with its own timestamp and its own physical verb. Ten seconds of one continuous activity — carrying a cup across a room, stirring a pot, scrolling a phone — is the dead footage this whole system exists to prevent. A camera move is not a beat. A mood is not a beat. Somebody continuing to do what they were already doing is not a beat.
-11. NO MUSIC — the video model generates NO music, ever. No soundtrack, no melody, no instrumental bed, no humming or singing, no music from a radio/phone/speaker inside the scene, no sting on a cut, no swell under a line. The clip carries ONLY the diegetic sound of the physical events in frame, the location's ambience, and the characters' spoken dialogue. The score is composed separately afterwards by a dedicated music model and laid under the finished cut — music invented here cannot be removed from the clip's audio, collides with that score, and wastes the render. This rule is stated in the ABSOLUTE RULES, restated at the top of the SOUND block, and restated again in the CLOSING RESTATEMENT: one mention does not survive a 2,000-word prompt.
-12. ADULTS ONLY — every single person visible in this scene is 18 or older. No child, no baby, no toddler, no schoolchild, no teenager under 18 appears in any frame, in any role, foreground or background — not in a crowd, not in a doorway, not carried on somebody's back, not in a photograph on a wall. If the brief implied one, they are written as an adult of 18+ doing the same thing. State ages plainly where you state them, and never state one below 18.
-13. VOICE PROFILES — every character who SPEAKS in this scene has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block, immediately before their first line: pitch, register, texture, pace, accent and the habit of speech that is theirs. This is the one consistency a picture cannot hold. A face survives thirty clips because thirty photographs say what it looks like; a voice survives them only because every prompt says the same words about it, and a film whose lead sounds like four different people has failed as completely as one whose lead LOOKS like four different people. Attribute every single line to its speaker by name — an unattributed line comes back in the wrong mouth.`;
+
+0. READ THIS FIRST — THIS FILM IS PHOTOGRAPHED, AND THAT CHANGES WHAT A PROMPT IS FOR.
+   Every scene of this film gets STILL PHOTOGRAPHS taken of it before any video is rendered: the place, the arrangement inside it, the objects, and one frame per camera setup. Those photographs are attached to the render and they are the ONLY thing the video model is shown of how anything looks.
+   So how things LOOK is already settled, in pictures, far more exactly than any sentence can settle it. Your job is EVERYTHING THE PICTURES CANNOT CARRY: what happens, who says what, in what voice, what it sounds like, and where the camera goes.
+   DESCRIBING APPEARANCE HERE ACTIVELY HARMS THE FILM. It gives the model two accounts of one thing — the photograph and your paragraph — and it reconciles them by inventing a third. That is what swaps outfits between shots, changes haircuts mid-scene and puts one character's clothes on another. This is not a theory; it is the failure this rule exists to stop.
+
+1. THE BUDGET, AND WHERE IT GOES. ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words, spent roughly like this:
+   • ~45% DIALOGUE — the lines themselves, every one, attributed, with each speaker's voice profile.
+   • ~30% ACTION — timestamped beats, physical verbs, one change of state each.
+   • ~15% SOUND — the ambience and a named noise for every physical event.
+   • ~10% CAMERA and the identification block below.
+   If your prompt is mostly description, you have written the wrong prompt. Count it.
+
+2. IDENTIFY PEOPLE, DO NOT DESCRIBE THEM. Each character present gets ONE SHORT LINE: their NAME, WHERE THEY ARE in the frame ("seated left of the table", "standing in the doorway"), and — in a few words only — WHAT THEY ARE WEARING IN THIS SCENE, purely so two people can be told apart and their clothes cannot swap.
+   That is the whole appearance budget. NO face. NO complexion. NO build. NO hair. NO height. NO age. NO distinguishing marks. The photographs carry all of it, exactly, and every word you add about it is a word arguing with them.
+   Then state plainly: every person visible is one of the people in the attached frames; nobody else appears; each keeps the exact face and clothing they have there; and where the words and the frames disagree, THE FRAMES ARE RIGHT.
+
+3. THE SETTING IS ONE LINE. Name the place and the time of day so the reader knows where they are. That is all. Do not inventory the walls, the floor, the furniture, the light, the clutter or the background people — all of that is in the plates, and re-describing it is the single fastest way to make the room drift between shots.
+   The ONE exception: something that CHANGES during these ten seconds — a lamp switched on, a table overturned, rain starting — because a still cannot show a change. Say what changes, in a clause.
+
+4. DIALOGUE IS THE BIGGEST BLOCK ON THE PAGE. See the dialogue law below. Every line, in order, attributed by name, with the speaker's locked VOICE PROFILE pasted verbatim before their first line. This is the film. Nothing here is optional and nothing may be summarised — "they argue about the money" is a stage direction, not dialogue, and the clip comes back with nobody speaking.
+
+5. ACTION — TIMESTAMPED, PHYSICAL, AND UNDERNEATH THE TALKING. At least ${MIN_BEATS_PER_SCENE} beats (aim ${TARGET_BEATS_PER_SCENE}), each a CHANGE OF STATE with its own timestamp and its own physical verb. Hands do things while mouths move. A camera move is not a beat; a mood is not a beat; somebody continuing what they were already doing is not a beat.
+
+6. CAMERA — where it sits and where it travels across each setup, and where the cuts fall. Short: the frames already show where the camera IS, so this is only where it GOES.
+
+7. SOUND — the continuous ambience under the whole clip and how loud it sits under the voices, plus a specific named noise for every physical event in the beats. Something that touches, opens, closes, lands, tears, spills, starts or stops MAKES A NOISE, and an unnamed one comes back silent. The locked sound spec appears verbatim.
+
+8. STORY ELEMENTS, NOT PRODUCTS — nothing in this film is being sold. Objects the story needs (a tin, a phone, a letter, a metal bar) are ELEMENTS: named where they are used, never presented to the audience, never hero-shot. The test: is the camera showing this object to the CHARACTERS or to the AUDIENCE? Shown to the audience, it is an ad shot — cut it.
+
+9. THE STORY IS THE HERO — this scene serves a specific obligation (the open, the want, the turn, an escalation, the climax or the landing) and it must visibly do that job. There is no logo, no tagline, no call to action, no closing plate and no narrator anywhere in this film.
+
+10. CUTS WITHIN SCENES — when the storyline plans cuts, the ten seconds contains those hard cuts, each with its own timestamped beat.
+
+11. NO MUSIC — the video model generates NO music, ever. No soundtrack, no melody, no instrumental bed, no humming or singing, no music from a radio or phone inside the scene, no sting on a cut. The clip carries ONLY the diegetic sound of the physical events, the location's ambience, and the characters' spoken dialogue. The score is composed separately afterwards and laid under the finished cut. Stated in the ABSOLUTE RULES, restated at the top of the SOUND block, and restated again at the end: one mention does not survive a long prompt.
+
+12. ADULTS ONLY — every person visible is 18 or older. No child, no toddler, no schoolchild, no teenager under 18 appears in any frame, in any role, foreground or background. If the story implied one, they are written as an adult of 18+ doing the same thing. Never state an age below 18.
+
+13. VOICE PROFILES — every character who SPEAKS has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block before their first line: pitch, register, texture, pace, accent and their one habit of speech. This is the one consistency a picture CANNOT hold. A face survives thirty clips because thirty photographs say what it looks like; a voice survives them only because every prompt repeats the same words about it. A film whose lead sounds like four different people has failed as completely as one whose lead looks like four different people.`;
 
 /** "180s" → 18 scenes. The one place the scene count is decided. */
 function scenesForLength(length) {
@@ -290,6 +313,21 @@ function containsVerbatim(haystack, needle) {
   const n = normalize(needle);
   if (!n) return true;
   return h.includes(n);
+}
+
+/**
+ * Is this character NAMED in the text?
+ *
+ * The identification check that replaced the Locked Character Block check. On a
+ * photographed film the face comes from the stills, so what a prompt owes is not
+ * a description but a POINTER — and a pointer that never says the name points at
+ * nothing.
+ */
+function namedIn(text, name) {
+  const clean = String(name || "").trim();
+  if (!clean) return true;
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`, "i").test(String(text || ""));
 }
 
 // ─── RESPONSE SCHEMAS ───────────────────────────────────────────────────────
@@ -1334,8 +1372,19 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     const casting = sceneCasting(beat);
     if (casting === "recurring") {
       for (const c of charactersForBeat(registry, beat)) {
-        if (!containsVerbatim(scene.fullPrompt, c.lcb)) {
-          violations.push(`The Locked Character Block for ${c.name} is missing or paraphrased. Paste it VERBATIM: "${c.lcb}"`);
+        // NO Locked Character Block check. This film is photographed, so the
+        // face is carried by the stills and rule 2 forbids describing it here —
+        // a gate demanding 200 words of face in a prompt told not to describe
+        // faces would fight its own pipeline, and the gate always wins.
+        //
+        // What IS owed is identification: the character has to be NAMED, so the
+        // model can tell which person in the attached frame is speaking.
+        if (!namedIn(scene.fullPrompt, c.name)) {
+          violations.push(
+            `${c.name} is in this scene but is never named in the prompt. With no character sheets attached, ` +
+              `the frames are the only statement of who is who — name them, say where they are in the frame, ` +
+              `and give their wardrobe in a few words. Do NOT describe their face or build.`
+          );
         }
         // The voice profile is only owed by a scene where this character SPEAKS —
         // a person standing silently in a doorway needs a face, not a voice, and
@@ -1359,6 +1408,9 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
       // …and the reverse: a lock that leaked into a scene it does not belong to
       // is how the film collapses back to the same two faces everywhere.
       for (const c of registry.characters || []) {
+        // Still worth catching: a builder that pasted a whole locked block into a
+        // scene those people are not in has both described a face it was told not
+        // to AND put the wrong person in the shot.
         if (c.lcb && containsVerbatim(scene.fullPrompt, c.lcb)) {
           violations.push(
             `Scene ${scene.sceneNumber} is cast "${casting}" but pastes ${c.name}'s Locked Character Block. ` +
@@ -1616,8 +1668,10 @@ You MUST:
 - NEVER reintroduce music. If the request asks for music ("make it feel triumphant with strings"), do NOT put it in the prompt: the score is composed separately afterwards. Deliver the feeling through the diegetic sound and the action instead.
 - Keep moments, not mood. Physical verbs. Banned vocabulary stays banned.
 - NEVER come back with fewer events than you started with. A revision that turns four timestamped beats into one continuous activity has made the scene worse whatever else it fixed. If the request genuinely calls for a calmer scene, make it calmer WITHOUT making it emptier.
-- Keep the Locked Character Block, wardrobe lock and style header VERBATIM.
-- Re-compile into the canonical 14-block order, ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words.
+- THIS SCENE IS PHOTOGRAPHED. Still frames of it already exist and are attached to its render — they carry how every person, every object and the whole room LOOKS, and they carry it better than any sentence can. So do NOT add description of appearance, and do NOT restore any that is missing: no faces, no complexions, no builds, no hair, no wardrobe beyond the few words that tell two people apart, no inventory of the room. If the director's request is about how something LOOKS, the honest answer is that it is settled in the pictures and the scene needs re-photographing, not re-describing — say so rather than writing it in.
+- KEEP AND STRENGTHEN what the pictures cannot carry: every line of DIALOGUE (never drop one, never shorten one), each speaker's VOICE PROFILE verbatim, the timestamped ACTION beats, the SOUND, and the CAMERA. These are what the prompt is for and they are where the words should go.
+- If the prompt carries a SHOT BOARD block naming its attached frames, leave it exactly as it is. It is what tells the render which pictures it has.
+- Re-compile at ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words, weighted the way rule 1 says: dialogue biggest, then action, then sound, then camera.
 - CONTINUITY: the revised scene continues seamlessly from the previous scene prompt and hands off cleanly to the next — same characters, same element states, same recurring elements, same sound spec verbatim.
 - When something broke in generation, reach for the STRUCTURAL fix (lock the camera, relocate, strip a face description, split cuts) before adjusting adjectives — diagnose against the failure catalog.
 - Output ONLY the newly revised compiled prompt: no JSON, no preamble, no quotes.

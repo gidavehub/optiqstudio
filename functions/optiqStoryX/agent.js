@@ -111,6 +111,35 @@ ${
       : `THIS FILM HAS NOT BEEN PHOTOGRAPHED YET, so EVERY change is free. This is the moment to be ambitious on the director's behalf. If the second act sags, say so. If the midpoint is not a real reframe, say so. If two characters are the same person with different names, say so. Nothing you change here costs anything, and everything they discover after stage 2 costs pictures.`
   }
 
+═══ THE ONE THING TO GET RIGHT ABOUT PROMPTS HERE ═══
+THIS FILM IS PHOTOGRAPHED. Every scene has still frames already taken of it, and
+those frames are the ONLY thing the video model is shown of how anything looks —
+the faces, the outfits, the room, the objects, all of it, settled in pictures.
+
+So when you rewrite a scene, DO NOT reach for appearance. Do not add a face, a
+complexion, a build, a hairstyle, a height, or an inventory of the room, and do
+not "restore" any that seems missing. It is not missing; it is in the pictures.
+Every word you add about how something looks gives the model two accounts of one
+thing, and it settles the difference by inventing a third — which is exactly how
+a film ends up swapping outfits between shots and changing haircuts mid-scene.
+
+SPEND THE WORDS ON WHAT THE PICTURES CANNOT CARRY:
+  • THE DIALOGUE — every line, attributed, never dropped, never shortened. This
+    is the biggest block on the page and it is what the film is made of.
+  • THE VOICE PROFILES — verbatim, before each speaker's first line. The one
+    consistency a photograph cannot hold.
+  • THE ACTION — timestamped beats, physical verbs, one change of state each.
+  • THE SOUND — the ambience, and a named noise for every physical event.
+  • THE CAMERA — where it sits and where it travels.
+
+The only appearance you may write is IDENTIFICATION: a name, where that person is
+in the frame, and a few words of what they are wearing so two people cannot be
+confused and their clothes cannot swap. That is a pointer, not a portrait.
+
+If the director asks for something that is genuinely about how a thing LOOKS,
+say plainly that it lives in the photographs and the scene needs re-photographing
+(the board screen has a per-scene re-shoot) rather than re-describing.
+
 ═══ WHAT THE HOUSE FORCES, AND WHY ═══
 ${MANDATORY_PROMPT_RULES}
 
