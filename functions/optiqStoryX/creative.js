@@ -26,7 +26,7 @@
 
 "use strict";
 
-const { drawStoryProvocation, storyStructureLaw } = require("./storyCraft");
+const { drawStoryProvocation, storyStructureLaw, dramaMandate } = require("./storyCraft");
 
 // ─── THE CONCEPT ROOM DIRECTIVE ─────────────────────────────────────────────
 
@@ -94,6 +94,8 @@ TONE — how it feels to watch:
 COLD OPEN — the first three seconds, which is all a scrolling viewer gives us:
   ${p.hook}
 
+${dramaMandate()}
+
 ${storyStructureLaw({ numScenes: scenes })}
 
 ═══ WHAT TO RETURN ═══
@@ -121,9 +123,17 @@ For each concept:
   concept with no risk is the safe one, which is the dead one.
 
 THE FILM YOU ARE PITCHING FOR: an original short film, ${scenes} scenes of 10
-seconds, ${seconds} seconds total. People SPEAK on camera, so dialogue is
-available to you — but a character who explains the story is a character nobody
-believes. Keep it to interruptions, deflections and things half-said.`;
+seconds, ${seconds} seconds total, and it RUNS ON TALK — roughly
+${MIN_LINES_PER_MINUTE} spoken lines every 60 seconds, so about
+${Math.round((seconds / 60) * MIN_LINES_PER_MINUTE)} across this film. Pick
+concepts that can carry that: people who have things to say to each other, in the
+same room, with a reason to argue. A concept whose best version is two people
+being quiet together is the wrong concept here, however good it is.
+
+That is not permission to explain the story. A character who narrates the plot is
+a character nobody believes. The talk is argument, accusation, denial,
+interruption and things half-said — people fighting about what to do NOW, with
+the past leaking out sideways because somebody is angry enough to bring it up.`;
 }
 
 // ─── THE DENSITY LAW ────────────────────────────────────────────────────────
@@ -138,6 +148,242 @@ believes. Keep it to interruptions, deflections and things half-said.`;
  */
 const MIN_BEATS_PER_SCENE = 3;
 const TARGET_BEATS_PER_SCENE = 5;
+
+// ─── THE DIALOGUE LAW ───────────────────────────────────────────────────────
+//
+// THE SINGLE MOST IMPORTANT THING ABOUT THIS FILM TYPE, and the one place it
+// most sharply contradicts the doctrine it was copied from.
+//
+// The ad swarm's instinct — and the ordinary story swarm's after it — is that
+// dialogue is expensive and silence is sophisticated: "under ten words a line",
+// "a scene with no dialogue at all is a legitimate and often superior choice".
+// That is film-school correct and it is wrong for what this makes.
+//
+// These films are watched on a phone, and what holds a viewer there is PEOPLE
+// TALKING. The argument, the accusation, the thing somebody should not have
+// said. Action is what the pictures are for; the STORY lives in the mouths. And
+// there is a run-time argument too: a five-minute film has to carry a feature's
+// worth of story, and talk is the densest possible way to move plot. You cannot
+// stage an inheritance dispute in mime inside ten seconds. You can say it.
+//
+// So: pack it. Six to eight spoken lines inside every ten seconds, overlapping
+// and interrupting, with the physical action running underneath rather than
+// instead.
+
+/** Spoken lines inside one 10-second scene. Not a ceiling — a floor and a target. */
+const MIN_LINES_PER_SCENE = 5;
+const TARGET_LINES_PER_SCENE = 7;
+const MAX_LINES_PER_SCENE = 10;
+
+/**
+ * The film-level floor: 30 exchanges per 60 seconds of run-time.
+ *
+ * The same number as MIN_LINES_PER_SCENE × 6 scenes, stated a second way on
+ * purpose, because it catches what the per-scene gate cannot. A thirty-scene
+ * film can pass scene-by-scene with every scene on the floor and still be a
+ * thin film; and a film can average out fine while eight of its scenes are
+ * nearly silent. Checking both the scene and the minute closes that.
+ */
+const MIN_LINES_PER_MINUTE = 30;
+
+/**
+ * Roughly how many seconds of a ten-second scene should carry speech.
+ *
+ * Eight. Stated as a number because "lots of dialogue" is advice and "eight of
+ * the ten seconds" is a specification.
+ */
+const SPEAKING_SECONDS = 8;
+
+/**
+ * The dialogue contract, injected into the storyline, the scene builders, the
+ * reviser and the shooting-brief compiler.
+ *
+ * It is repeated in all four because it loses every argument it is not present
+ * for: the doctrine chapters underneath say the opposite, and a skill that reads
+ * §7 without reading this writes two terse lines and a lot of looking.
+ */
+function dialogueLaw() {
+  return `═══ THE DIALOGUE LAW — THE STORY IS IN THE MOUTHS ═══
+
+THIS FILM IS ~90% TALK. Not 90% of the frame — 90% of the CONTENT. Around
+${SPEAKING_SECONDS} of every 10 seconds has somebody speaking. The remaining
+10–15% is physical action, and it happens UNDERNEATH the talking rather than
+instead of it.
+
+THE COUNT, AND IT IS NOT A SUGGESTION. Two ways of saying the same thing, and
+the film has to satisfy BOTH:
+
+  • PER SCENE: every 10-second scene carries ${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE}
+    spoken lines, aiming for ${TARGET_LINES_PER_SCENE}. Back to back to back. A
+    scene with two lines in it has failed, however beautiful the two lines are.
+
+  • PER MINUTE: at least ${MIN_LINES_PER_MINUTE} exchanges in every 60 seconds of
+    run-time. So a 5-minute film carries at least ${MIN_LINES_PER_MINUTE * 5}
+    lines, and should be well past it. Count them.
+
+Both, because either one alone can be gamed: a film can clear the per-scene floor
+in every scene and still be thin, and a film can average out fine while eight of
+its scenes sit nearly silent.
+
+THIS OVERRIDES ANYTHING YOU HAVE READ ELSEWHERE. The house doctrine on dialogue
+was written for thirty-second advertisements, where words are expensive and a
+held silence is a luxury. It says "keep it under ten words a line" and "a scene
+with no dialogue at all is often superior". BOTH ARE SUSPENDED HERE:
+  • Lines may run longer than ten words when somebody is actually arguing. A real
+    accusation is not six words.
+  • A SILENT SCENE IS A FAILURE in this film type, not a choice. If you have
+    written a scene with nobody speaking, you have written the wrong scene.
+
+WHY. These films are watched on a phone, and what stops a thumb is people
+talking — the argument, the accusation, the thing that should not have been said.
+Action is what the pictures carry; the STORY lives in what people say to each
+other. And a five-minute film has to hold a feature's worth of plot: talk is the
+densest way there is to move a story, because you cannot stage an inheritance
+dispute in mime inside ten seconds, but you can say it.
+
+WHAT THE TALK HAS TO BE. Not people taking turns making statements — that is a
+pause with words in it. It is an EXCHANGE, with something at stake in it:
+  • interruptions — somebody cut off mid-sentence, and the interruption itself is
+    a line;
+  • overlaps — two people talking at once, both audible;
+  • answers to a different question than the one asked;
+  • an accusation, a denial, and a second accusation that lands harder;
+  • somebody repeating themselves because they were ignored;
+  • an insult, a laugh in the wrong place, a name used as a weapon;
+  • a decision changing mid-sentence;
+  • somebody starting to say the true thing and stopping.
+
+BANTER IS PLOT. Rapid back-and-forth is not filler between the events — it IS
+the event, and it is where the audience learns who these people are to each
+other. Write the whole exchange, not a summary of it.
+
+STILL NOT EXPOSITION. Packing in lines is not permission to explain the story.
+Nobody says the theme, nobody narrates the backstory, and no line begins "ever
+since father died and left us the shop". People argue about what to do NOW, and
+the past leaks out sideways, in the middle of the argument, because somebody is
+angry enough to bring it up.
+
+AND THE HANDS KEEP MOVING. The density law still binds. People do things while
+they talk: pouring, counting, packing, taking something away from somebody,
+putting a phone face-down. The physical beats and the lines run at the same
+time — that is what makes ${SPEAKING_SECONDS} seconds of dialogue a scene rather
+than a phone call.`;
+}
+
+/**
+ * Count the spoken lines in a scene's dialogue field, or in a full prompt.
+ *
+ * Deliberately generous about FORM, because scene writers legitimately format
+ * dialogue several ways — "AWA: Take it back.", a quoted line after a name, one
+ * line per row. What it will not count is the same line twice.
+ */
+function countSpokenLines(text) {
+  const raw = String(text || "");
+  if (!raw.trim()) return 0;
+
+  const found = new Set();
+
+  // "NAME: line" — the house format, and the one the builders actually emit.
+  //
+  // Matched WITHOUT anchoring to the start of a line, because a compiled prompt
+  // legitimately runs several lines together inside one paragraph ("DIALOGUE.
+  // AWA: You took it. NDEY: I took nothing."). Anchoring to ^ counted those as
+  // zero, which would have told a brief that kept every line that it had
+  // dropped them all. A line ends at the next "NAME:" or at the end of the text.
+  const SPEAKER = "[A-Z][A-Za-z'’ -]{1,28}";
+  const re = new RegExp(
+    `(?:^|[\\n.!?;]|["”'’])\\s*[-•*]?\\s*(${SPEAKER})\\s*(?:\\([^)]{0,60}\\)\\s*)?:\\s*` +
+      `([\\s\\S]+?)(?=\\s*(?:[\\n.!?]\\s*)?${SPEAKER}\\s*(?:\\([^)]{0,60}\\)\\s*)?:\\s|$)`,
+    "g"
+  );
+  for (const m of raw.matchAll(re)) {
+    const line = m[2].replace(/\s+/g, " ").trim();
+    // A "line" of one word is almost always a label rather than speech.
+    if (line.length > 1 && /\s/.test(line)) found.add(line.toLowerCase());
+  }
+  // Quoted speech, for prompts that write it inline.
+  for (const m of raw.matchAll(/[""«]([^""«»]{2,300})[""»]|"([^"]{2,300})"/g)) {
+    const line = (m[1] || m[2] || "").trim();
+    if (line.length > 1) found.add(line.toLowerCase());
+  }
+  return found.size;
+}
+
+/**
+ * Gate: does this scene carry enough talk?
+ *
+ * Applied to the storyline's plan and again to the built scene, because a
+ * storyline that plans two lines produces a scene with two lines however loudly
+ * the builder was told otherwise.
+ */
+function dialogueViolations(scene, { where = "This scene" } = {}) {
+  const violations = [];
+  const spoken = String(scene?.dialogue || "");
+  const count = countSpokenLines(spoken) || countSpokenLines(scene?.fullPrompt);
+
+  if (count === 0) {
+    violations.push(
+      `${where} has NO DIALOGUE AT ALL. In this film type that is a failed scene, not a stylistic choice — ` +
+        `the story lives in what people say to each other. Write ${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE} ` +
+        `spoken lines (aim for ${TARGET_LINES_PER_SCENE}) of real exchange: interruptions, an accusation, ` +
+        `an answer to a different question, somebody talking over somebody.`
+    );
+  } else if (count < MIN_LINES_PER_SCENE) {
+    violations.push(
+      `${where} carries only ${count} spoken line(s). Every 10-second scene needs ` +
+        `${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE}, aiming for ${TARGET_LINES_PER_SCENE} — roughly ` +
+        `${SPEAKING_SECONDS} of the 10 seconds with somebody speaking, back to back. Add the rest of the ` +
+        `exchange: what the other person says back, the interruption, the second accusation. Do NOT pad it ` +
+        `with exposition — argue about what to do now.`
+    );
+  }
+  return violations;
+}
+
+/**
+ * The film-level dialogue gate: 30 exchanges per 60 seconds, across the whole
+ * storyline.
+ *
+ * Run on the storyline's planned lines, which is the cheap place to catch it —
+ * a thin film repaired here is one call, and repaired after thirty scene prompts
+ * have been written from it is thirty rebuilds.
+ *
+ * Reports the emptiest scenes by name rather than just the total, because
+ * "you are 40 lines short" is not actionable and "scenes 7, 12 and 19 have one
+ * line each" is.
+ */
+function filmDialogueViolations(storyline, { numScenes } = {}) {
+  const beats = (storyline?.sceneBeats || []).filter(Boolean);
+  if (beats.length === 0) return [];
+
+  const scenes = numScenes || beats.length;
+  const seconds = scenes * 10;
+  const required = Math.round((seconds / 60) * MIN_LINES_PER_MINUTE);
+
+  const counts = beats.map((b) => ({
+    sceneNumber: b.sceneNumber ?? "?",
+    lines: Array.isArray(b.dialogue) ? b.dialogue.filter((l) => String(l || "").trim()).length : 0,
+  }));
+  const total = counts.reduce((n, c) => n + c.lines, 0);
+  if (total >= required) return [];
+
+  const thinnest = counts
+    .filter((c) => c.lines < MIN_LINES_PER_SCENE)
+    .sort((a, b) => a.lines - b.lines)
+    .slice(0, 8);
+
+  return [
+    `This film carries ${total} spoken line(s) across ${seconds} seconds. The floor is ` +
+      `${MIN_LINES_PER_MINUTE} per 60 seconds — ${required} for this run-time — and the target is higher still ` +
+      `(${TARGET_LINES_PER_SCENE} a scene, so about ${TARGET_LINES_PER_SCENE * scenes}). The story of this film ` +
+      `lives in what people say to each other, and right now most of it is not being said.` +
+      (thinnest.length
+        ? ` The emptiest scenes: ${thinnest.map((c) => `${c.sceneNumber} (${c.lines})`).join(", ")}. ` +
+          `Fill them with real exchange — an interruption, an accusation, a denial, somebody talking over ` +
+          `somebody — not with exposition.`
+        : ""),
+  ];
+}
 
 /**
  * How many of a film's scenes may be a single continuous shot.
@@ -372,11 +618,20 @@ function scenePromptDensityViolations(scene) {
 module.exports = {
   conceptDirective,
   densityLaw,
+  dialogueLaw,
+  dialogueViolations,
+  filmDialogueViolations,
+  countSpokenLines,
   storylineDensityViolations,
   scenePromptDensityViolations,
   beatCount,
   oneShotAllowance,
   MIN_BEATS_PER_SCENE,
   TARGET_BEATS_PER_SCENE,
+  MIN_LINES_PER_SCENE,
+  TARGET_LINES_PER_SCENE,
+  MAX_LINES_PER_SCENE,
+  MIN_LINES_PER_MINUTE,
+  SPEAKING_SECONDS,
   DEAD_PHRASES,
 };

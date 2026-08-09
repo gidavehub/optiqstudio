@@ -43,12 +43,26 @@ const check = (label, condition, detail = "") => {
 // production and the reason the geometry field exists. The letter CHANGES
 // between scenes, which is what exercises the state cascade.
 
+const SCENE_LINES = [
+  "BINTA: Just drive.",
+  "MODOU: Drive where, Binta?",
+  "BINTA: Anywhere that is not here.",
+  "MODOU: You have not even read it.",
+  "BINTA: I do not need to read it.",
+  "MODOU: Then why are you still holding it?",
+  "BINTA: Because it is mine to hold.",
+];
+
 const scenePrompt = (n, where) =>
   `SCENE ${n}. ${where}. ` +
   // Long on purpose: a real scene prompt is 1,500–2,000 words, and the whole
   // point of the framed prompt is that it is a fraction of that.
   "A Black Gambian woman named Binta, golden-brown complexion, close-cropped hair. ".repeat(55) +
-  "0.0s she opens the door. 3.0s she sits. 6.0s she reads the letter. 9.0s she looks up. ".repeat(70);
+  "0.0s she opens the door. 3.0s she sits. 6.0s she reads the letter. 9.0s she looks up. ".repeat(70) +
+  // This film type runs on talk, so a fixture with no dialogue is not a fixture
+  // of anything it makes. framedPromptViolations counts these and fails a brief
+  // that drops them.
+  `\nDIALOGUE.\n${SCENE_LINES.join("\n")}\n`;
 
 const project = {
   uid: "u1",
@@ -209,7 +223,10 @@ const FRAMED_BODY = [
   "9.0s she lowers it flat and turns her face to the road ahead. ".repeat(3),
   "",
   "DIALOGUE",
-  "None. Neither of them speaks across these ten seconds and the silence is the point.",
+  // Every line from the script, reproduced. Dropping any of them is the single
+  // most damaging thing this rewrite can do — the pictures carry everything else
+  // and can carry none of this.
+  ...SCENE_LINES,
   "",
   "SOUND",
   "Continuous ambience: the engine under everything, traffic passing on the right, wind through both open front windows. ".repeat(2),

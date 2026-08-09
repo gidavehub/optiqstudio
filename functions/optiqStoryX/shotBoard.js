@@ -101,6 +101,13 @@
 
 "use strict";
 
+// The one definition of "what counts as a spoken line", shared with the pipeline
+// rather than re-implemented here. This module is otherwise import-free — it is
+// the brain handed to a runner that owns no prompts — but two different line
+// counters would drift, and the whole dialogue floor rests on this one number.
+// ./creative.js is pure and calls nothing.
+const { countSpokenLines, MIN_LINES_PER_SCENE } = require("./creative");
+
 // ── The numbers, and why they are these numbers ─────────────────────────────
 
 /**
@@ -1417,9 +1424,15 @@ Be exhaustive and be concrete. Every beat, every sound, every voice, every piece
 
 ═══ KEEP, IN FULL ═══
 
-1. WHAT HAPPENS, on the clock. Every timestamped beat, in order, across the whole ${sceneSeconds} seconds. Physical verbs, one change of state per beat. This is the largest part of what you write and it must lose nothing — if the long prompt has six beats, you have six beats.
+1. THE DIALOGUE, WORD FOR WORD, AND IT IS THE BIGGEST THING YOU WRITE. Every spoken line exactly as written, with its language tag, in the order spoken. Never paraphrase a line, never shorten one, never translate one, and above all NEVER DROP ONE.
 
-2. THE DIALOGUE, WORD FOR WORD. Every spoken line exactly as written, with its language tag, in the order spoken. Never paraphrase a line, never shorten one, never translate one, never drop one.
+   This is the whole point of the film. These are watched on a phone, and what holds a viewer is people talking — the argument, the accusation, the thing that should not have been said. A ${sceneSeconds}-second scene here carries six to eight lines and has somebody speaking for about eight of its ten seconds. If the script you are compressing has seven lines and your brief has three, you have destroyed the scene, whatever else you got right.
+
+   Losing dialogue is the single most damaging thing this rewrite can do, because the pictures cannot carry any of it. A dropped visual detail is invisible — the frame shows it anyway. A dropped LINE is simply gone, and the clip comes back with a silence where the story was. Count the lines in the source. Count them in your brief. The numbers match, or you go back.
+
+   Mark the overlaps and interruptions explicitly: who cuts across whom, who is still talking when the next person starts, who repeats themselves because they were ignored. The back-and-forth is the performance, not the words in isolation.
+
+2. WHAT HAPPENS, on the clock. Every timestamped beat, in order, across the whole ${sceneSeconds} seconds. Physical verbs, one change of state per beat. It must lose nothing — if the long prompt has six beats, you have six beats — but remember these run UNDERNEATH the talking rather than instead of it: hands do things while mouths move.
 
 3. WHO IS SPEAKING, AND IN WHAT VOICE. Before each line, name the speaker and describe their voice in a few words — age, register, texture, pace, and the emotional state it is delivered in. The pictures show faces; they say nothing about what those faces sound like, and an unattributed line comes back in the wrong mouth. If two people speak, make it unmistakable which voice is which. Note where a line overlaps another, is interrupted, or trails off.
 
@@ -1457,7 +1470,7 @@ TWO NARROW EXCEPTIONS, and they are the only two:
 
 ═══ HOW TO WRITE IT ═══
 
-Plain headings, in this order: CAST KEY · WHAT HAPPENS (the timestamped beats) · DIALOGUE (with voices) · SOUND · CAMERA. The cast key goes FIRST and stays short — models weight early tokens, and who-is-who is the thing that must not be got wrong. No preamble, no restatement of the story, no summary at the end — but the blocks themselves are as long as they need to be, and SOUND is usually the longest of them. Write it as a working call sheet for a crew who are standing in the place and can already see it, and who need to be told everything they cannot see — because that is exactly the situation the video model is now in.
+Plain headings, in this order: CAST KEY · DIALOGUE (with voices, every line) · WHAT HAPPENS (the timestamped beats) · SOUND · CAMERA. DIALOGUE comes second, right after the cast key, and it is normally the longest block on the page — models weight early tokens, and the talk is what this film is. The cast key goes FIRST and stays short — models weight early tokens, and who-is-who is the thing that must not be got wrong. No preamble, no restatement of the story, no summary at the end — but the blocks themselves are as long as they need to be, and SOUND is usually the longest of them. Write it as a working call sheet for a crew who are standing in the place and can already see it, and who need to be told everything they cannot see — because that is exactly the situation the video model is now in.
 
 Keep the prohibitions that are about BEHAVIOUR, not looks: no on-screen text, captions, subtitles or titles; no split screen; no music. Drop the rest.`;
 }
@@ -1848,6 +1861,34 @@ function framedPromptViolations(framed, scene) {
         `The spoken line "${oneLine(line, 90)}" is missing or was reworded. Every line of dialogue is reproduced exactly as written, in full.`
       );
     }
+  }
+
+  // ── THE LINE COUNT ────────────────────────────────────────────────────────
+  //
+  // The check above only sees QUOTED lines, and a script written as
+  // "NAME: the line" has none — so a brief could drop every one of them and pass.
+  // This counts both sides instead, and it is the gate that matters most in this
+  // whole module.
+  //
+  // Losing dialogue is the most damaging thing the rewrite can do. A dropped
+  // visual detail is invisible, because the attached frame shows it anyway. A
+  // dropped LINE is simply gone, and the clip comes back with silence where the
+  // story was — which is the exact failure this film type exists to avoid.
+  const sourceLines = countSpokenLines(scene?.dialogue) || countSpokenLines(scene?.fullPrompt);
+  const briefLines = countSpokenLines(text);
+  if (sourceLines > 0 && briefLines < sourceLines) {
+    violations.push(
+      `The script has ${sourceLines} spoken line(s) and this brief has ${briefLines}. ` +
+        `${sourceLines - briefLines} line(s) were dropped or summarised away. Dialogue is what this film IS — ` +
+        `the pictures carry everything else and can carry none of this. Put every line back, word for word, ` +
+        `in the order spoken, each attributed to its speaker.`
+    );
+  } else if (sourceLines === 0 && briefLines < MIN_LINES_PER_SCENE) {
+    violations.push(
+      `This brief carries ${briefLines} spoken line(s). A scene in this film runs on talk — at least ` +
+        `${MIN_LINES_PER_SCENE} lines of real exchange, back to back. If the script genuinely has none, it is the ` +
+        `script that is wrong, and this brief should not paper over it.`
+    );
   }
 
   if (/\b(text overlay|caption|subtitle|lower third|split screen|watermark|title card)\b/i.test(text)) {

@@ -72,10 +72,18 @@ const {
 const {
   conceptDirective,
   densityLaw,
+  dialogueLaw,
+  dialogueViolations,
+  filmDialogueViolations,
   storylineDensityViolations,
   scenePromptDensityViolations,
   MIN_BEATS_PER_SCENE,
   TARGET_BEATS_PER_SCENE,
+  MIN_LINES_PER_SCENE,
+  TARGET_LINES_PER_SCENE,
+  MAX_LINES_PER_SCENE,
+  MIN_LINES_PER_MINUTE,
+  SPEAKING_SECONDS,
 } = require("./creative");
 // Only the PLAN is needed here. `characterRefPrompt` is used by the shot-board
 // job when it photographs the sheets, and `refsForScene` / `refClause` exist to
@@ -90,6 +98,7 @@ const {
 } = require("./soundPolicy");
 const {
   storyStructureLaw,
+  dramaMandate,
   noCommercialMandate,
   storyStructureViolations,
   storyPurityViolations,
@@ -367,6 +376,20 @@ const STORYLINE_SCHEMA = {
           /** Who this scene needs — see sceneCastingDirective() in ./casting.js. */
           castingMode: { type: "STRING", enum: ["recurring", "fresh-faces", "no-people"] },
           charactersPresent: { type: "ARRAY", items: { type: "STRING" } },
+          /**
+           * THE SCENE'S ACTUAL SPOKEN LINES, written here at storyline time.
+           *
+           * The strongest lever there is on dialogue density, and the reason it
+           * lives on the beat rather than being left to the scene-builder: a
+           * storyline that plans two lines produces a two-line scene however
+           * loudly the builder is told to write seven. Making the storyline
+           * commit to the whole exchange up front is what actually fills the
+           * film with talk — and it lets the gate catch a thin scene while
+           * repairing it is one call instead of a 2,000-word rebuild.
+           *
+           * Format: "NAME: the line", in the order spoken.
+           */
+          dialogue: { type: "ARRAY", items: { type: "STRING" } },
           cuts: {
             type: "ARRAY",
             items: {
@@ -378,7 +401,7 @@ const STORYLINE_SCHEMA = {
         },
         required: [
           "sceneNumber", "act", "purpose", "moment", "location", "castingMode",
-          "charactersPresent", "cuts",
+          "charactersPresent", "dialogue", "cuts",
         ],
       },
     },
@@ -614,6 +637,8 @@ ${knowledgeFor("brief-analyst")}`,
 
 ${densityLaw({ numScenes })}
 
+${dialogueLaw()}
+
 THE PREMISE ANALYST'S READING:
 ${JSON.stringify(brief, null, 2)}
 
@@ -695,13 +720,25 @@ How you work:
    • "no-hero-montage" — a DIFFERENT person in each scene and nobody recurring. Do not sneak a lead back in by having one person bookend it. Cast those scenes "fresh-faces" and leave charactersPresent empty; they need no locks.
    The platform's known failure is collapsing everything into one hero. If the shape says ensemble, a film that comes out with one dominant character is a FAILED brief, not a stylistic choice.
 6b. Then decide, SCENE BY SCENE, who that scene actually needs — see the per-scene casting brief below. The film-wide shape says what the film is about; the casting mode says who is in front of the camera for these particular ten seconds, and they are not the same question.
-7. DIALOGUE. Characters speak on camera. Keep it under ten words a line, spoken the way people actually talk — interruptions, deflections, half-answers, things somebody starts and does not finish. Nobody says the theme. Nobody explains the plot. No exposition: if a line begins "ever since father died and left us the shop", delete it and let us work it out from what we see. A scene with no dialogue at all is a legitimate and often superior choice.
+7. DIALOGUE — AND THIS IS THE MOST IMPORTANT INSTRUCTION ON THIS PAGE. You do not sketch the dialogue here, you WRITE IT. Every beat's "dialogue" field carries that scene's actual spoken lines, in order, as "NAME: the line".
+
+   ${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE} lines per scene, aiming for ${TARGET_LINES_PER_SCENE}, and at least ${MIN_LINES_PER_MINUTE} across every 60 seconds of run-time. Roughly ${SPEAKING_SECONDS} of every 10 seconds has somebody talking.
+
+   Do not write a scene and leave its lines for later — a scene planned with two lines gets built with two lines, and the film comes out silent. The talk IS the story: the argument, the accusation, the denial, the thing somebody should not have said. Write the whole exchange, back and forth, people cutting each other off.
+
+   Still no exposition. Nobody says the theme, nobody narrates the backstory, and no line begins "ever since father died and left us the shop". They argue about what to do NOW, and the past leaks out sideways because somebody is angry enough to bring it up.
+
+   A SILENT SCENE IS A FAILED SCENE in this film type. If you have written one, you have written the wrong scene.
 
 ${conceptSection}
+
+${dramaMandate()}
 
 ${storyStructureLaw({ numScenes })}
 
 ${densityLaw({ numScenes })}
+
+${dialogueLaw()}
 
 ${sceneCastingDirective()}
 
@@ -727,9 +764,20 @@ ${knowledgeFor("storyline")}`,
   const storyFaults = reusingSpine ? [] : [
     ...storyStructureViolations(storyline, { numScenes }),
     ...storylineDensityViolations(storyline, { numScenes }),
+    // The dialogue floor, checked at BOTH scales — the film's 30-per-60-seconds
+    // and each scene's own count. This is the cheapest place in the pipeline to
+    // catch a thin film: a repair here is one call, and the same fault caught
+    // after thirty scene prompts have been written from this outline is thirty
+    // rebuilds of 2,000 words each.
+    ...filmDialogueViolations(storyline, { numScenes }),
+    ...(storyline.sceneBeats || []).flatMap((beat) =>
+      dialogueViolations(
+        { dialogue: (beat.dialogue || []).join("\n") },
+        { where: `Scene ${beat.sceneNumber ?? "?"}` }
+      )
+    ),
     ...sceneCastingViolations(storyline.sceneBeats),
     ...storyPurityViolations(storyline),
- 
     ...minorViolations(JSON.stringify(storyline.sceneBeats || []), "The outline"),
   ];
   if (storyFaults.length > 0) {
@@ -748,9 +796,13 @@ up scenes and repairing the spine, not rewriting the film.
 
 ${noCommercialMandate()}
 
+${dramaMandate()}
+
 ${storyStructureLaw({ numScenes })}
 
 ${densityLaw({ numScenes })}
+
+${dialogueLaw()}
 
 ${sceneCastingDirective()}
 
@@ -992,6 +1044,8 @@ ${noMusicMandate({ allowDialogue: true })}
 
 ${densityLaw({ numScenes })}
 
+${dialogueLaw()}
+
 ═══ WHAT THIS SCENE IS FOR ═══
 This scene's obligation in the story is "${beat.act || "unstated"}". It must visibly
 do that job:
@@ -1042,7 +1096,8 @@ Scene-specific contract:
 - NO REFERENCE IMAGE IS ATTACHED TO YOU, and none will be. This film is photographed AFTER this prompt is written, and FROM it: every place, every arrangement, every object and every camera setup is generated out of the words you are writing now. That is why the density rules above are not negotiable here. A wall you did not describe is a wall that two separate photographs will each guess at differently, and then the room changes between shots — which is the entire failure this film type exists to remove.
 - The SOUND block opens by restating that the clip carries NO MUSIC, then the locked sound spec VERBATIM, then this scene's diegetic event sounds (every physical event has a sound). Never name an instrument, a tempo, a BPM or a musical mood: there is no score in this clip.
 - The ACTION block is timestamped beats implementing the storyline's planned cuts exactly, spread across the whole ten seconds. At least ${MIN_BEATS_PER_SCENE} separate timestamped beats, aiming for ${TARGET_BEATS_PER_SCENE}, each a change of state with its own physical verb. Five verbs minimum. Ten seconds narrating one continuous activity is a failed scene.
-- The DIALOGUE block carries the scene's spoken lines with the language tag. Under ten words a line. People interrupt, deflect, answer a different question, or start a sentence and stop. Nobody states the theme, nobody explains the plot, and no line is exposition. If the scene is stronger silent, write no dialogue and say so.
+- The DIALOGUE block is THE BIGGEST BLOCK IN THIS PROMPT and the reason the scene exists. It carries every one of the scene's ${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE} lines (aim ${TARGET_LINES_PER_SCENE}) with the language tag, in the order spoken, each attributed by name — roughly ${SPEAKING_SECONDS} of the ten seconds with somebody talking. People interrupt, talk over each other, answer a different question, repeat themselves because they were ignored, and start the true sentence and stop. Nobody states the theme, nobody explains the plot, no line is exposition. A SILENT SCENE IS A FAILED SCENE here — the doctrine chapter that says otherwise was written for thirty-second adverts and does not apply.
+- Also return those lines in the scene's short "dialogue" field, one per line as "NAME: the line". The gate counts them there, and the shooting brief that actually renders this scene is compiled from them.
 - EVERY LINE IS ATTRIBUTED, AND EVERY SPEAKER'S VOICE PROFILE IS PASTED VERBATIM before their first line in this block. The registry below carries a "voice" for each character; reproduce it word for word, exactly as you reproduce the Locked Character Block. This is not optional and it is not padding: this film is photographed, so the pictures will hold every face still and NOTHING will hold the voices still except these words repeated identically in every scene. A line with no name attached comes back spoken by the wrong person.
 - End with the CLOSING RESTATEMENT paragraph re-asserting identity, wardrobe, the key event, light, motion policy, and prohibitions — and re-asserting the no-music law a third and final time. Use wording to this effect: "${NO_MUSIC_RESTATEMENT}"
 - Also return the scene's setting/action/dialogue/sound summaries as separate short fields for the UI (the fullPrompt stays complete on its own).
@@ -1068,6 +1123,19 @@ How the film ends: ${storyline.theEnding}
 
 THIS SCENE'S PLANNED BEAT (implement exactly):
 ${JSON.stringify(beat, null, 2)}
+
+═══ THIS SCENE'S DIALOGUE — ALREADY WRITTEN, REPRODUCE IT IN FULL ═══
+${
+            (beat.dialogue || []).length
+              ? `${(beat.dialogue || []).join("\n")}
+
+That is ${(beat.dialogue || []).length} line(s), and EVERY ONE of them goes into the DIALOGUE block of your prompt, word for word, in this order, attributed to the speaker named. Do not cut any. Do not shorten any. Do not summarise the exchange — "they argue about the money" is not dialogue, it is a stage direction, and the clip will come back with nobody saying anything.
+
+You may add MORE lines if the exchange wants them (up to ${MAX_LINES_PER_SCENE}), and you should if it feels thin. You may not take any away.
+
+Paste each speaker's locked VOICE PROFILE verbatim before their first line.`
+              : `The storyline planned no lines for this scene, which in this film type is almost always a mistake. Write ${MIN_LINES_PER_SCENE}–${TARGET_LINES_PER_SCENE} lines of real exchange between the people present, consistent with the beat above — an interruption, an accusation, a denial, somebody talking over somebody. Only leave it silent if there is genuinely nobody on camera.`
+          }
 
 NEIGHBOUR BEATS (for seamless continuity):
 Previous: ${neighborBefore ? JSON.stringify(neighborBefore) : "none — this is the opening scene, and it opens ON an event"}
@@ -1207,6 +1275,11 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     // The density backstop. The storyline gate is the real defence; this catches
     // a builder that was handed four beats and wrote one long activity anyway.
     violations.push(...scenePromptDensityViolations(scene));
+    // And the same backstop for TALK, which is the thing this film type is made
+    // of. The storyline planned the lines; this catches a builder that was handed
+    // seven and compiled two into the prompt, which is the failure that produces
+    // a beautiful, quiet, unwatchable film.
+    violations.push(...dialogueViolations(scene, { where: `Scene ${scene.sceneNumber}` }));
     // The registry gate already cleaned the locked spec, but a builder can still
     // invent a score in its own event-sound writing, so every scene is checked.
     violations.push(...sceneSoundViolations(scene.fullPrompt, { allowDialogue: true }));
@@ -1251,6 +1324,8 @@ ${noCommercialMandate()}
 ${noMusicMandate({ allowDialogue: true })}
 
 ${densityLaw({ numScenes })}
+
+${dialogueLaw()}
 
 HOUSE DOCTRINE:
 ${verifierKnowledge}`,
@@ -1428,6 +1503,8 @@ ${noCommercialMandate()}
 ${noMusicMandate({ allowDialogue: true })}
 
 ${densityLaw({})}
+
+${dialogueLaw()}
 
 You MUST:
 - NEVER turn this into an ad. There is no brand, no product, no tagline, no logo, no end card and no narrator in this film. If the request asks for one, deliver the intent inside the story instead and say nothing about a brand.

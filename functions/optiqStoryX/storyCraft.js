@@ -172,6 +172,46 @@ const ACT_WINDOWS = {
  * scenes each act may have for THIS run-time, and refuses to say what happens in
  * them.
  */
+/**
+ * The register this film type is FOR: drama first, comedy underneath it.
+ *
+ * Injected into the concept room, the storyline and the story doctor, because
+ * the drawn tone palette is deliberately varied and will happily land on
+ * "watchful" or "matter-of-fact about something enormous" — both of which are
+ * good tones and neither of which is what these films are being made to be.
+ *
+ * Stated as a ratio rather than a rule so it steers without flattening: the
+ * variety in the palette is still doing its job, it just does it inside a
+ * register that has been chosen.
+ */
+function dramaMandate() {
+  return `═══ THE REGISTER — DRAMA, WITH COMEDY IN IT ═══
+This is a DRAMA. That is the register, it is not negotiable, and it is what the
+audience is here for: people who want something from each other, a conflict that
+costs somebody, an argument that goes further than it should. Confrontation,
+betrayal, a secret coming out, a debt called in, a family saying the unsayable.
+If a scene has no friction in it, it is the wrong scene.
+
+AND IT IS FUNNY. Not a comedy — a drama with comedy in it, which is what real
+life is and what makes a five-minute film watchable rather than gruelling. Aim
+for roughly three parts drama to one part comedy, and put the comedy INSIDE the
+drama rather than in scenes of its own:
+  • somebody being funny to avoid saying the true thing;
+  • an insult so well aimed that it is genuinely funny, and lands anyway;
+  • the wrong person laughing at the wrong moment;
+  • two people who cannot stop bickering even while something serious happens;
+  • a bystander with an opinion nobody asked for;
+  • someone deflating a huge moment with something petty.
+
+Comic relief that stops the story is not comedy, it is a break in the story. The
+funny line should ALSO be the line that makes things worse.
+
+WHAT THIS IS NOT: gentle, wistful, observational, or a mood piece. No scenes of
+somebody quietly reflecting. No warm montage. If your instinct is a tender moment
+where nothing is at stake, that is the instinct to distrust — put two people in
+the room who disagree, and let them talk.`;
+}
+
 function storyStructureLaw({ numScenes } = {}) {
   const scenes = numScenes || 6;
   const seconds = scenes * 10;
@@ -634,6 +674,7 @@ function scenePurityViolations(scene) {
 module.exports = {
   drawStoryProvocation,
   storyStructureLaw,
+  dramaMandate,
   noCommercialMandate,
   storyStructureViolations,
   storyPurityViolations,

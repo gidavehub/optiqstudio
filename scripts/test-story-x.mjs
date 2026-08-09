@@ -87,6 +87,17 @@ function longFilm(actFor) {
       castingMode: "recurring",
       charactersPresent: ["Awa"],
       moment: "She lifts the lid, counts, and puts it back.",
+      // Seven lines, because this film type runs on talk: the gates below check
+      // both the per-scene floor and 30 exchanges per 60 seconds.
+      dialogue: [
+        "AWA: You went into my things.",
+        "NDEY: I went into the kitchen.",
+        "AWA: It was behind the pot and now it is not.",
+        "NDEY: Then ask the pot.",
+        "MODOU: Both of you, sit down.",
+        "AWA: Do not tell me to sit in my own house.",
+        "NDEY: She never asks. She just takes and calls it borrowing.",
+      ],
       cuts: [
         { time: "0-4s", shot: "The lid comes off." },
         { time: "4-7s", shot: "Counting." },
@@ -155,6 +166,86 @@ test("the long-form law only appears for genuinely long films", () => {
   assert(/THIS IS LONG FORM/.test(storyStructureLaw({ numScenes: 30 })), "a 30-scene film must get the long-form law");
   assert(/MIDPOINT/.test(storyStructureLaw({ numScenes: 30 })), "it must ask for a midpoint");
   assert(!/THIS IS LONG FORM/.test(storyStructureLaw({ numScenes: 6 })), "a 6-scene film must not get it");
+});
+
+// ── THE DIALOGUE LAW ────────────────────────────────────────────────────────
+//
+// What this film type is FOR. These films are watched on a phone and what holds
+// a viewer is people talking, so the floor is 5–10 lines a scene and 30
+// exchanges per 60 seconds. Every other sandbox's doctrine says the opposite
+// ("under ten words a line", "a silent scene is often superior"), which is why
+// the law is repeated at four separate skills and gated at three.
+
+const {
+  dialogueLaw,
+  dialogueViolations,
+  filmDialogueViolations,
+  countSpokenLines,
+  MIN_LINES_PER_SCENE,
+  MIN_LINES_PER_MINUTE,
+} = require_("../functions/optiqStoryX/creative.js");
+
+test("spoken lines are counted however the writer formatted them", () => {
+  const rows = "AWA: You took it.\nNDEY: I took nothing.\nAWA: Then where is it?";
+  assert(countSpokenLines(rows) === 3, `rows: got ${countSpokenLines(rows)}`);
+  // A compiled prompt legitimately runs lines together inside one paragraph.
+  // Anchoring the counter to the start of a line reported these as zero, which
+  // would tell a brief that kept every line that it had dropped them all.
+  const inline = "DIALOGUE. AWA: You took it. NDEY: I took nothing. AWA: Then where is it?";
+  assert(countSpokenLines(inline) === 3, `inline: got ${countSpokenLines(inline)}`);
+  const quoted = 'She says "Take it back" and he says "I will not"';
+  assert(countSpokenLines(quoted) === 2, `quoted: got ${countSpokenLines(quoted)}`);
+  assert(countSpokenLines("SOUND. Room tone. CAMERA. Locked wide.") === 0, "prose must not count as speech");
+});
+
+test("a silent scene is a FAILURE here, not a stylistic choice", () => {
+  const v = dialogueViolations({ dialogue: "" });
+  assert(v.length === 1, "a silent scene must be caught");
+  assert(/NO DIALOGUE AT ALL/.test(v[0]), v[0]);
+});
+
+test("a thin scene is caught, a packed one passes", () => {
+  const thin = dialogueViolations({ dialogue: "AWA: You took it.\nNDEY: I did not." });
+  assert(thin.length === 1 && /only 2 spoken line/.test(thin[0]), `thin not caught: ${thin[0]}`);
+  const packed = dialogueViolations({ dialogue: beats()[0].dialogue.join("\n") });
+  assert(packed.length === 0, `a 7-line scene must pass: ${packed.join(" | ")}`);
+});
+
+test("the film-wide floor is 30 exchanges per 60 seconds", () => {
+  // The per-scene gate alone can be gamed: a film can sit on the floor in every
+  // scene, or average out fine while eight scenes are nearly silent.
+  const thin = {
+    sceneBeats: Array.from({ length: 30 }, (_, i) => ({
+      sceneNumber: i + 1,
+      dialogue: i < 20 ? ["A: one", "B: two"] : [],
+    })),
+  };
+  const v = filmDialogueViolations(thin, { numScenes: 30 });
+  assert(v.length === 1, "a thin film must be caught");
+  assert(/40 spoken line/.test(v[0]), `should count the whole film: ${v[0]}`);
+  assert(new RegExp(`${(300 / 60) * MIN_LINES_PER_MINUTE} for this run-time`).test(v[0]), v[0]);
+  // And it names the emptiest scenes, because "you are 110 short" is not actionable.
+  assert(/emptiest scenes/.test(v[0]), "it must name which scenes to fix");
+  // Built fresh rather than referencing STORYLINE, which is declared further
+  // down and would be in the temporal dead zone here.
+  assert(filmDialogueViolations(longFilm(withMidpoint), { numScenes: 30 }).length === 0, "a talking film must pass");
+});
+
+test("the dialogue law suspends the doctrine it contradicts, in writing", () => {
+  const law = dialogueLaw();
+  assert(/BOTH ARE SUSPENDED HERE/.test(law), "it must explicitly override the ad doctrine");
+  assert(/SILENT SCENE IS A FAILURE/.test(law), "it must forbid the silent scene");
+  assert(new RegExp(`${MIN_LINES_PER_MINUTE} exchanges in every 60`).test(law), "it must state the per-minute floor");
+  assert(/BANTER IS PLOT/.test(law), "it must ask for back-and-forth, not alternating statements");
+  assert(/Still no exposition|STILL NOT EXPOSITION/i.test(law), "packing lines is not licence to explain the plot");
+});
+
+test("the register is drama, with comedy inside it", () => {
+  const { dramaMandate } = require_("../functions/optiqStoryX/storyCraft.js");
+  const m = dramaMandate();
+  assert(/This is a DRAMA/.test(m), "drama must be the stated register");
+  assert(/three parts drama to one part comedy/.test(m), "the ratio must be stated");
+  assert(/ALSO be the line that makes things worse/.test(m), "comedy must sit inside the drama, not beside it");
 });
 
 // ── THE WIRING ──────────────────────────────────────────────────────────────
@@ -280,7 +371,9 @@ function stubVertex(captured, { slowScenes = false } = {}) {
       const chars = REGISTRY.characters.filter((c) => (beat.charactersPresent || []).includes(c.name));
       return skillReply({
         sceneNumber: n, setting: beat.location, action: beat.moment,
-        dialogue: chars.map((c) => `${c.name}: How much?`).join(" "),
+        // The builder reproduces the storyline's planned lines — which is what
+        // the whole dialogue chain is built to make it do.
+        dialogue: (beat.dialogue || []).join("\n"),
         sound: "Room tone.", fullPrompt: fatPrompt(beat, chars),
       });
     }
@@ -375,6 +468,38 @@ await testAsync("wiring: every character gets a locked VOICE, and the scenes pas
       `scene ${scene.sceneNumber} has Awa speaking but no voice lock`
     );
   }
+});
+
+await testAsync("wiring: the dialogue survives the whole chain, end to end", async () => {
+  // The chain that matters: the storyline WRITES the lines, the builder is handed
+  // them and told to reproduce every one, the gate counts them, and the shooting
+  // brief that finally renders is compiled from them. A break anywhere in that
+  // produces a beautiful, quiet, unwatchable film — and every link is silent
+  // about its own failure, which is why this is checked end to end rather than
+  // per-unit.
+  const law = captured.filter(({ system }) => /THE DIALOGUE LAW/.test(system));
+  assert(law.length >= 3, `only ${law.length} skill(s) were given the dialogue law`);
+
+  const storyline = captured.find(({ system }) => /You are STORYLINE/.test(system));
+  assert(/most important instruction on this page/i.test(storyline.system), "the storyline must be told talk is the priority");
+
+  // Every built scene carries its planned lines.
+  for (const scene of film.scenes) {
+    const planned = beats().find((b) => b.sceneNumber === scene.sceneNumber);
+    const want = (planned?.dialogue || []).length;
+    const got = countSpokenLines(scene.dialogue);
+    assert(got >= want, `scene ${scene.sceneNumber}: planned ${want} lines, built ${got}`);
+    assert(got >= MIN_LINES_PER_SCENE, `scene ${scene.sceneNumber} has only ${got} line(s)`);
+  }
+
+  // And the film clears the per-minute floor it is judged on.
+  const total = film.scenes.reduce((n, s) => n + countSpokenLines(s.dialogue), 0);
+  const required = (SCENE_COUNT * 10 / 60) * MIN_LINES_PER_MINUTE;
+  assert(total >= required, `the finished film carries ${total} lines, floor is ${required}`);
+
+  // The builder was handed the actual lines, not just told to invent some.
+  const builder = captured.find(({ userText }) => /Build scene 1\b/.test(userText));
+  assert(/ALREADY WRITTEN, REPRODUCE IT IN FULL/.test(builder.userText), "the builder was not handed the planned lines");
 });
 
 await testAsync("wiring: the spine is echoed back so a continuation can reuse it", async () => {
