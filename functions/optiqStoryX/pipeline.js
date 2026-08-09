@@ -97,6 +97,12 @@ const {
   registrySoundViolations,
 } = require("./soundPolicy");
 const {
+  isAdaptation,
+  adaptationMandate,
+  coverageViolations,
+  repetitionViolations,
+} = require("./adaptation");
+const {
   storyStructureLaw,
   dramaMandate,
   noCommercialMandate,
@@ -558,6 +564,24 @@ The shape of the finished film:
   premise above mentions a business or an object, it is a place or a thing in the
   story — never something to advertise.`;
 
+  // ── PREMISE, OR A STORY TO ADAPT? ─────────────────────────────────────────
+  //
+  // The single most consequential branch in this pipeline. A one-line premise
+  // wants the concept room: invent, diverge, reject the literal reading, find
+  // the film hiding in the idea. A FINISHED STORY wants none of that — running
+  // the concept room over it produces a different film with the same title, and
+  // deletes what the director actually wrote.
+  //
+  // See ./adaptation.js for the failure that made this necessary.
+  const adapting = isAdaptation(prompt);
+  const adaptation = adapting ? adaptationMandate({ numScenes, sourceStory: prompt }) : "";
+  if (adapting) {
+    console.log(
+      `[storyX] ADAPTATION MODE — the director supplied a ${countWords(prompt)}-word story. ` +
+        `The concept room is skipped; nothing is invented.`
+    );
+  }
+
   // ── WHAT A PREVIOUS PASS ALREADY DECIDED ──────────────────────────────────
   //
   // The film's SPINE — the premise reading, the storyline and the registry — is
@@ -587,6 +611,8 @@ WHAT YOU ARE ANALYSING FOR: ${kind.register}
 ${noCommercialMandate()}
 
 ${adultsOnlyMandate()}
+
+${adaptation}
 
 If the director's brief names or implies anyone under 18, say so plainly in your
 reading and recast them as an adult of 18 or older doing the same thing. Never
@@ -628,9 +654,10 @@ ${knowledgeFor("brief-analyst")}`,
   await reportStage("storylining");
   const creativeBrief = conceptDirective(castingSeed, { numScenes });
   let conceptRoom = null;
-  // Skipped entirely on a continuation: the room exists to produce the storyline,
-  // and the storyline it produced is already in hand.
-  if (!reusingSpine) try {
+  // Skipped entirely on a continuation (the storyline it produces is already in
+  // hand) AND on an adaptation (the story it would invent is not wanted — the
+  // director already wrote one).
+  if (!reusingSpine && !adapting) try {
     conceptRoom = await runStorySkill(
       "concept-room",
       `${creativeBrief}
@@ -688,9 +715,11 @@ ${rejected.map((c) => `  ✗ ${c.title} — ${c.logline}`).join("\n") || "  (non
     : "";
 
   // ── SKILL 3: STORYLINE — the star of Optiq Story ──────────────────────────
-  let storyline = reusedStoryline || await runStorySkill(
-    "storyline",
-    `You are STORYLINE — the most important skill in the Optiq Story swarm, and the thing that decides whether anyone watches this film past the third second. Your only job: make the whole ${kind.noun} ONE complete story. Not a vibe, not a mood reel, not a situation — a story with a beginning, a middle and an end that happens on screen.
+  // Hoisted into a variable rather than passed inline, because the fidelity
+  // re-roll below has to write the storyline AGAIN from exactly the same brief
+  // — a re-write against a different system prompt would fix the faults by
+  // producing a different film, which is the thing being fixed.
+  const storylineSystemPrompt = `You are STORYLINE — the most important skill in the Optiq Story swarm, and the thing that decides whether anyone watches this film past the third second. Your only job: make the whole ${kind.noun} ONE complete story. Not a vibe, not a mood reel, not a situation — a story with a beginning, a middle and an end that happens on screen.
 
 WHAT KIND OF FILM THIS IS: ${kind.register}
 
@@ -700,7 +729,9 @@ ${adultsOnlyMandate()}
 
 How you work:
 1. ${
-      winner
+      adapting
+        ? `THE DIRECTOR HAS ALREADY WRITTEN THIS STORY. It is reproduced in full above. Do not invent a story, do not improve theirs, do not find a better angle. Walk their story from its first sentence to its last, list every event in it, and allocate the ${numScenes} scenes across those events so that ALL of it is filmed. Every location they wrote gets filmed in that location. Every character they named is in it, and no character they did not name is. It ends the way they ended it.`
+        : winner
         ? `The concept room has already done the ideation and handed you a winner — build THAT film. Do not re-pitch it, do not soften it, and do not quietly revert to the safe version of this premise on your way to scene 3. Your job is execution: turn a one-line concept into ${numScenes} scenes that deliver every event it promised, plus the turn and the ending it named.`
         : `Consider several candidate stories and reject the literal one first. The literal reading of any premise ("these people do the thing the premise describes") is a situation with a camera pointed at it, and it produces empty film. Pick the ONE where somebody wants something they might not get.`
     }
@@ -732,6 +763,8 @@ How you work:
 
 ${conceptSection}
 
+${adaptation}
+
 ${dramaMandate()}
 
 ${storyStructureLaw({ numScenes })}
@@ -746,10 +779,11 @@ THE PREMISE ANALYST'S ANALYSIS (follow its casting decision, its stakes and its 
 ${JSON.stringify(brief, null, 2)}
 
 HOUSE DOCTRINE:
-${knowledgeFor("storyline")}`,
-    [{ text: briefText }],
-    STORYLINE_SCHEMA
-  );
+${knowledgeFor("storyline")}`;
+
+  let storyline =
+    reusedStoryline ||
+    (await runStorySkill("storyline", storylineSystemPrompt, [{ text: briefText }], STORYLINE_SCHEMA));
 
   // ── GATE: STRUCTURE, DENSITY, CASTING, AD-PURITY ──────────────────────────
   //
@@ -770,6 +804,13 @@ ${knowledgeFor("storyline")}`,
     // after thirty scene prompts have been written from this outline is thirty
     // rebuilds of 2,000 words each.
     ...filmDialogueViolations(storyline, { numScenes }),
+    // ADAPTATION FIDELITY. Two failures that every other gate in this list waves
+    // through, because each individual scene is perfectly well-formed:
+    //   • the film quietly relocating into one easy room, and
+    //   • the same beat written eleven times because the story ran out.
+    // Both happened. See ./adaptation.js.
+    ...repetitionViolations(storyline, { numScenes }),
+    ...(adapting ? coverageViolations(storyline, prompt) : []),
     ...(storyline.sceneBeats || []).flatMap((beat) =>
       dialogueViolations(
         { dialogue: (beat.dialogue || []).join("\n") },
@@ -794,7 +835,17 @@ violation below and change nothing else: the concept, the title, the arc, the
 emotional hook and the characters all stay exactly as they are. You are punching
 up scenes and repairing the spine, not rewriting the film.
 
+ONE EXCEPTION, AND IT OVERRIDES THE PARAGRAPH ABOVE. If the violations include
+scenes concentrated in one location, scenes repeated, or the director's story
+not being covered, then re-spreading the film IS the repair and you must do it
+properly — move scenes to the places the source puts them, replace repeated
+beats with the events that were skipped, and add the phases of the story that
+never got filmed. That is not "changing more than you were asked"; it is the
+only thing that fixes those faults.
+
 ${noCommercialMandate()}
+
+${adaptation}
 
 ${dramaMandate()}
 
@@ -832,6 +883,60 @@ ${JSON.stringify(storyline, null, 2)}`,
           `[story doctor] ${storyFaults.length} → ${remaining.length} violation(s) after repair`
         );
         storyline = repaired;
+
+        // ── THE FIDELITY RE-ROLL ──────────────────────────────────────────
+        //
+        // A doctor asked to "fix these violations without changing anything
+        // else" cannot fix a film that is in the wrong place. Re-spreading
+        // thirty scenes across six locations is not a repair, it is the
+        // storyline again — so when the fidelity faults survive the doctor, the
+        // storyline is WRITTEN AGAIN, once, with the faults in front of it.
+        //
+        // Worth the extra text call by a wide margin: this is the difference
+        // between the director's film and a different film with their title,
+        // and the alternative is finding out after the board has been paid for.
+        const fidelity = [
+          ...repetitionViolations(storyline, { numScenes }),
+          ...(adapting ? coverageViolations(storyline, prompt) : []),
+        ];
+        if (fidelity.length > 0) {
+          console.warn(
+            `[storyX fidelity] ${fidelity.length} fault(s) survived the doctor; re-writing the storyline:`,
+            fidelity.map((v) => v.slice(0, 160))
+          );
+          try {
+            const rewritten = await runStorySkill(
+              "storyline-refidelity",
+              `${storylineSystemPrompt}
+
+═══ YOUR PREVIOUS ATTEMPT FAILED, AND IT FAILED ON THE THING THAT MATTERS MOST ═══
+You already wrote this storyline once and it did not film the story you were
+given. Read these faults, then write the film AGAIN from the source.
+
+${fidelity.map((v, i) => `${i + 1}. ${v}`).join("\n\n")}
+
+Before you write a single scene, do this: list the events of the director's
+story in order, from its first sentence to its last. Count them. Then allocate
+the ${numScenes} scenes across that list so every event on it gets filmed, in
+the place the story puts it. If two scenes on your list would be the same
+moment, one of them is wrong.`,
+              [{ text: briefText }],
+              STORYLINE_SCHEMA
+            );
+            if ((rewritten?.sceneBeats || []).length >= (storyline.sceneBeats || []).length) {
+              const after = [
+                ...repetitionViolations(rewritten, { numScenes }),
+                ...(adapting ? coverageViolations(rewritten, prompt) : []),
+              ];
+              console.log(`[storyX fidelity] ${fidelity.length} → ${after.length} fault(s) after the re-write`);
+              // Adopt only if it is genuinely better. A re-write that is worse
+              // than what it replaced is a re-write that should not have run.
+              if (after.length < fidelity.length) storyline = rewritten;
+            }
+          } catch (err) {
+            console.error("[storyX fidelity] re-write failed; keeping the doctored storyline", err);
+          }
+        }
       } else {
         console.warn(
           `[story doctor] returned ${(repaired?.sceneBeats || []).length} scenes for a ` +

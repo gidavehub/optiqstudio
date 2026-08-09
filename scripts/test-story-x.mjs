@@ -248,6 +248,184 @@ test("the register is drama, with comedy inside it", () => {
   assert(/ALSO be the line that makes things worse/.test(m), "comedy must sit inside the drama, not beside it");
 });
 
+// ── ADAPTATION MODE ─────────────────────────────────────────────────────────
+//
+// The failure these exist for, in full, because it must not happen twice:
+//
+// A director pasted a complete story — a boy taught to steal in Brikama market,
+// escalating robberies, a gang in the night markets, repeated arrests, a mother
+// bribing him out, a violent heist at a coastal compound, the arrest on the
+// wall, the interrogation, the raid that found her chest under the floorboards,
+// the trial, the prison van. Eleven locations, a decade of time.
+//
+// The film came back with nineteen of thirty scenes in one holding room, eleven
+// near-identical "she shoves him into the market" scenes, an invented detective,
+// and a different ending. Every individual scene passed every gate that existed.
+
+const {
+  isAdaptation,
+  adaptationMandate,
+  coverageViolations,
+  repetitionViolations,
+} = require_("../functions/optiqStoryX/adaptation.js");
+
+const SOURCE_STORY = `In the noisy alleyways of the Brikama market, where merchant stalls were crammed
+under sun-bleached tarpaulins, young Modou was taught a terrible lesson by his mother Kaddy. She did not
+teach him to read. She shoved him into the crowd with an order: bring back money, or do not return.
+As Modou grew, her demands escalated from shoplifting to robbing street vendors and leading a gang who
+terrorised the night markets. The police caught him and locked him in the damp holding cells of the
+district station, but Kaddy always appeared with bribe money and theatrical tears, and outside she would
+laugh and tell him he was invincible. The test came when Kaddy learned of a gold trader in an isolated
+compound near the coast. She handed him a metal bar. That night Modou broke in, the trader fought back,
+and Modou fled with a sack of gold, leaving him injured. The police caught him scaling the perimeter wall.
+In the interrogation room he stayed smug, until Kaddy was led in wearing handcuffs: a raid on her house had
+found a chest beneath the floorboards full of stolen jewelry. At the court trial the judge sentenced him to
+life. As the prison van doors slammed, Modou stared through the barred window at his mother being led away.`;
+
+test("a pasted story is detected as an adaptation; a one-line premise is not", () => {
+  assert(isAdaptation(SOURCE_STORY), "a full story must be detected");
+  assert(!isAdaptation("A woman hides money from her own family."), "a premise must not be");
+  assert(!isAdaptation("A boy steals for his mother in the market."), "a longer premise must not be");
+  // Long but not narrative — a wall of adjectives is not a story to adapt.
+  assert(!isAdaptation("bright bold modern clean minimal warm ".repeat(30)), "non-narrative text must not be");
+});
+
+test("the adaptation mandate forbids the four things that went wrong", () => {
+  const m = adaptationMandate({ numScenes: 30, sourceStory: SOURCE_STORY });
+  assert(/USE THE WHOLE STORY/.test(m), "it must demand full coverage");
+  assert(/INVENT NO CHARACTERS/.test(m), "it must forbid inventing a detective");
+  assert(/RELOCATE NOTHING/.test(m), "it must forbid collapsing into one room");
+  assert(/KEEP THE ENDING THEY WROTE/.test(m), "it must forbid a replacement ending");
+  assert(/DO NOT REPEAT A SCENE/.test(m), "it must forbid the same beat eleven times");
+  assert(m.includes("Brikama"), "the source story must be carried in the mandate itself");
+  assert(/SUSPENDS EVERY INSTRUCTION YOU HAVE READ ABOUT ORIGINALITY/.test(m), "it must override the doctrine");
+});
+
+/** The blueprint the director actually got, reconstructed. */
+function theFailedFilm() {
+  const room = "Brikama police holding room, damp concrete walls, rusted iron pipe, low wooden desk";
+  const market = "the crowded sun-bleached Brikama Market under blue plastic tarpaulins";
+  const marketScenes = [1, 6, 9, 10, 12, 13, 14, 15, 16, 17, 19];
+  const sceneBeats = [];
+  for (let i = 1; i <= 30; i++) {
+    const inMarket = marketScenes.includes(i);
+    sceneBeats.push({
+      sceneNumber: i,
+      act: i === 1 ? "open" : i === 30 ? "land" : "escalate",
+      location: inMarket ? market : room,
+      purpose: inMarket ? "she sends him to steal" : "the interrogation continues",
+      moment: inMarket
+        ? "Kaddy aggressively shoves Modou into the crowded market lane and points toward a wealthy target. Modou stumbles, recovers with a smirk, and slips into the crowd."
+        : "Inspector Jallow sits at the desk while Modou strains against the handcuffs on the iron pipe and Kaddy argues across the wooden desk.",
+    });
+  }
+  return { sceneBeats };
+}
+
+test("a film that collapses into one room is caught", () => {
+  const v = repetitionViolations(theFailedFilm(), { numScenes: 30 });
+  assert(
+    v.some((x) => /19 of 30 scenes happen in the same place/.test(x)),
+    `location concentration not caught: ${v.map((x) => x.slice(0, 70)).join(" | ")}`
+  );
+});
+
+test("the same scene written eleven times is caught", () => {
+  const v = repetitionViolations(theFailedFilm(), { numScenes: 30 });
+  assert(
+    v.some((x) => /Scenes 1, 6, 9, 10, 12/.test(x)),
+    "the repeated market scenes must be caught"
+  );
+  assert(
+    v.some((x) => /the same scene written 19 times/.test(x)),
+    "the repeated room scenes must be caught"
+  );
+});
+
+test("a film that drops most of the director's story is caught", () => {
+  const v = coverageViolations(theFailedFilm(), SOURCE_STORY);
+  assert(v.length > 0, "dropping the story must be caught");
+  assert(
+    v.some((x) => /is not an adaptation, it is a replacement/.test(x)),
+    `expected the coverage fault: ${v.map((x) => x.slice(0, 80)).join(" | ")}`
+  );
+});
+
+test("a faithful spread across the story's real locations PASSES", () => {
+  // The film that should have been made: every phase of the source, in its own
+  // place, moving forward in time. Thirty genuinely different moments.
+  const scenes = [
+    ["Brikama market", "Kaddy shoves young Modou at a woman's woven bag and he lifts her purse"],
+    ["Brikama market", "Modou snatches a merchant's cash box off the counter and bolts"],
+    ["Kaddy's front room", "Kaddy counts the stolen notes and pockets every dalasi, praising him"],
+    ["Brikama market", "an older Modou palms a phone from a stall while the seller weighs rice"],
+    ["a lane behind the market", "Modou strips a bicycle and sells the parts to a scrap boy"],
+    ["a rival shop", "Modou smashes the shutters with a brick while the owner shouts"],
+    ["the night markets", "Modou's gang surround a vendor and empty his takings tin"],
+    ["the night markets", "a stallholder swings a stick at the gang and they scatter laughing"],
+    ["a district street", "police grab Modou by the collar as he runs with a sack"],
+    ["the district station holding cells", "Modou sits on a damp bench picking at the wall plaster"],
+    ["the district station front desk", "Kaddy weeps theatrically and counts bribe notes onto the counter"],
+    ["the alleyway outside the station", "Kaddy slaps his back and tells him he is invincible"],
+    ["Brikama market", "Modou takes a woman's bracelet clean off her wrist in daylight"],
+    ["the district station holding cells", "a second arrest, a bored officer, the same bench"],
+    ["the district station front desk", "Kaddy pays again, thicker notes, no tears this time"],
+    ["Kaddy's front room", "Kaddy describes the gold trader and hands Modou a heavy metal bar"],
+    ["a coastal road", "Modou walks the dark road toward the compound with the bar under his shirt"],
+    ["the coastal compound wall", "Modou levers a window catch and climbs through into the dark"],
+    ["the trader's bedroom", "the trader wakes, grabs Modou's wrist, and they crash into a cabinet"],
+    ["the trader's bedroom", "Modou strikes the trader down and the man stops moving"],
+    ["the compound courtyard", "Modou fills a sack with gold while sirens start somewhere near"],
+    ["the compound perimeter wall", "Modou is dragged off the wall by officers, the sack splitting open"],
+    ["a police van", "Modou is driven through the night, bleeding, still smirking"],
+    ["the interrogation room", "Modou boasts that his mother will pay by morning as she always does"],
+    ["Kaddy's house", "officers lever up the floorboards and lift out a chest of jewelry"],
+    ["Kaddy's house", "an officer photographs the cash and the ledgers spread on the bed"],
+    ["the interrogation room", "the iron door opens and Kaddy is led in wearing handcuffs"],
+    ["the interrogation room", "Modou reads her face and understands she was never coming to save him"],
+    ["the courtroom", "the judge delivers a sentence of life imprisonment without parole"],
+    ["the prison van", "Modou stares through the barred window at his mother led the other way"],
+  ];
+  const sceneBeats = scenes.map(([location, moment], i) => ({
+    sceneNumber: i + 1,
+    act: i === 0 ? "open" : i === 29 ? "land" : i === 19 ? "climax" : i === 13 ? "turn" : "escalate",
+    location,
+    purpose: `phase ${i + 1}`,
+    moment,
+  }));
+  const film = { sceneBeats };
+  const rep = repetitionViolations(film, { numScenes: 30 });
+  assert(rep.length === 0, `a properly spread film must pass: ${rep.map((x) => x.slice(0, 110)).join(" | ")}`);
+  const cov = coverageViolations(film, SOURCE_STORY);
+  assert(
+    !cov.some((x) => /is not an adaptation/.test(x)),
+    `a film covering every phase must not be flagged as a replacement: ${cov.map((x) => x.slice(0, 110)).join(" | ")}`
+  );
+});
+
+test("the gates do not fire on a legitimate short two-hander", () => {
+  // A six-scene film that genuinely lives in one kitchen is a real and often
+  // superior choice, and the doctrine says so. The gates are aimed at a LONG
+  // film collapsing into a box, not at a short one choosing to stay in one.
+  const moments = [
+    "she sets the pot down hard and asks him where the money went",
+    "he empties his pockets onto the table and finds nothing to show her",
+    "the neighbour knocks and they both go silent until the footsteps leave",
+    "she opens the tin and counts what is left, twice, saying nothing",
+    "he takes the tin from her hands and she lets him",
+    "he puts it back on the shelf with the lid off and walks out",
+  ];
+  const sceneBeats = moments.map((moment, i) => ({
+    sceneNumber: i + 1,
+    act: i === 0 ? "open" : i === 5 ? "land" : "escalate",
+    location: "the kitchen",
+    purpose: `p${i}`,
+    moment,
+  }));
+  const v = repetitionViolations({ sceneBeats }, { numScenes: 6 });
+  assert(v.length === 0, `a six-scene two-hander must pass: ${v.map((x) => x.slice(0, 100)).join(" | ")}`);
+});
+
 // ── THE WIRING ──────────────────────────────────────────────────────────────
 
 const SCENE_COUNT = 30;
@@ -468,6 +646,46 @@ await testAsync("wiring: every character gets a locked VOICE, and the scenes pas
       `scene ${scene.sceneNumber} has Awa speaking but no voice lock`
     );
   }
+});
+
+// A whole second pass, driven by the director's own story, proving the pipeline
+// switches modes rather than merely owning a module that could.
+const adaptCaptured = [];
+const adapted = await runOptiqStoryXBlueprint({
+  vertexFetch: stubVertex(adaptCaptured),
+  prompt: SOURCE_STORY,
+  length: "300s",
+  aspectRatio: "16:9",
+  castingSeed: "storyx-adapt-1",
+});
+
+await testAsync("a supplied story SKIPS the concept room entirely", async () => {
+  // The concept room's job is "reject the literal reading and invent four
+  // alternatives". Run over a finished story that is not ideation, it is
+  // deletion — and it is what produced a film with an invented detective in it.
+  const room = adaptCaptured.filter(({ system }) => /THE CONCEPT ROOM/.test(system));
+  assert(room.length === 0, `the concept room ran ${room.length} time(s) on an adaptation`);
+  // The premise-mode run above must still use it, or this proves nothing.
+  const premiseRoom = captured.filter(({ system }) => /THE CONCEPT ROOM/.test(system));
+  assert(premiseRoom.length > 0, "the concept room must still run on a one-line premise");
+});
+
+await testAsync("every skill that could rewrite the story is handed it verbatim", async () => {
+  const mandated = adaptCaptured.filter(({ system }) => /THIS IS AN ADAPTATION/.test(system));
+  assert(mandated.length >= 2, `only ${mandated.length} skill(s) got the adaptation mandate`);
+  // Not a summary of the story — the story.
+  for (const { system } of mandated) {
+    assert(system.includes("Brikama"), "a skill got the mandate without the source story in it");
+    assert(system.includes("prison van"), "the source story was truncated before the ending");
+    assert(/RELOCATE NOTHING/.test(system), "a skill was not told to keep the locations");
+  }
+  // And the storyline is told the story exists rather than told to invent one.
+  const storyline = adaptCaptured.find(({ system }) => /You are STORYLINE/.test(system));
+  assert(
+    /THE DIRECTOR HAS ALREADY WRITTEN THIS STORY/.test(storyline.system),
+    "the storyline was still told to build a concept-room winner"
+  );
+  assert(adapted.scenes.length === SCENE_COUNT, `${adapted.scenes.length} scenes`);
 });
 
 await testAsync("wiring: the dialogue survives the whole chain, end to end", async () => {
