@@ -217,7 +217,15 @@ test("A: the score was composed, measured and looped to the film", () => {
   assert(A.music, "no music");
   assert(A.music.trackDuration === 30, `track ${A.music.trackDuration}`);
   assert(A.music.segments > 1, `${A.music.segments} segments for a 48s film from a 30s track`);
-  assert(A.music.gain < 0.2, `music should duck under narration, gain ${A.music.gain}`);
+  // A ratio, not a magic number: what matters is that a narrated film's bed sits
+  // BELOW an un-narrated one, whatever absolute level the platform is mixed at.
+  // Asserting `< 0.2` made this test fail the moment both levels were raised
+  // together, which is exactly the change it should have stayed silent about.
+  assert(
+    A.music.gain === audioPlan.MUSIC_GAIN_WITH_NARRATION &&
+      audioPlan.MUSIC_GAIN_WITH_NARRATION < audioPlan.MUSIC_GAIN_ALONE,
+    `music should duck under narration, gain ${A.music.gain}`
+  );
 });
 
 test("A: the plan passed its own review", () => {
@@ -301,11 +309,15 @@ test("D: a dialogue film is never scanned or narrated", () => {
   assert(D.narration.length === 0, "narration placed");
 });
 
-test("D: a dialogue film keeps its own audio", () => {
+test("D: a dialogue film keeps its own audio, lifted", () => {
   // The legacy compile path muted the video unconditionally and threw the
   // performances away. This is that bug's regression test.
+  //
+  // The gain is 3, not 1: the video model returns clips mixed well below
+  // broadcast level, so a dialogue film's footage is lifted rather than passed
+  // through. See FOOTAGE_GAIN in functions/audioPost.js.
   for (const t of D.editorDoc.tracks) {
-    if (t.kind === "video") assert(t.volume === 1, `video track muted to ${t.volume}`);
+    if (t.kind === "video") assert(t.volume === 3, `video track at ${t.volume}, expected 3`);
   }
 });
 

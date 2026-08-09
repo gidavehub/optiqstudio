@@ -20,8 +20,10 @@ const SPEECH_WPS = 2.58;
 const SLOT_FILL = 0.9;
 const MIN_SLOT = 1.2;
 const HEAD_ROOM = 0.15;
-const MUSIC_GAIN_WITH_NARRATION = 0.16;
-const MUSIC_GAIN_ALONE = 0.3;
+// Doubled from 0.16 / 0.3 — see the note on the TS twin. The ratio between them
+// is unchanged, so a narrated film still ducks its bed under the voice.
+const MUSIC_GAIN_WITH_NARRATION = 0.32;
+const MUSIC_GAIN_ALONE = 0.6;
 const MUSIC_FADE_IN = 1.2;
 const MUSIC_FADE_OUT = 2;
 const MUSIC_CROSSFADE = 1.5;
@@ -281,6 +283,75 @@ function planMusic(trackDuration, filmDuration, opts = {}) {
   return { segments, gain, loops: segments.length, trimmed: false, notes };
 }
 
+/**
+ * Score a long film with SEVERAL composed pieces laid end to end. Port of
+ * planMusicSuite in lib/editor/audioPlan.ts — read the reasoning there.
+ *
+ * @param {Array<{url: string, duration: number}>} tracks
+ */
+function planMusicSuite(tracks, filmDuration, opts = {}) {
+  const notes = [];
+  const gain =
+    opts.gain == null ? (opts.hasNarration ? MUSIC_GAIN_WITH_NARRATION : MUSIC_GAIN_ALONE) : opts.gain;
+  const usable = (tracks || []).filter((t) => t && t.url && t.duration > 0);
+
+  if (usable.length === 0 || !(filmDuration > 0)) {
+    return { segments: [], gain, loops: 0, trimmed: false, notes: ["No score was laid: no usable composed tracks."] };
+  }
+  if (usable.length === 1) {
+    const single = planMusic(usable[0].duration, filmDuration, opts);
+    return { ...single, segments: single.segments.map((s) => ({ ...s, url: usable[0].url })) };
+  }
+
+  const fIn = round(Math.min(opts.fadeIn == null ? MUSIC_FADE_IN : opts.fadeIn, filmDuration / 3));
+  const fOut = round(Math.min(opts.fadeOut == null ? MUSIC_FADE_OUT : opts.fadeOut, filmDuration / 3));
+
+  const segments = [];
+  let cursor = 0;
+  let index = 0;
+  let trimmed = false;
+  const MAX_SEGMENTS = 64;
+
+  while (cursor < filmDuration - 1e-6 && segments.length < MAX_SEGMENTS) {
+    const track = usable[Math.min(index, usable.length - 1)];
+    const crossfade = round(
+      Math.max(0, Math.min(opts.crossfade == null ? MUSIC_CROSSFADE : opts.crossfade, track.duration / 3))
+    );
+    const remaining = filmDuration - cursor;
+    const duration = round(Math.min(track.duration, remaining));
+    if (duration <= 1e-6) break;
+
+    const isFirst = segments.length === 0;
+    const isLast = cursor + duration >= filmDuration - 1e-6;
+    if (duration < track.duration - 1e-6) trimmed = true;
+
+    segments.push({
+      start: round(cursor),
+      srcIn: 0,
+      srcOut: duration,
+      duration,
+      fadeIn: isFirst ? fIn : crossfade,
+      fadeOut: isLast ? fOut : crossfade,
+      layer: segments.length % 2,
+      url: track.url,
+    });
+
+    if (isLast) break;
+    cursor += duration - crossfade;
+    index += 1;
+  }
+
+  const used = new Set(segments.map((s) => s.url)).size;
+  if (used < usable.length) {
+    notes.push(`The film is ${round(filmDuration)}s and only needed ${used} of the ${usable.length} composed pieces.`);
+  }
+  if (index >= usable.length) {
+    notes.push(`The suite (${usable.length} pieces) was shorter than the film, so the last piece carries the tail.`);
+  }
+
+  return { segments, gain, loops: segments.length, trimmed, notes };
+}
+
 // ── Plan review ─────────────────────────────────────────────────────────────
 
 function validateAudioPlan(plan) {
@@ -404,11 +475,27 @@ function applyAudioPlanToDoc(doc, plan) {
     if (track.kind === "video") track.volume = plan.footageGain;
   }
 
-  if (plan.music && plan.music.segments.length > 0 && plan.musicUrl) {
-    const assetId = genId("ast");
-    doc.assets[assetId] = { id: assetId, kind: "audio", url: plan.musicUrl, label: "Composed score" };
+  if (
+    plan.music &&
+    plan.music.segments.length > 0 &&
+    (plan.musicUrl || plan.music.segments.some((s) => s.url))
+  ) {
+    // One asset per distinct source — see the note on the TS twin. A looped
+    // single-track score has exactly one; a suite has several.
+    const assetsByUrl = new Map();
+    const assetFor = (url) => {
+      let id = assetsByUrl.get(url);
+      if (!id) {
+        id = genId("ast");
+        doc.assets[id] = { id, kind: "audio", url, label: "Composed score" };
+        assetsByUrl.set(url, id);
+      }
+      return id;
+    };
     const layerTracks = new Map();
     for (const seg of plan.music.segments) {
+      const url = seg.url || plan.musicUrl;
+      if (!url) continue;
       let track = layerTracks.get(seg.layer);
       if (!track) {
         track = makeTrack(MUSIC_TRACK_NAMES[seg.layer] || `Score ${seg.layer}`);
@@ -418,7 +505,7 @@ function applyAudioPlanToDoc(doc, plan) {
       }
       track.clips.push(
         makeAudioClip({
-          assetId,
+          assetId: assetFor(url),
           start: seg.start,
           srcIn: seg.srcIn,
           duration: seg.duration,
@@ -534,6 +621,7 @@ module.exports = {
   narrationSlots,
   planNarration,
   planMusic,
+  planMusicSuite,
   validateAudioPlan,
   applyAudioPlanToDoc,
   clearPlannerTracks,

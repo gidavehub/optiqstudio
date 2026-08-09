@@ -18,6 +18,7 @@ import {
   narrationSlots,
   planNarration,
   planMusic,
+  planMusicSuite,
   validateAudioPlan,
   applyAudioPlan,
   hasPlannedAudio,
@@ -380,6 +381,118 @@ test("a crossfade can never exceed the track it is fading", () => {
   for (const seg of plan.segments) {
     assert(seg.fadeIn <= seg.duration + 1e-6 && seg.fadeOut <= seg.duration + 1e-6, "fade longer than segment");
   }
+});
+
+// ── The suite (long films) ──────────────────────────────────────────────────
+//
+// A five-minute film scored by one looped 60s track is that track five times,
+// and by the third repeat it is the loudest thing in the film. So long films get
+// several composed pieces laid end to end instead.
+
+const FIVE_PIECES = [
+  { url: "https://cdn/m1.mp3", duration: 60 },
+  { url: "https://cdn/m2.mp3", duration: 75 },
+  { url: "https://cdn/m3.mp3", duration: 52 },
+  { url: "https://cdn/m4.mp3", duration: 60 },
+  { url: "https://cdn/m5.mp3", duration: 68 },
+];
+
+test("a suite lays its pieces in order, each once, and covers the film", () => {
+  const plan = planMusicSuite(FIVE_PIECES, 300);
+  assert(plan.segments.length >= 5, `${plan.segments.length} segments`);
+  const order = plan.segments.map((s) => s.url);
+  // In order, and the first five are the five pieces as composed.
+  for (let i = 0; i < 5; i++) {
+    assert(order[i] === FIVE_PIECES[i].url, `piece ${i + 1} is out of order`);
+  }
+  const last = plan.segments[plan.segments.length - 1];
+  assert(Math.abs(last.start + last.duration - 300) < 0.01, "the suite does not reach the end of the film");
+  assert(plan.segments[0].start === 0, "the suite does not start at the top of the film");
+});
+
+test("consecutive pieces alternate layers, so their crossfade is a real overlap", () => {
+  // Two segments on ONE track may never overlap (validateDoc forbids it), so a
+  // butt-join would be the only alternative — and a butt-join is audible.
+  const plan = planMusicSuite(FIVE_PIECES, 300);
+  for (let i = 1; i < plan.segments.length; i++) {
+    assert(plan.segments[i].layer !== plan.segments[i - 1].layer, `segments ${i - 1}/${i} share a layer`);
+    assert(
+      plan.segments[i].start < plan.segments[i - 1].start + plan.segments[i - 1].duration,
+      `segments ${i - 1}/${i} are butt-joined rather than crossfaded`
+    );
+  }
+  for (const layer of [0, 1]) {
+    const onLayer = plan.segments.filter((s) => s.layer === layer).sort((a, b) => a.start - b.start);
+    for (let i = 1; i < onLayer.length; i++) {
+      assert(
+        onLayer[i - 1].start + onLayer[i - 1].duration <= onLayer[i].start + 1e-6,
+        `two segments overlap on layer ${layer}`
+      );
+    }
+  }
+});
+
+test("a suite shorter than the film holds on its last piece rather than going silent", () => {
+  // Silence under the ending is the worst place to run out of score.
+  const plan = planMusicSuite(FIVE_PIECES, 600);
+  const last = plan.segments[plan.segments.length - 1];
+  assert(Math.abs(last.start + last.duration - 600) < 0.01, "the film ends with no score under it");
+  assert(last.url === FIVE_PIECES[4].url, "the tail must be carried by the final piece");
+});
+
+test("a suite longer than the film stops when the film does", () => {
+  const plan = planMusicSuite(FIVE_PIECES, 90);
+  const last = plan.segments[plan.segments.length - 1];
+  assert(Math.abs(last.start + last.duration - 90) < 0.01, "the score runs past the film");
+  assert(plan.trimmed, "a trimmed suite must say so");
+  assert(plan.notes.some((n) => /only needed/.test(n)), "unused pieces should be reported");
+});
+
+test("one piece is not a suite — it falls back to looping, and still names its source", () => {
+  const plan = planMusicSuite([FIVE_PIECES[0]], 180);
+  assert(plan.segments.length > 1, "a 60s piece under a 180s film must repeat");
+  assert(plan.segments.every((s) => s.url === FIVE_PIECES[0].url), "every segment must name its source");
+});
+
+test("a suite with nothing usable lays no music and says why", () => {
+  for (const bad of [[], [{ url: "", duration: 60 }], [{ url: "https://x", duration: 0 }]]) {
+    const plan = planMusicSuite(bad, 300);
+    assert(plan.segments.length === 0, "music was laid from an unusable track");
+    assert(plan.notes.length > 0, "a silent film must explain itself");
+  }
+  assert(planMusicSuite(FIVE_PIECES, 0).segments.length === 0, "a film with no duration gets no score");
+});
+
+test("a suite fades the film in at the top and out at the bottom", () => {
+  const plan = planMusicSuite(FIVE_PIECES, 300);
+  const first = plan.segments[0];
+  const last = plan.segments[plan.segments.length - 1];
+  assert(first.fadeIn > 0, "the score must fade in");
+  assert(last.fadeOut > 0, "the score must fade out");
+  for (const seg of plan.segments) {
+    assert(seg.fadeIn <= seg.duration + 1e-6 && seg.fadeOut <= seg.duration + 1e-6, "fade longer than segment");
+  }
+});
+
+test("a suite applies as several assets on the timeline, and the document stays legal", () => {
+  const engine = new EditorEngine(createEmptyDoc(canvasForAspect("16:9")));
+  const plan = planMusicSuite(FIVE_PIECES, 300);
+  applyAudioPlan(engine, {
+    film: filmTimeMap(Array(30).fill(10)),
+    narration: [],
+    music: plan,
+    footageGain: 3,
+    musicUrl: FIVE_PIECES[0].url,
+  });
+  const doc = engine.getDoc();
+  validateDoc(doc);
+  // MUSIC_TRACK_NAMES is a narrow tuple type, so `.includes(t.name)` does not
+  // typecheck against a plain string. Widened rather than cast at the call site.
+  const musicTrackNames: string[] = [...MUSIC_TRACK_NAMES];
+  const scoreTracks = doc.tracks.filter((t) => musicTrackNames.includes(t.name));
+  const urls = new Set(scoreTracks.flatMap((t) => t.clips.map((c) => doc.assets[c.assetId].url)));
+  assert(urls.size === 5, `${urls.size} distinct score assets, expected 5`);
+  for (const t of scoreTracks) assert(t.volume === plan.gain, "a score track is at the wrong gain");
 });
 
 // ── Plan validation (the self-review pass) ──────────────────────────────────

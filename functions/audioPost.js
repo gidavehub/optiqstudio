@@ -238,9 +238,36 @@ function scriptedNarration(project) {
 }
 
 /** Build the Lyria prompt. The film's own sound spec is the brief. */
-function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote }) {
+/**
+ * The movements of a long film's score suite.
+ *
+ * A five-minute film is not scored by one 60-second loop played five times — by
+ * the third repeat the loop is the most noticeable thing in the film. So a long
+ * film gets several separate pieces, composed for the stretch of story each sits
+ * under, and laid end to end (see planMusicSuite).
+ *
+ * These are expressed as DRAMATIC POSITIONS rather than as timings, because that
+ * is what the story law downstream is built on — open, want, turn/midpoint,
+ * escalation, climax and landing — and it is what makes the fourth piece sound
+ * like it belongs after the third.
+ */
+const SUITE_MOVEMENTS = [
+  "MOVEMENT 1 of 5 — THE OPENING. It plays under the first fifth of the film, where something is already wrong and the audience does not yet know why. Establish the film's musical world: state its main idea plainly, at low intensity, and leave room. This is the theme every later movement is a version of.",
+  "MOVEMENT 2 of 5 — THE WANT. The second fifth, where we learn what somebody is trying to get. Take movement 1's idea and give it forward motion — more pulse, more direction, still unresolved. Slightly warmer and more confident than the opening.",
+  "MOVEMENT 3 of 5 — THE TURN. The middle, where the story stops being the story we thought it was. This is where the score CHANGES ITS MIND: reharmonise the main idea darker or stranger, break its rhythm, let something drop out. The listener should feel the ground move without being told.",
+  "MOVEMENT 4 of 5 — THE ESCALATION. The fourth fifth, where the pressure rises and options close. The tightest and most driven of the five: shorter phrases, rising intensity, less air. Do not resolve anything here — this movement's job is to refuse to settle.",
+  "MOVEMENT 5 of 5 — THE CLIMAX AND THE LANDING. The last fifth: the biggest moment in the film, and then its outcome. Bring the main idea back in full for the peak, then let it come to rest — a real ending, arriving in the last ten seconds, not a fade-out.",
+];
+
+function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote, movement }) {
   const parts = [
     `Compose an instrumental score for a ${videoTypeNoun || "short advert"}.`,
+    // One movement of a suite. It goes near the top so the composer reads WHICH
+    // piece it is writing before it reads what the film is about — the same
+    // early-token weighting the scene prompts rely on.
+    movement
+      ? `THIS IS ONE MOVEMENT OF A LONGER SCORE. The film is scored by five separate pieces laid end to end, and they must sound like one work with five parts rather than five unrelated cues — same instrumental palette, same key centre unless the movement below says otherwise, same recording character. ${movement}`
+      : "",
     brandName ? `Brand: ${brandName}.` : "",
     concept ? `The film: ${String(concept).slice(0, 600)}.` : "",
     // The director's own words, and they outrank everything derived below —
@@ -521,44 +548,99 @@ async function runAudioPost({
   }
 
   // ── 6. SCORE ──────────────────────────────────────────────────────────────
+  //
+  // A SHORT film gets ONE composed track, looped to length. That is right for
+  // 30–180 seconds and wrong past it: the same 60 seconds played five times is a
+  // ringtone, and by the third repeat it is the loudest thing in the film. So a
+  // LONG film gets a SUITE — five separate pieces, each composed for the stretch
+  // of story it sits under, laid end to end with a crossfade at every seam.
+  //
+  // The threshold is the run-time, not the film type, so any type that grows past
+  // it inherits the suite rather than needing to be added here.
   await stage("scoring");
+  const SUITE_FROM_SECONDS = 200;
+  const wantsSuite = film.duration >= SUITE_FROM_SECONDS;
   let musicUrl = null;
   let musicPlan = P.planMusic(0, 0);
   try {
-    const track = await lyriaGenerate(
-      scorePrompt({
-        concept: project.concept,
-        brandName: project.brandName,
-        videoTypeNoun: filmKind.noun,
-        toneHint: project.storyArc,
-        soundSpec: project.musicSpec,
-        scoreNote,
-      })
-    );
-    musicUrl = await uploadBase64(
-      track.base64,
-      `projects/${projectId}/score.${track.ext}`,
-      track.mimeType
-    );
-    // Lyria's length is whatever it decided — 64s and 114s have both come back
-    // from the same prompt — so it has to be measured, never assumed.
-    let trackDuration;
-    try {
-      trackDuration = await probeDurationFromUrl(musicUrl, runCapture);
-    } catch (err) {
-      console.warn(`[audio ${projectId}] could not probe the score:`, String(err?.message || err).slice(0, 140));
-      report.notes.push("The composed score's length could not be measured, so it was laid without looping.");
-      trackDuration = film.duration;
+    const movements = wantsSuite ? SUITE_MOVEMENTS : [null];
+    const composed = [];
+
+    for (let i = 0; i < movements.length; i++) {
+      // Composed one at a time, deliberately. Lyria is metered at 4/minute
+      // (vertexQuota DEFAULT_CAPS.music), so five in parallel spends the first
+      // minute of the window and then waits anyway — and a serial loop means a
+      // failure on movement 4 still leaves movements 1–3 to score the film with.
+      let track;
+      try {
+        track = await lyriaGenerate(
+          scorePrompt({
+            concept: project.concept,
+            brandName: project.brandName,
+            videoTypeNoun: filmKind.noun,
+            toneHint: project.storyArc,
+            soundSpec: project.musicSpec,
+            scoreNote,
+            movement: movements[i],
+          })
+        );
+      } catch (err) {
+        console.error(
+          `[audio ${projectId}] movement ${i + 1} could not be composed:`,
+          String(err?.message || err).slice(0, 180)
+        );
+        report.notes.push(`Movement ${i + 1} of the score could not be composed; the others carry the film.`);
+        continue;
+      }
+
+      const url = await uploadBase64(
+        track.base64,
+        // Numbered per movement. A single-track score keeps the historical
+        // `score.<ext>` path so nothing that reads an existing project breaks.
+        `projects/${projectId}/${wantsSuite ? `score-${i + 1}` : "score"}.${track.ext}`,
+        track.mimeType
+      );
+
+      // Lyria's length is whatever it decided — 64s and 114s have both come back
+      // from the same prompt — so it has to be measured, never assumed.
+      let duration;
+      try {
+        duration = await probeDurationFromUrl(url, runCapture);
+      } catch (err) {
+        console.warn(
+          `[audio ${projectId}] could not probe movement ${i + 1}:`,
+          String(err?.message || err).slice(0, 140)
+        );
+        report.notes.push(`Movement ${i + 1}'s length could not be measured, so it was laid without looping.`);
+        duration = film.duration;
+      }
+      composed.push({ url, duration });
     }
-    musicPlan = P.planMusic(trackDuration, film.duration, { hasNarration: placements.length > 0 });
+
+    if (composed.length === 0) throw new Error("no movement of the score could be composed");
+
+    // `musicUrl` stays the FIRST piece: it is the plan's fallback source for any
+    // segment that does not name its own, and it is what the report links to.
+    musicUrl = composed[0].url;
+    musicPlan = wantsSuite
+      ? P.planMusicSuite(composed, film.duration, { hasNarration: placements.length > 0 })
+      : P.planMusic(composed[0].duration, film.duration, { hasNarration: placements.length > 0 });
+
     report.music = {
       url: musicUrl,
-      trackDuration: Math.round(trackDuration * 100) / 100,
+      trackDuration: Math.round(composed[0].duration * 100) / 100,
       segments: musicPlan.segments.length,
       loops: musicPlan.loops,
       gain: musicPlan.gain,
+      ...(wantsSuite ? { suite: composed.map((c) => ({ url: c.url, duration: Math.round(c.duration * 100) / 100 })) } : {}),
     };
     report.notes.push(...musicPlan.notes);
+    if (wantsSuite) {
+      report.notes.push(
+        `This film is ${Math.round(film.duration)}s, so it was scored as a suite of ${composed.length} ` +
+          `separate composed pieces rather than one looped track.`
+      );
+    }
   } catch (err) {
     console.error(`[audio ${projectId}] scoring failed:`, String(err?.message || err).slice(0, 200));
     report.notes.push(`No score was laid: ${String(err?.message || err).slice(0, 160)}`);
@@ -640,7 +722,15 @@ async function runAudioPost({
   // nothing and guarantees no stray room tone fights the voiceover. A dialogue
   // film keeps its own audio — this is the bug in the legacy compile path, which
   // muted the video unconditionally and threw the performances away.
-  const footageGain = filmKind.dialogueInVideo ? 1 : 0;
+  //
+  // A dialogue film's own audio is now LIFTED rather than passed through at unity.
+  // The video model returns clips mixed well below broadcast level, so a finished
+  // film played quiet on every device and the performances the director paid to
+  // render were the thing being lost. 3× is the measured multiple that brings them
+  // up without clipping; editorEngine.js validates the range as [0, 4], so this is
+  // inside the ceiling with headroom deliberately left above it.
+  const FOOTAGE_GAIN = 3;
+  const footageGain = filmKind.dialogueInVideo ? FOOTAGE_GAIN : 0;
 
   const audioPlan = {
     film,

@@ -56,9 +56,21 @@ export const MIN_SLOT = 1.2;
 /** Silence held at the very start and end of the film, so nothing feels clipped. */
 export const HEAD_ROOM = 0.15;
 
-/** Default music bed gain, by whether narration is competing with it. */
-export const MUSIC_GAIN_WITH_NARRATION = 0.16;
-export const MUSIC_GAIN_ALONE = 0.3;
+/**
+ * Default music bed gain, by whether narration is competing with it.
+ *
+ * Doubled from 0.16 / 0.3 on the director's note that finished films play too
+ * quietly everywhere — on the timeline, in the export and on a phone. The ratio
+ * between the two is unchanged, so a narrated film still ducks its bed under the
+ * voice by the same amount; both ends just moved up together.
+ *
+ * These pair with the footage gain in functions/audioPost.js, which went 1 → 3 in
+ * the same change. Music is deliberately the smaller multiple: the dialogue and
+ * the diegetic sound are the film, and a score that keeps pace with a tripled
+ * footage track would bury them.
+ */
+export const MUSIC_GAIN_WITH_NARRATION = 0.32;
+export const MUSIC_GAIN_ALONE = 0.6;
 
 /** Music bed fades. */
 export const MUSIC_FADE_IN = 1.2;
@@ -369,6 +381,16 @@ export interface MusicSegment {
    * overlaps (see validateDoc), and butt-joining loops is audible as a dip.
    */
   layer: 0 | 1;
+  /**
+   * Which composed track this segment plays FROM.
+   *
+   * Absent for an ordinary single-track score, where every segment is a repeat of
+   * `plan.musicUrl`. Present only in a SUITE (see planMusicSuite), where the film
+   * is scored by several different pieces laid end to end and each segment names
+   * its own. The apply step falls back to `plan.musicUrl` when it is missing, so
+   * every existing plan keeps working untouched.
+   */
+  url?: string;
 }
 
 export interface MusicPlan {
@@ -470,6 +492,122 @@ export function planMusic(
   }
 
   return { segments, gain, loops: segments.length, trimmed: false, notes };
+}
+
+/** One composed piece in a suite: where its audio lives and how long it runs. */
+export interface SuiteTrack {
+  url: string;
+  duration: number;
+}
+
+/**
+ * Score a long film with SEVERAL different composed pieces, laid end to end.
+ *
+ * `planMusic` loops ONE track. That is right for a 30-second ad and wrong for a
+ * five-minute film: the same 60 seconds repeated five times is not a score, it is
+ * a ringtone, and by the third repeat it is the most noticeable thing in the film.
+ *
+ * So a long film is scored as a SUITE. Each piece is composed separately, for the
+ * stretch of story it sits under, and they are laid in order with a crossfade at
+ * every seam. What the audience hears is music that develops.
+ *
+ * The mechanics are deliberately the same as the loop's, because the constraint
+ * is the same: two segments on ONE track may never overlap (validateDoc forbids
+ * it), so consecutive pieces alternate between layers 0 and 1 and their crossfade
+ * is a real overlap rather than a butt-join.
+ *
+ * Tracks are used IN ORDER and each one plays once. If the suite is shorter than
+ * the film, the LAST piece repeats to cover the tail rather than leaving silence
+ * under the ending — the ending is the worst possible place to run out of score.
+ * If it is longer, the last piece needed is trimmed and the rest go unused.
+ */
+export function planMusicSuite(
+  tracks: SuiteTrack[],
+  filmDuration: number,
+  opts: {
+    hasNarration?: boolean;
+    gain?: number;
+    fadeIn?: number;
+    fadeOut?: number;
+    crossfade?: number;
+  } = {}
+): MusicPlan {
+  const notes: string[] = [];
+  const gain = opts.gain ?? (opts.hasNarration ? MUSIC_GAIN_WITH_NARRATION : MUSIC_GAIN_ALONE);
+  const usable = (tracks || []).filter((t) => t && t.url && t.duration > 0);
+
+  if (usable.length === 0 || !(filmDuration > 0)) {
+    return { segments: [], gain, loops: 0, trimmed: false, notes: ["No score was laid: no usable composed tracks."] };
+  }
+  // One piece is not a suite. Hand it to the loop planner, which already knows
+  // how to stretch a single track across a film, rather than reimplementing it.
+  if (usable.length === 1) {
+    const single = planMusic(usable[0].duration, filmDuration, opts);
+    return { ...single, segments: single.segments.map((s) => ({ ...s, url: usable[0].url })) };
+  }
+
+  const fIn = round(Math.min(opts.fadeIn ?? MUSIC_FADE_IN, filmDuration / 3));
+  const fOut = round(Math.min(opts.fadeOut ?? MUSIC_FADE_OUT, filmDuration / 3));
+
+  const segments: MusicSegment[] = [];
+  let cursor = 0;
+  let index = 0;
+  let trimmed = false;
+
+  // Hard ceiling on how many pieces may be laid. The loop below always advances
+  // the cursor (every piece contributes at least `advance` seconds, and a piece
+  // shorter than the crossfade is skipped), but a film long enough to need
+  // hundreds of segments is a bug upstream, not a score.
+  const MAX_SEGMENTS = 64;
+
+  while (cursor < filmDuration - 1e-6 && segments.length < MAX_SEGMENTS) {
+    // Walk the suite in order; once it is exhausted, hold on the last piece so
+    // the film never runs out of score before it runs out of picture.
+    const track = usable[Math.min(index, usable.length - 1)];
+    const crossfade = round(Math.max(0, Math.min(opts.crossfade ?? MUSIC_CROSSFADE, track.duration / 3)));
+    const remaining = filmDuration - cursor;
+    const duration = round(Math.min(track.duration, remaining));
+    if (duration <= 1e-6) break;
+
+    const isFirst = segments.length === 0;
+    const isLast = cursor + duration >= filmDuration - 1e-6;
+    if (duration < track.duration - 1e-6) trimmed = true;
+
+    segments.push({
+      start: round(cursor),
+      srcIn: 0,
+      srcOut: duration,
+      duration,
+      // The first piece fades the film in; every later one fades up over its
+      // predecessor's tail. Symmetrically on the way out.
+      fadeIn: isFirst ? fIn : crossfade,
+      fadeOut: isLast ? fOut : crossfade,
+      layer: (segments.length % 2) as 0 | 1,
+      url: track.url,
+    });
+
+    if (isLast) break;
+    // Overlap the next piece onto this one's tail by the crossfade, which is what
+    // makes the seam inaudible — and what forces the alternating layers.
+    cursor += duration - crossfade;
+    index += 1;
+  }
+
+  const used = new Set(segments.map((s) => s.url)).size;
+  if (used < usable.length) {
+    notes.push(
+      `The film is ${round(filmDuration)}s and only needed ${used} of the ${usable.length} composed pieces.`
+    );
+  }
+  if (index >= usable.length) {
+    // Deliberately not "carries the final Ns": computing that needs the start of
+    // the last DISTINCT piece, which is an easy thing to get subtly wrong, and it
+    // has to be word-for-word identical to the CommonJS twin — see
+    // scripts/test-audio-parity.ts, which caught exactly that.
+    notes.push(`The suite (${usable.length} pieces) was shorter than the film, so the last piece carries the tail.`);
+  }
+
+  return { segments, gain, loops: segments.length, trimmed, notes };
 }
 
 // ── The whole plan ──────────────────────────────────────────────────────────
@@ -574,15 +712,23 @@ export function applyAudioPlan(engine: EditorEngine, plan: AudioPlan): void {
     if (track.kind === "video") engine.setTrackProps(track.id, { volume: plan.footageGain });
   }
 
-  if (plan.music.segments.length > 0 && plan.musicUrl) {
-    const assetId = engine.addAsset({
-      id: genId("ast"),
-      kind: "audio",
-      url: plan.musicUrl,
-      label: "Composed score",
-    });
+  if (plan.music.segments.length > 0 && (plan.musicUrl || plan.music.segments.some((s) => s.url))) {
+    // One asset per distinct source. A looped single-track score has exactly one
+    // and behaves as it always did; a SUITE has several, and each segment names
+    // the piece it plays from.
+    const assetsByUrl = new Map<string, string>();
+    const assetFor = (url: string) => {
+      let id = assetsByUrl.get(url);
+      if (!id) {
+        id = engine.addAsset({ id: genId("ast"), kind: "audio", url, label: "Composed score" });
+        assetsByUrl.set(url, id);
+      }
+      return id;
+    };
     const layerTracks = new Map<number, string>();
     for (const seg of plan.music.segments) {
+      const url = seg.url || plan.musicUrl;
+      if (!url) continue;
       let trackId = layerTracks.get(seg.layer);
       if (!trackId) {
         trackId = engine.addTrack("audio", MUSIC_TRACK_NAMES[seg.layer] ?? `Score ${seg.layer}`);
@@ -590,7 +736,7 @@ export function applyAudioPlan(engine: EditorEngine, plan: AudioPlan): void {
         layerTracks.set(seg.layer, trackId);
       }
       engine.insertClip(trackId, {
-        assetId,
+        assetId: assetFor(url),
         start: seg.start,
         srcIn: seg.srcIn,
         duration: seg.duration,

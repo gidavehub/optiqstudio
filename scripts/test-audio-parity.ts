@@ -16,6 +16,7 @@ import {
   narrationSlots,
   planNarration,
   planMusic,
+  planMusicSuite,
   validateAudioPlan,
   wordBudget,
   estimateSpeechDuration,
@@ -202,6 +203,36 @@ test("planMusic parity across trim, loop and degenerate cases", () => {
       planMusic(track, film, opts as never),
       js.planMusic(track, film, opts),
       `planMusic(${track}, ${film}, ${JSON.stringify(opts)})`
+    );
+  }
+});
+
+test("planMusicSuite parity — the long-film scorer", () => {
+  // The suite is what scores a five- or ten-minute film. Both twins have to lay
+  // the same pieces at the same times on the same layers, or an export and a
+  // timeline preview of the SAME film disagree about where the music changes.
+  const pieces = [
+    { url: "https://cdn/m1.mp3", duration: 60 },
+    { url: "https://cdn/m2.mp3", duration: 75 },
+    { url: "https://cdn/m3.mp3", duration: 52 },
+    { url: "https://cdn/m4.mp3", duration: 60 },
+    { url: "https://cdn/m5.mp3", duration: 68 },
+  ];
+  const cases: [typeof pieces, number, Record<string, unknown>][] = [
+    [pieces, 300, {}],
+    [pieces, 600, {}], // shorter than the film: the last piece carries the tail
+    [pieces, 90, {}], // longer than the film: trimmed
+    [pieces, 300, { hasNarration: true }],
+    [pieces, 300, { crossfade: 0 }],
+    [pieces.slice(0, 1), 180, {}], // one piece is not a suite — it loops
+    [[], 300, {}],
+    [pieces, 0, {}],
+  ];
+  for (const [tracks, film, opts] of cases) {
+    sameShape(
+      planMusicSuite(tracks, film, opts as never),
+      js.planMusicSuite(tracks, film, opts),
+      `planMusicSuite(${tracks.length} pieces, ${film}, ${JSON.stringify(opts)})`
     );
   }
 });
