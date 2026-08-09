@@ -19,6 +19,22 @@ export interface Scene {
    * the picture they belong to, and so the agent has one place to edit.
    */
   narration?: string;
+  /**
+   * The short prompt a PHOTOGRAPHED scene renders from.
+   *
+   * Once a scene has board frames, everything the long prompt said about how
+   * things LOOK is carried by the pictures instead — far more exactly — so the
+   * render uses a few hundred words of what HAPPENS: the beats, the dialogue
+   * verbatim with the voice that says it, every sound, and where the camera goes.
+   *
+   * Server-owned, written by the shot board. Only the experimental original story
+   * ever has one. Empty or absent whenever the scene has no frames, or when the
+   * compressor could not write one that kept every line of dialogue — in which
+   * case `fullPrompt` renders, as it always did. Cleared on revision, because a
+   * brief compressed from the old script is a brief that ignores the revision.
+   * Always read through `renderPrompt()` in ./shotBoard.ts.
+   */
+  framedPrompt?: string;
 }
 
 export interface CharacterLock {
@@ -59,6 +75,238 @@ export interface SceneImage {
 }
 
 export type SceneImagesMap = Record<number, SceneImage[]>;
+
+// ── The shot board ──────────────────────────────────────────────────────────
+//
+// The film, photographed before it is filmed: a still of every place, a still of
+// every arrangement inside those places, a still of every object whose look must
+// not change, and one frame per camera setup inside every scene. Those frames are
+// then attached to the scene's render as the clip's own frames — which is what
+// stops the room, the seating and the props drifting between clips.
+//
+// EXPERIMENTAL ORIGINAL STORY ONLY. This was built for every film once and
+// reverted on cost (see git tag `shot-board-experiment`): a hundred-plus images
+// before a second of video is the wrong trade for an ad nobody is paying extra
+// for. It is back behind one deliberately-chosen, deliberately-expensive film
+// type, where the photography IS the product.
+//
+// Entirely SERVER-OWNED. Built by functions/shotBoard (see functions/shotBoardRun.js),
+// read here, and never written by the client — the same rule audioStage follows,
+// for the same reason: an autosave echoing stale status over a running job is how
+// a finished pass ends up looking unfinished forever.
+
+/** One camera setup, and the still that was photographed of it. */
+export interface ShotFrame {
+  id?: string;
+  order: number;
+  /** "0.0–5.0s" — where this setup sits inside the ten seconds. */
+  time: string;
+  /** Six words, for the strip. "Low wide from the passenger footwell". */
+  label: string;
+  camera: string;
+  blocking: string;
+  /** The frozen instant this still shows. */
+  firstFrame: string;
+  /** What moves across this setup's seconds once the clip is running. */
+  motion: string;
+  entry: "straight-into-action" | "held-then-moves";
+  /** Whether the camera itself travels across this setup's seconds. */
+  cameraMove?: "locked" | "pan" | "tilt" | "push-in" | "pull-back" | "track" | "handheld-drift";
+  /** The frozen instant this setup ARRIVES at, when it goes somewhere different. */
+  endFrame?: string;
+  /** Which dressed arrangement this setup looks at, or "" for a wide of the place. */
+  settingKey?: string;
+  /** True when this setup shoots back toward where a wide establishing angle stands. */
+  reverseAngle?: boolean;
+  characters?: string[];
+  objectKeys?: string[];
+  /** Absent until the frame has actually been photographed. */
+  url?: string;
+  path?: string;
+  mimeType?: string;
+  renderedAt?: string;
+  /** Why this frame has no picture, when it has none. Drives the Retry button. */
+  error?: string;
+  /**
+   * The still this setup ENDS on, for setups whose camera or action carries the
+   * frame somewhere different. Photographed from the first frame, and attached
+   * to the render right after it, so a pan is specified by both of its ends
+   * instead of by one end and a sentence.
+   */
+  end?: {
+    url?: string;
+    path?: string;
+    mimeType?: string;
+    renderedAt?: string;
+  };
+}
+
+export interface SceneShotBoard {
+  sceneNumber: number;
+  environmentKey: string | null;
+  /** The designer's own one-line account of how the scene is covered. */
+  coverage: string;
+  shots: ShotFrame[];
+  /** The short render prompt, mirrored onto the scene itself as `framedPrompt`. */
+  framedPrompt?: string;
+  builtAt?: string;
+}
+
+/**
+ * One state of one thing: how it looks across the scenes it is true for.
+ *
+ * The base state is how a thing starts; every other state is a change from the
+ * one before it, and its plate is photographed FROM that one — which is how the
+ * meal that gets eaten in scene 2 is still eaten in scene 9.
+ */
+export interface ShotBoardState {
+  key: string;
+  name: string;
+  scenes?: number[];
+  isBase?: boolean;
+  /** What is physically different from the state before. Empty on the base. */
+  change?: string;
+}
+
+/** A place the film is shot in. */
+export interface ShotBoardEnvironment {
+  key: string;
+  name: string;
+  scenes?: number[];
+  lock?: string;
+  /** Where things ARE, including who sits where in a vehicle. */
+  geometry?: string;
+  light?: string;
+  vehicle?: boolean;
+  needsSecondAngle?: boolean;
+  secondAngle?: string;
+  states?: ShotBoardState[];
+}
+
+/** A dressed arrangement inside a place — the tier that fixes what sits where. */
+export interface ShotBoardSetting {
+  key: string;
+  name: string;
+  environmentKey: string;
+  scenes?: number[];
+  lock?: string;
+  /** Exact positions, precise enough that two photographers would match them. */
+  layout?: string;
+  /** Where people go, by name: who sits in which chair, who stands where. */
+  seating?: string;
+  objectKeys?: string[];
+  states?: ShotBoardState[];
+}
+
+/** A thing whose exact appearance has to survive every cut. */
+export interface ShotBoardObject {
+  key: string;
+  name: string;
+  kind?: string;
+  scenes?: number[];
+  anchor?: string;
+  /** What must stay legible and identical every time. */
+  detail?: string;
+  states?: ShotBoardState[];
+}
+
+/**
+ * One photograph in the hierarchy, identified by which tier it belongs to, which
+ * thing it is of, and which STATE of that thing — the same table laid and cleared
+ * is two plates under one key.
+ */
+export interface ShotBoardPlate {
+  tier: "environment" | "environment-reverse" | "setting" | "object";
+  key: string;
+  stateKey: string;
+  name: string;
+  stateName?: string;
+  scenes?: number[];
+  geometry?: string;
+  layout?: string;
+  detail?: string;
+  kind?: string;
+  vehicle?: boolean;
+  environmentKey?: string;
+  url?: string;
+  path?: string;
+  mimeType?: string;
+  builtAt?: string;
+  /** Why this plate has no picture, when it has none. Drives the Retry button. */
+  error?: string;
+}
+
+export interface ShotBoard {
+  /** The film's world: its places, the arrangements in them, its objects, their states. */
+  world?: {
+    environments?: ShotBoardEnvironment[];
+    settings?: ShotBoardSetting[];
+    objects?: ShotBoardObject[];
+    sceneWorld?: {
+      sceneNumber: number;
+      environmentKey: string;
+      settingKeys?: string[];
+      objectKeys?: string[];
+    }[];
+  };
+  /** Every photograph, flat. Filter by `tier` to get one level of the hierarchy. */
+  plates?: ShotBoardPlate[];
+  /** Keyed by 0-based scene index. Firestore hands the keys back as strings. */
+  scenes?: Record<string | number, SceneShotBoard>;
+  violations?: string[];
+  notes?: string[];
+  /** What the run repaired on its own: a refused prompt rewritten, a lost picture re-taken. */
+  healed?: string[];
+  builtAt?: string;
+}
+
+/**
+ * "framing" and the rest are working states; "ready", "partial" and "failed" are
+ * terminal.
+ *
+ * "partial" means some scenes are photographed and some are not. On the
+ * experimental story that is a state the director resolves — the board screen
+ * offers a Retry per missing picture — rather than one the film renders through:
+ * an unphotographed scene there has nothing to attach, and rendering it from
+ * prose would silently produce the drift the board exists to prevent.
+ */
+export type ShotBoardStage =
+  | "queued"
+  | "designing"
+  | "plating"
+  | "framing"
+  | "briefing"
+  | "ready"
+  | "partial"
+  | "failed"
+  | null;
+
+/** The stages that mean a board pass is still working. Terminal ones are absent. */
+export const SHOT_BOARD_WORKING_STAGES: string[] = [
+  "queued",
+  "designing",
+  "plating",
+  "framing",
+  "briefing",
+];
+
+/**
+ * How far a board run has got. Every field optional because the run reports
+ * whichever counters its current step actually has — the plating step has no
+ * frame count, and inventing zeroes for it would read as "0 of 0 frames done".
+ */
+export interface ShotBoardProgress {
+  step?: string;
+  scenesDone?: number;
+  scenesTotal?: number;
+  platesDone?: number;
+  platesTotal?: number;
+  framesDone?: number;
+  framesTotal?: number;
+  briefsDone?: number;
+  briefsTotal?: number;
+  queuedForContinuation?: number;
+}
 
 export type SceneStatus = "idle" | "rendering" | "succeeded" | "failed";
 
@@ -136,7 +384,18 @@ export interface TimelineItem {
   volume: number;
 }
 
-export type ProjectLength = "30s" | "60s" | "90s" | "120s" | "150s" | "180s";
+/**
+ * Every run-time the platform knows about.
+ *
+ * Past 180s these are LONG-FORM, and only the experimental original story offers
+ * them — see VIDEO_TYPES. They are listed here rather than in that one type
+ * because `lengthSeconds`, `scenesForLength`, `LENGTH_PRICING_GMD` and the paywall
+ * all key off this union, and a run-time a type offers but the pricing table has
+ * never heard of is a film that charges NaN.
+ */
+export type ProjectLength =
+  | "30s" | "60s" | "90s" | "120s" | "150s" | "180s"
+  | "240s" | "300s" | "360s" | "420s" | "480s" | "540s" | "600s";
 export type ProductionMode = "manual" | "auto-merge" | null;
 export type DashboardView = "home" | "wizard" | "storyboard";
 
@@ -222,6 +481,16 @@ export const LENGTH_PRICING_GMD: Record<ProjectLength, number> = {
   "120s": 120 * GMD_PER_SECOND,
   "150s": 150 * GMD_PER_SECOND,
   "180s": 180 * GMD_PER_SECOND,
+  // Long form. Same rate, deliberately: a minute of finished film costs what a
+  // minute of finished film costs, and the experimental type's extra spend (a
+  // hundred-odd board stills) is absorbed rather than surcharged.
+  "240s": 240 * GMD_PER_SECOND,
+  "300s": 300 * GMD_PER_SECOND,
+  "360s": 360 * GMD_PER_SECOND,
+  "420s": 420 * GMD_PER_SECOND,
+  "480s": 480 * GMD_PER_SECOND,
+  "540s": 540 * GMD_PER_SECOND,
+  "600s": 600 * GMD_PER_SECOND,
 };
 
 // ── Video types ─────────────────────────────────────────────────────────────
@@ -237,6 +506,7 @@ export const LENGTH_PRICING_GMD: Record<ProjectLength, number> = {
 export type VideoTypeId =
   | "short-film"
   | "short-film-story"
+  | "short-film-story-x"
   | "short-film-documentary"
   | "dialogue-ad"
   | "voiceover-ad";
@@ -330,6 +600,39 @@ export const VIDEO_TYPES: VideoType[] = [
     branded: false,
   },
   {
+    // ── THE EXPERIMENTAL ORIGINAL STORY ──────────────────────────────────────
+    //
+    // The only type built by functions/optiqStoryX, and the only one that
+    // PHOTOGRAPHS ITS WORLD before rendering: a hierarchy of stills (place →
+    // arrangement → object → state → frame) where each tier is generated from the
+    // picture of the tier above, so a room cannot drift between clips.
+    //
+    // It is also the only long-form type. 300s is what it was built for; the
+    // ladder runs to 600s because a story occasionally needs the room.
+    //
+    // Three things about it are unlike every other type:
+    //   • It does not run start-to-finish. It stops at a BLUEPRINT the director
+    //     reads and can chat with an agent about, then again at a BOARD of stills
+    //     they approve, and only then renders. Nothing spends until they say so.
+    //   • The video model sees ONLY the board stills — no character reference
+    //     sheets ride along, because the stills already contain the people.
+    //   • Its score is a SUITE of separate composed tracks laid end to end, not
+    //     one track looped, because five minutes of the same 60s loop is five
+    //     minutes of the same 60s loop.
+    id: "short-film-story-x",
+    title: "Original story — experimental",
+    lengths: ["60s", "120s", "180s", "240s", "300s", "360s", "420s", "480s", "540s", "600s"],
+    // Not generated yet — the picker falls back to the aurora wash when a clip is
+    // missing, which is honest, and generating one spends real video quota. See
+    // scripts/generate-type-clips.mjs, where it is registered and waiting.
+    clip: "/media/mode-short-film-story-x.mp4",
+    dialogueInVideo: true,
+    ttsVoiceover: false,
+    audioLabel: "Dialogue + composed score",
+    card: false,
+    branded: false,
+  },
+  {
     // Unbranded, and the only type built by functions/optiqDocumentary. Also the
     // only unbranded type whose footage is SILENT: nobody speaks on camera, and
     // the film's words are narration written by the swarm and recorded over the
@@ -352,15 +655,32 @@ export const VIDEO_TYPE_CARDS: VideoType[] = VIDEO_TYPES.filter((t) => t.card);
 
 /** Every branch of the short-film choice: an advert, a story, or a documentary. */
 export function isShortFilm(id?: VideoTypeId | string | null): boolean {
-  return id === "short-film" || id === "short-film-story" || id === "short-film-documentary";
+  return (
+    id === "short-film" ||
+    id === "short-film-story" ||
+    id === "short-film-story-x" ||
+    id === "short-film-documentary"
+  );
 }
 
 /**
- * The three things a short film can be, in the order they are shown.
+ * The experimental original story — the photographed, gated, long-form one.
+ *
+ * Its own predicate because a LOT of code has to branch on it: the wizard's
+ * length ladder, the three-stage flow, the board route, the render attachments
+ * and the score suite. Comparing the literal in a dozen places is how one of them
+ * ends up comparing the wrong literal.
+ */
+export function isExperimentalStory(id?: VideoTypeId | string | null): boolean {
+  return id === "short-film-story-x";
+}
+
+/**
+ * The four things a short film can be, in the order they are shown.
  *
  * The ADVERT comes first and is what picking "Short film" already means, so a
  * director who wants what this platform has always made does not have to choose
- * anything — they press Continue. The other two are unbranded and each routes to
+ * anything — they press Continue. The other three are unbranded and each routes to
  * its own storyboard system.
  */
 export interface ShortFilmMode {
@@ -369,6 +689,12 @@ export interface ShortFilmMode {
   /** One line. The cover clip is the explanation; this only confirms it. */
   blurb: string;
   clip: string;
+  /**
+   * Shown as a small marker on the card. Only the experimental mode carries one,
+   * because it is the only mode that behaves unlike the others — it costs more,
+   * takes far longer, and stops twice for approval on the way.
+   */
+  badge?: string;
 }
 
 export const SHORT_FILM_MODES: ShortFilmMode[] = [
@@ -383,6 +709,15 @@ export const SHORT_FILM_MODES: ShortFilmMode[] = [
     title: "Original story",
     blurb: "A story for its own sake. No brand, no pitch.",
     clip: "/media/mode-short-film-story.mp4",
+  },
+  {
+    // Last, because it is the one to reach for deliberately rather than by
+    // default: it photographs the film's whole world before rendering a frame.
+    id: "short-film-story-x",
+    title: "Original story — experimental",
+    blurb: "Up to 10 min. Photographed before filming.",
+    clip: "/media/mode-short-film-story-x.mp4",
+    badge: "Experimental",
   },
   {
     id: "short-film-documentary",

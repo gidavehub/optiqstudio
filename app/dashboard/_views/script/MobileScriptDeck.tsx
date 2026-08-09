@@ -18,6 +18,7 @@ import OptiqMark from "../../../../components/OptiqMark";
 import {
   Scene, SceneImage, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
+import { renderPrompt } from "../../_flow/shotBoard";
 import SceneDialogue from "./SceneDialogue";
 import ScenePromptBlock from "./ScenePromptBlock";
 import SceneReferenceImages from "./SceneReferenceImages";
@@ -168,7 +169,7 @@ export default function MobileScriptDeck({
                 url={status.url}
                 error={status.error}
                 cost={renderCost(sceneIndex)}
-                onRender={() => onRequestRender(sceneIndex, status.customPrompt || scene.fullPrompt)}
+                onRender={() => onRequestRender(sceneIndex, renderPrompt(scene, status.customPrompt))}
                 takes={sceneTakes(status)}
                 activeTake={activeTakeIndex(status)}
                 onSelectTake={(take) => onSelectTake(sceneIndex, take)}
@@ -179,16 +180,16 @@ export default function MobileScriptDeck({
               <SceneDialogue scene={scene} />
 
               <ScenePromptBlock
-                value={status.customPrompt || scene.fullPrompt}
+                value={renderPrompt(scene, status.customPrompt)}
                 editing={!!status.editingPrompt}
                 onChange={(v) => patchStatus(sceneIndex, { customPrompt: v })}
                 onToggleEdit={() =>
                   patchStatus(sceneIndex, {
                     editingPrompt: !status.editingPrompt,
-                    customPrompt: status.customPrompt || scene.fullPrompt,
+                    customPrompt: renderPrompt(scene, status.customPrompt),
                   })
                 }
-                onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, sceneIndex)}
+                onCopy={() => copyToClipboard(renderPrompt(scene, status.customPrompt), sceneIndex)}
                 copied={copiedIndex === sceneIndex}
                 collapsedClass="max-h-32"
               />

@@ -16,10 +16,12 @@ import {
 } from "lucide-react";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
 import { activeTakeIndex, sceneTakes } from "../_flow/types";
+import { renderPrompt } from "../_flow/shotBoard";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
 import useIsMobile from "../_shared/useIsMobile";
 import { audioStageLabel } from "../_shared/audioStages";
+import BlueprintStage from "./blueprint/BlueprintStage";
 import EditorStudio from "./editor/EditorStudio";
 import MobileScriptDeck from "./script/MobileScriptDeck";
 import SceneDialogue from "./script/SceneDialogue";
@@ -47,6 +49,7 @@ export default function ProjectWorkspace() {
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
     aspectRatio,
+    isBoardFilm, shotBoardStage,
   } = useEditorFlow();
   const { profile, pricing } = useAuth();
   const isMobile = useIsMobile();
@@ -93,9 +96,11 @@ export default function ProjectWorkspace() {
     storylining: "Writing your storyline…",
     casting: "Casting characters & locking consistency…",
     building: "Building your scenes…",
+    worldbuilding: "Planning the world this film is photographed in…",
   };
   const isCloudGenerating =
-    generating || ["queued", "analyzing", "storylining", "casting", "building"].includes(pipelineStage || "");
+    generating ||
+    ["queued", "analyzing", "storylining", "casting", "building", "worldbuilding"].includes(pipelineStage || "");
   const stageLabel = STAGE_LABELS[pipelineStage || ""] || "Optiq Skills are writing your story…";
 
   const resetDraft = () => {
@@ -140,6 +145,20 @@ export default function ProjectWorkspace() {
 
   // The way into the storyline agent now lives in WorkspaceModeBar alongside
   // the other two faces, so this face-local button is gone.
+
+  // ── GATE 1 — THE BLUEPRINT (experimental original story only) ───────────
+  //
+  // This film type does not open into the script editor. It stops on a screen
+  // built for READING a five-minute film before paying to photograph it, and it
+  // stays there until the director presses Continue. Once the board exists the
+  // gate is behind them and the workspace behaves normally again.
+  //
+  // Checked before the !storyboard branch below on purpose: "blueprint-ready" is
+  // a terminal stage with scenes attached, so falling through would show the
+  // ordinary script editor and quietly skip the gate.
+  if (isBoardFilm && storyboard && pipelineStage === "blueprint-ready" && !shotBoardStage) {
+    return <BlueprintStage />;
+  }
 
   // ── EMPTY / GENERATING / ERROR STATES ──────────────────────────────────
   if (!storyboard) {
@@ -295,7 +314,7 @@ export default function ProjectWorkspace() {
                     </>
                   ) : failed ? (
                     <button
-                      onClick={() => requestRender(idx, stat?.customPrompt || scene.fullPrompt)}
+                      onClick={() => requestRender(idx, renderPrompt(scene, stat?.customPrompt))}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-danger-soft p-3 text-center transition-colors hover:bg-danger-soft"
                     >
                       <AlertCircle size={20} className="text-danger" />
@@ -462,16 +481,16 @@ export default function ProjectWorkspace() {
                   <SceneDialogue scene={scene} />
 
                   <ScenePromptBlock
-                    value={status.customPrompt || scene.fullPrompt}
+                    value={renderPrompt(scene, status.customPrompt)}
                     editing={!!status.editingPrompt}
                     onChange={(v) => patchStatus({ customPrompt: v })}
                     onToggleEdit={() =>
                       patchStatus({
                         editingPrompt: !status.editingPrompt,
-                        customPrompt: status.customPrompt || scene.fullPrompt,
+                        customPrompt: renderPrompt(scene, status.customPrompt),
                       })
                     }
-                    onCopy={() => copyToClipboard(status.customPrompt || scene.fullPrompt, idx)}
+                    onCopy={() => copyToClipboard(renderPrompt(scene, status.customPrompt), idx)}
                     copied={copiedIndex === idx}
                   />
 
@@ -505,7 +524,7 @@ export default function ProjectWorkspace() {
                     url={status.url}
                     error={status.error}
                     cost={renderCost(idx)}
-                    onRender={() => requestRender(idx, status.customPrompt || scene.fullPrompt)}
+                    onRender={() => requestRender(idx, renderPrompt(scene, status.customPrompt))}
                     takes={sceneTakes(videoStatus[idx])}
                     activeTake={activeTakeIndex(videoStatus[idx])}
                     onSelectTake={(take) => selectSceneTake(idx, take)}

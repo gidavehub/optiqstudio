@@ -1901,17 +1901,30 @@ const {
   DOCUMENTARY_KIND,
   DOCUMENTARY_VIDEO_TYPE,
 } = require("./optiqDocumentary/pipeline");
+const {
+  runOptiqStoryXBlueprint,
+  reviseStoryScene: reviseStoryXScene,
+  STORY_KIND: STORYX_KIND,
+  STORYX_VIDEO_TYPE,
+} = require("./optiqStoryX/pipeline");
 
 /** True when a project belongs to the story sandbox rather than the ad swarm. */
 const isStoryFilm = (videoType) => videoType === STORY_VIDEO_TYPE;
 /** True when a project belongs to the documentary sandbox. */
 const isDocumentaryFilm = (videoType) => videoType === DOCUMENTARY_VIDEO_TYPE;
+/**
+ * True for the EXPERIMENTAL long-form story — the only film type that is
+ * photographed before it is filmed, and the only one that stops for approval
+ * between its stages.
+ */
+const isStoryXFilm = (videoType) => videoType === STORYX_VIDEO_TYPE;
 
 /**
  * Which box builds, revises and talks about a film. One lookup, used everywhere
- * below, so a fourth kind is a line here rather than a hunt through the file.
+ * below, so a fifth kind is a line here rather than a hunt through the file.
  */
 function filmSandbox(videoType) {
+  if (isStoryXFilm(videoType)) return "story-x";
   if (isDocumentaryFilm(videoType)) return "documentary";
   if (isStoryFilm(videoType)) return "story";
   return "ads";
@@ -2022,8 +2035,20 @@ exports.storyboardGenerate = onDocumentCreated(
       // Which box builds this film. An original story goes to the story sandbox
       // and a documentary to the documentary sandbox; neither ever touches the ad
       // swarm, and everything else runs exactly the code it always has.
+      //
+      // The EXPERIMENTAL story never arrives here at all — it has its own staged
+      // job (storyXBlueprintJobs → shotBoardJobs → render), because it stops for
+      // the director's approval between each one. It is listed so that a job that
+      // somehow reaches this trigger fails loudly rather than being silently built
+      // by the ad swarm.
       const buildFilm =
         {
+          "story-x": () => {
+            throw new Error(
+              "An experimental story cannot be built by storyboardGenerate — it runs as a staged blueprint job. " +
+                "See exports.storyXBlueprint."
+            );
+          },
           documentary: runOptiqDocumentaryPipeline,
           story: runOptiqStoryPipeline,
           ads: runOptiqSkillsPipeline,
@@ -2187,6 +2212,176 @@ exports.storyboardGenerate = onDocumentCreated(
   }
 );
 
+// ─── STAGE 1 — THE BLUEPRINT (experimental original story only) ──────────────
+//
+// The other three film types run one job that ends at "ready" and then the
+// director renders. This one runs THREE stages with a human gate between each,
+// and this is the first: the storyline, the cast registry with its locked voice
+// profiles, every scene's full script, and the plan of the world the film will be
+// photographed in.
+//
+// It spends TEXT ONLY. No image, no clip, nothing that costs more than tokens —
+// because this is the screen where the director decides whether to buy the film
+// at all, and a stage that quietly renders pictures first has charged them for a
+// decision they have not made yet.
+//
+// RESUMABLE, and it has to be. Thirty scenes of 2,000 words do not fit in one
+// 540s invocation. The pass builds what it can, saves it, and enqueues a
+// continuation for the rest; the continuation reuses the storyline and registry
+// verbatim so the film cannot change identity halfway through being written.
+// Same shape as the shot board's continuation, for the same reason.
+const BLUEPRINT_MAX_PASSES = 8;
+
+exports.storyXBlueprint = onDocumentCreated(
+  { document: "storyXBlueprintJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "512MiB", maxInstances: 10 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const job = snap.data();
+    if (!job || !job.projectId) return;
+
+    const jobRef = snap.ref;
+    const projectRef = db.collection("projects").doc(job.projectId);
+
+    // Same claim transaction as storyboardGenerate: an at-least-once Eventarc
+    // delivery must not run two passes over one project at the same time, which
+    // would have them both writing scenes and each overwriting the other's.
+    const claimed = await db.runTransaction(async (tx) => {
+      const d = await tx.get(jobRef);
+      if (d.exists && (d.data().status || "queued") === "queued") {
+        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
+        return true;
+      }
+      return false;
+    });
+    if (!claimed) {
+      console.log(`[blueprint ${job.projectId}] job not in 'queued' state, skipping`);
+      return;
+    }
+
+    const pass = Number(job.pass) || 1;
+    const setStage = async (stage, extra = {}) => {
+      await projectRef.update({
+        pipelineStage: stage,
+        pipelineError: null,
+        updatedAt: new Date().toISOString(),
+        ...extra,
+      });
+    };
+
+    try {
+      await setStage(pass === 1 ? "analyzing" : "building");
+
+      // What earlier passes finished. Read fresh rather than carried on the job:
+      // the director may have talked to the agent between passes, and the film on
+      // the project doc is the one they have been reading.
+      const projectSnap = await projectRef.get();
+      const project = projectSnap.exists ? projectSnap.data() : {};
+      const previous = pass > 1 ? project.blueprint || null : null;
+
+      const blueprint = await runOptiqStoryXBlueprint({
+        vertexFetch,
+        prompt: job.prompt,
+        length: job.length,
+        aspectRatio: job.aspectRatio,
+        castingSeed: job.projectId,
+        previous: previous
+          ? { ...previous, scenes: project.scenes || [], world: project.shotBoard?.world || null }
+          : null,
+        onStage: (stage, meta) => setStage(stage, meta ? { pipelineProgress: meta } : {}),
+      });
+
+      // Every scene starts idle. Rebuilt from the blueprint each pass rather than
+      // merged, so a scene that only just arrived gets a status too — but a scene
+      // the director has already rendered keeps the one it has.
+      const videoStatus = { ...(project.videoStatus || {}) };
+      blueprint.scenes.forEach((_, idx) => {
+        if (!videoStatus[idx]) videoStatus[idx] = { status: "idle" };
+      });
+
+      const more = !blueprint.done && pass < BLUEPRINT_MAX_PASSES;
+
+      await projectRef.update(stripUndefined({
+        title: blueprint.title,
+        concept: blueprint.concept,
+        scenes: blueprint.scenes,
+        styleHeader: blueprint.styleHeader || "",
+        characterLock: blueprint.characterLock || { name: "", description: "", wardrobe: "" },
+        isStory: true,
+        videoType: blueprint.videoType ?? null,
+        castingShape: blueprint.castingShape ?? null,
+        // The cast sheet PLAN. No pictures behind it yet — the shot board
+        // photographs each one when it first needs it, and writes the urls back
+        // onto these same entries.
+        characterRefs: blueprint.characterRefs ?? [],
+        storyArc: blueprint.storyArc ?? null,
+        whatIsAtStake: blueprint.whatIsAtStake ?? null,
+        theEnding: blueprint.theEnding ?? null,
+        musicSpec: blueprint.musicSpec ?? null,
+        ambienceSpec: blueprint.ambienceSpec ?? null,
+        videoStatus,
+        // NOTHING attaches to a render until the board exists. Seeded empty and
+        // deliberately never filled by this stage: on this film type the only
+        // thing the video model is ever shown is a photographed frame.
+        sceneImages: {},
+        /**
+         * The film's spine, kept so a continuation reuses it rather than
+         * re-deciding what film this is. Not read by the client.
+         */
+        blueprint: {
+          brief: blueprint.brief ?? null,
+          storyline: blueprint.storyline ?? null,
+          registry: blueprint.registry ?? null,
+        },
+        // The world plan rides on the board document, which is where
+        // functions/shotBoardRun.js looks for it (`reuseWorld`). Writing it here
+        // is what lets stage 2 skip its own world pass entirely.
+        ...(blueprint.world ? { shotBoard: { world: blueprint.world } } : {}),
+        // The gate. "blueprint-ready" is a TERMINAL stage: nothing runs after it
+        // until the director presses Continue, which is what enqueues the board.
+        pipelineStage: more ? "building" : "blueprint-ready",
+        pipelineError: more
+          ? null
+          : blueprint.missing.length
+            ? `${blueprint.missing.length} scene(s) could not be written: ${blueprint.missing.join(", ")}. ` +
+              `Everything else is ready to read.`
+            : null,
+        pipelineProgress: more ? { scenesDone: blueprint.scenes.length, scenesTotal: blueprint.scenes.length + blueprint.missing.length } : null,
+        updatedAt: new Date().toISOString(),
+      }));
+
+      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+
+      if (more) {
+        console.log(
+          `[blueprint ${job.projectId}] pass ${pass} done, ${blueprint.missing.length} scene(s) left; continuing`
+        );
+        await db.collection("storyXBlueprintJobs").add({
+          ...job,
+          pass: pass + 1,
+          status: "queued",
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        console.log(
+          `[blueprint ${job.projectId}] ready to read after ${pass} pass(es) — ` +
+            `${blueprint.scenes.length} scene(s), ${(blueprint.world?.environments || []).length} place(s) planned`
+        );
+      }
+    } catch (err) {
+      console.error(`[blueprint ${job.projectId}] failed:`, err);
+      await projectRef
+        .update({
+          pipelineStage: "failed",
+          pipelineError: err.message || "The blueprint could not be written",
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(() => {});
+      await jobRef.update({ status: "failed", error: err.message || "failed" }).catch(() => {});
+    }
+  }
+);
+
 exports.storyRevise = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
   { region: "us-east4", cors: true, maxInstances: 10, timeoutSeconds: 240 },
@@ -2228,6 +2423,27 @@ exports.storyRevise = onRequest(
             nextScenePrompt,
             musicSpec,
           })
+        : sandbox === "story-x"
+        ? // The experimental reviser is its own twin. It also has to survive the
+          // shot-board clause: a photographed scene's prompt carries a block
+          // naming its attached frames, and a reviser that has never seen one
+          // deletes it — which silently unhooks the scene from its pictures. So
+          // the clause is lifted out before revision and restored after.
+          await (async () => {
+            const brain = require("./optiqStoryX/shotBoard");
+            const clause = brain.extractShotBoardClause(scenePrompt);
+            const revised = await reviseStoryXScene({
+              vertexFetch,
+              scenePrompt: brain.stripShotBoardClause(scenePrompt),
+              revisionRequest,
+              characterLock,
+              styleHeader,
+              previousScenePrompt,
+              nextScenePrompt,
+              musicSpec,
+            });
+            return brain.restoreShotBoardClause(revised, clause);
+          })()
         : await reviseScene({
             vertexFetch,
             scenePrompt,
@@ -2268,6 +2484,9 @@ const { runStorylineAgent: runStoryAgent } = require("./optiqStory/agent");
 // camera and can rewrite the film's narration — the one edit that changes what
 // a documentary says without costing a render.
 const { runDocumentaryAgent } = require("./optiqDocumentary/agent");
+// The experimental story's, which knows the film runs in three approved stages
+// and that a rewrite after stage 2 costs pictures as well as words.
+const { runStoryXAgent } = require("./optiqStoryX/agent");
 
 // How much of the thread the agent carries into a turn. Reads of the film go
 // through tools, so this only has to hold the conversation.
@@ -2387,6 +2606,7 @@ exports.storylineAgent = onDocumentCreated(
       // documentary talks to the documentary agent, and one working on an ad
       // talks to exactly the agent they always have.
       const runAgent = {
+        "story-x": runStoryXAgent,
         documentary: runDocumentaryAgent,
         story: runStoryAgent,
         ads: runStorylineAgent,
@@ -2446,6 +2666,16 @@ exports.storylineAgent = onDocumentCreated(
           if (usedPrepaid) cost = 0;
           else await chargeCredits(job.uid, cost, `Video clip (${duration}s, from the agent)`);
 
+          // The same stills the editor's render button attaches. On a
+          // PHOTOGRAPHED film that is the scene's shot-board frames and nothing
+          // else; on every other kind it is the scene's reference images, exactly
+          // as before. renderAttachments owns that rule so this path and the
+          // client's cannot drift apart — they must attach the same thing or the
+          // same scene comes out differently depending on which button shot it.
+          const attachments = require("./shotBoardRun")
+            .renderAttachments(project, sceneIndex)
+            .filter((img) => img.path);
+
           const genRef = db.collection("generations").doc();
           await genRef.set({
             uid: job.uid,
@@ -2456,6 +2686,13 @@ exports.storylineAgent = onDocumentCreated(
             cost,
             durationSeconds: duration,
             aspectRatio: project.aspectRatio || "16:9",
+            // `shared` keeps the generation-delete sweep away from files that
+            // live on the project rather than on this generation.
+            images: attachments.map((img) => ({
+              path: img.path,
+              mimeType: img.mimeType || "image/png",
+              shared: true,
+            })),
             // Lets processVideoGeneration hand the allowance back if the render
             // fails, so a failure never quietly costs a paid-for scene.
             prepaidProjectId: usedPrepaid ? job.projectId : null,
@@ -2978,6 +3215,7 @@ exports.audioPost = onDocumentCreated(
         // words already exist; `filmKind` cannot resolve either id, because they
         // belong to the other boxes, so each sandbox supplies its own.
         filmKind: {
+          "story-x": STORYX_KIND,
           documentary: DOCUMENTARY_KIND,
           story: STORY_KIND,
           ads: filmKind(project.videoType),
@@ -3031,6 +3269,315 @@ exports.audioPost = onDocumentCreated(
           audioStage: "failed",
           audioError: err.message || "Audio post-production failed",
           audioProgress: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(() => {});
+      await jobRef
+        .update({ status: "failed", error: err.message || "failed", finishedAt: new Date().toISOString() })
+        .catch(() => {});
+    }
+  }
+);
+
+// ─── STAGE 2 — THE SHOT BOARD (experimental original story only) ─────────────
+//
+// Photographs a film before it is filmed: a plate for every place, for every
+// dressed arrangement inside it, for every object whose look must not change, and
+// one frame per camera setup inside every scene — each tier generated FROM the
+// picture of the tier above. Those frames are then the ONLY thing the video model
+// is shown. See functions/shotBoardRun.js for the machinery and
+// optiqStoryX/shotBoard.js for the doctrine.
+//
+// NEVER RUNS AUTOMATICALLY. It is enqueued by the director pressing Continue on
+// the blueprint, because at ~100+ pictures it is the first stage that costs real
+// money and the whole point of the gate is that they saw what they were buying.
+//
+// SELF-CONTINUING. A 30-scene film is well over a hundred pictures against an
+// 8/minute image quota (vertexQuota DEFAULT_CAPS), which is 15–25 minutes and
+// does not fit in one 540s invocation. So the run takes a soft deadline, stops
+// cleanly when it reaches it, and enqueues its own continuation — which reuses
+// every plate and frame already made and only builds what is missing. `attempt`
+// is the loop guard: past this many passes something is wrong and looping further
+// only spends money.
+const SHOT_BOARD_MAX_ATTEMPTS = 10;
+
+/**
+ * Which image model photographs the film.
+ *
+ * `gemini-3.1-flash-image` — the director's own call, and the right one for this
+ * film type: at 100–160 pictures per film the pro tier's 25–40s each is 40+
+ * extra minutes of waiting per generation, and the flash tier is what already
+ * renders every character sheet on this platform today (see
+ * storyboardGenerate's generateImage, and [[vertex-model-ids]]).
+ *
+ * The known trade is legibility of text INSIDE a picture — a letterhead on a
+ * document plate, a phone screen. If a film turns on a readable prop, override
+ * with SHOT_FRAME_MODEL=gemini-3-pro-image for that run rather than changing the
+ * default for every film.
+ */
+const SHOT_FRAME_MODEL = process.env.SHOT_FRAME_MODEL || "gemini-3.1-flash-image";
+
+exports.shotBoard = onDocumentCreated(
+  { document: "shotBoardJobs/{jobId}", region: "us-central1", timeoutSeconds: 540, memory: "1GiB", maxInstances: 5 },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const job = snap.data();
+    if (!job || !job.projectId || !job.uid) return;
+
+    const jobRef = snap.ref;
+    const projectRef = db.collection("projects").doc(job.projectId);
+    const attempt = Number(job.attempt) || 1;
+
+    const claimed = await db.runTransaction(async (tx) => {
+      const d = await tx.get(jobRef);
+      if (d.exists && (d.data().status || "queued") === "queued") {
+        tx.update(jobRef, { status: "running", startedAt: new Date().toISOString() });
+        return true;
+      }
+      return false;
+    });
+    if (!claimed) {
+      console.log(`[shotboard ${job.projectId}] job not queued, skipping`);
+      return;
+    }
+
+    const setStage = async (stage, extra = {}) => {
+      await projectRef
+        .update({ shotBoardStage: stage, shotBoardError: null, updatedAt: new Date().toISOString(), ...extra })
+        .catch(() => {});
+    };
+
+    // Re-stamped on every pass, not just the first, so the client's staleness
+    // ceiling only ever has to cover ONE invocation — a long film that takes
+    // six passes must not look stranded three passes in.
+    await setStage("designing", { shotBoardStartedAt: new Date().toISOString() });
+
+    try {
+      const psnap = await projectRef.get();
+      if (!psnap.exists) throw new Error("Project not found");
+      const project = { id: job.projectId, ...psnap.data() };
+      if (project.uid !== job.uid) throw new Error("Not your project");
+      if (!project.scenes?.length) throw new Error("This film has no scenes yet");
+      // One sandbox owns the board, and only one film type routes to it. A board
+      // run on any other kind of film would photograph it and then attach nothing,
+      // because nothing else reads `shotBoard` at the render seam.
+      if (!isStoryXFilm(project.videoType)) {
+        throw new Error(
+          `Only an experimental original story is photographed before it is filmed; this project is "${project.videoType}".`
+        );
+      }
+
+      const brain = require("./optiqStoryX/shotBoard");
+      const { runShotBoard } = require("./shotBoardRun");
+
+      // Leave two minutes of the invocation for the writes below plus whatever
+      // image call is in flight when the deadline lands.
+      const deadlineAt = Date.now() + 7 * 60 * 1000;
+
+      /**
+       * One picture from the image model.
+       *
+       * The error it throws carries WHY, and that matters more than it looks:
+       * the runner classifies transient failures (wait and ask again) apart from
+       * refusals (rewrite the prompt, then ask again), and it can only tell them
+       * apart from what is in this message. A bare "no image" would send every
+       * refusal into a retry loop that asks the same forbidden question four
+       * times and pays for it each time.
+       */
+      const generateImage = async (prompt, { aspectRatio, images } = {}) => {
+        const parts = [];
+        for (const image of images || []) {
+          if (image?.base64) {
+            parts.push({ inlineData: { mimeType: image.mimeType || "image/png", data: image.base64 } });
+          }
+        }
+        parts.push({ text: prompt });
+        const response = await vertexFetch(`/publishers/google/models/${SHOT_FRAME_MODEL}:generateContent`, {
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+            // Frames, place plates and arrangement plates are shot in the film's
+            // own shape — they become video frames, and a 3:4 still handed to a
+            // 16:9 render is an instruction to letterbox. Object plates ask 1:1.
+            imageConfig: { aspectRatio: aspectRatio || project.aspectRatio || "16:9" },
+          },
+        });
+        const candidate = response.candidates?.[0];
+        const part = candidate?.content?.parts?.find((p) => p.inlineData);
+        if (!part?.inlineData?.data) {
+          const finish = candidate?.finishReason || "none";
+          const block = response.promptFeedback?.blockReason || "";
+          const blockedRatings = (candidate?.safetyRatings || [])
+            .filter((r) => r.blocked)
+            .map((r) => r.category)
+            .join(", ");
+          // Any text the model returned instead of a picture is usually its own
+          // account of why it declined, and it is the most useful thing there is
+          // for the rewrite pass.
+          const said = (candidate?.content?.parts || [])
+            .map((p) => p.text || "")
+            .join(" ")
+            .trim()
+            .slice(0, 300);
+          throw new Error(
+            `the image model returned no image (finishReason=${finish}` +
+              `${block ? `, blockReason=${block}` : ""}` +
+              `${blockedRatings ? `, blocked=${blockedRatings}` : ""})` +
+              `${said ? ` — it said: ${said}` : ""}`
+          );
+        }
+        return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || "image/png" };
+      };
+
+      const report = await runShotBoard({
+        vertexFetch,
+        brain,
+        project,
+        projectId: job.projectId,
+        uid: job.uid,
+        // Set by a targeted re-roll from the board screen or the agent:
+        // { scenes: [0-based], keepDesign: true } re-photographs those scenes
+        // without re-cutting them.
+        scope: job.scope || null,
+        deadlineAt,
+        onStage: (stage, meta) => setStage(stage, meta ? { shotBoardProgress: meta } : {}),
+
+        // Every Vertex media call in this project lives in this file, so the
+        // runner is handed the four it needs rather than reaching for them.
+        generateImage,
+        storeImage: async (path, base64, mimeType) => ({
+          path,
+          url: await uploadBase64(base64, path, mimeType),
+        }),
+        loadImage: (path) => downloadInputMedia(path),
+
+        // Photographs a character sheet. On this film type it does DOUBLE DUTY:
+        // it re-takes a sheet whose stored file has gone missing, and it takes the
+        // ones that never existed — the blueprint stage deliberately writes only
+        // the PLAN, so every sheet is created here, on the far side of the gate,
+        // the first time a frame needs it.
+        regenerateCharacterRef: async (ref) => {
+          const refBrain = require("./optiqStoryX/characterRefs");
+          const image = await generateImage(refBrain.characterRefPrompt(ref), { aspectRatio: "3:4" });
+          const ext = String(image.mimeType).includes("jpeg") ? "jpg" : "png";
+          // A fresh path, never the old one: Storage caches generated media
+          // immutably, so re-using the missing file's path can serve the miss.
+          const path = `users/${job.uid}/projects/${job.projectId}/characters/${
+            ref.id || "char"
+          }-${Date.now().toString(36)}.${ext}`;
+          const url = await uploadBase64(image.base64, path, image.mimeType);
+          return { path, url, base64: image.base64, mimeType: image.mimeType };
+        },
+      });
+
+      // Re-read before writing. The board takes minutes, and in that time the
+      // agent or the director may have rewritten a scene — so the clause is
+      // appended to the prompt as it is NOW, not as it was when the run started.
+      // applyShotBoardClause strips any previous block first, so this is safe to
+      // run over a scene that already carries one.
+      const fresh = await projectRef.get();
+      const currentScenes = fresh.get("scenes") || project.scenes;
+      const { sceneStills } = require("./shotBoardRun");
+      const sceneImages = { ...(fresh.get("sceneImages") || {}) };
+
+      const scenes = currentScenes.map((scene, idx) => {
+        const entry = report.scenes[idx];
+        const frames = (entry?.shots || [])
+          .filter((s) => s.url)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        if (frames.length === 0) return scene;
+
+        // The scene's attachments, mirrored onto `sceneImages` so that everything
+        // which reads that field — the script editor's reference tray, a render
+        // fired from a stale client — sees the frames rather than the character
+        // sheets a different film type would have put there.
+        const stills = sceneStills(entry);
+        if (stills.length > 0) sceneImages[idx] = stills;
+
+        // Both prompts carry the board block, and both need it. The long prompt
+        // is the fallback whenever the short one is missing or has been cleared
+        // by a revision, and a fallback that renders with frames attached and
+        // nothing explaining them is worse than no frames at all.
+        const next = { ...scene, fullPrompt: brain.applyShotBoardClause(scene.fullPrompt, frames) };
+
+        // The short prompt a photographed scene actually renders from. Absent
+        // when the compressor could not write one that kept every line of
+        // dialogue — in which case the scene keeps rendering from the long one,
+        // which is correct, just longer-winded.
+        const framed = entry?.framedPrompt || "";
+        next.framedPrompt = framed ? brain.applyShotBoardClause(framed, frames) : "";
+        return next;
+      });
+
+      const more = !report.done && attempt < SHOT_BOARD_MAX_ATTEMPTS;
+
+      await projectRef.update(
+        stripUndefined({
+          scenes,
+          sceneImages,
+          shotBoard: {
+            // The world bible: the places, the arrangements inside them, the
+            // objects, and every state each of those passes through. Usually
+            // planned back in stage 1 and reused verbatim here.
+            world: report.world,
+            // Every photograph, flat, keyed by (tier, thing, state). The tiers
+            // are ordered by dependency in shotBoardRun.js, not here.
+            plates: report.plates,
+            scenes: report.scenes,
+            violations: report.violations,
+            notes: report.notes,
+            // What the run repaired on its own — a refused prompt it rewrote, a
+            // stored picture it found missing and re-took. Kept because a
+            // pipeline that silently heals itself is one nobody can debug.
+            healed: report.healed,
+            builtAt: report.builtAt,
+          },
+          // The character sheets, now that they exist: photographed here rather
+          // than in the blueprint, so this write is what first gives them urls.
+          ...(report.characterRefs ? { characterRefs: report.characterRefs } : {}),
+          // "partial" means some scenes have frames and some do not. On THIS film
+          // type that is not a shippable state — an unphotographed scene has
+          // nothing to attach and a long prompt written not to describe how
+          // anything looks — so the board screen surfaces it with a Retry rather
+          // than the film rendering through it.
+          shotBoardStage: report.done ? "ready" : more ? "framing" : "partial",
+          shotBoardError: null,
+          shotBoardProgress: report.done || !more ? null : { queuedForContinuation: report.remaining.length },
+          // Server-owned counter, like scriptRevision: the client adopts the
+          // rewritten scene prompts when this moves.
+          scriptRevision: admin.firestore.FieldValue.increment(1),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      await jobRef.update({ status: "done", finishedAt: new Date().toISOString() });
+      const plateCount = (tier) => report.plates.filter((p) => p.tier === tier).length;
+      console.log(
+        `[shotboard ${job.projectId}] pass ${attempt}: ${report.framesRendered} frame(s), ` +
+          `${plateCount("environment") + plateCount("environment-reverse")} place plate(s), ` +
+          `${plateCount("setting")} arrangement plate(s), ${plateCount("object")} object plate(s), ` +
+          `${Object.keys(report.framedPrompts).length} short prompt(s), ` +
+          `${report.remaining.length} scene(s) left`
+      );
+
+      if (more) {
+        await db.collection("shotBoardJobs").add({
+          uid: job.uid,
+          projectId: job.projectId,
+          attempt: attempt + 1,
+          scope: report.remaining.length ? { scenes: report.remaining } : null,
+          status: "queued",
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.error(`[shotboard ${job.projectId}] failed:`, err);
+      await projectRef
+        .update({
+          shotBoardStage: "failed",
+          shotBoardError: err.message || "Could not photograph this film",
+          shotBoardProgress: null,
           updatedAt: new Date().toISOString(),
         })
         .catch(() => {});

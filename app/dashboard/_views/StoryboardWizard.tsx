@@ -349,26 +349,31 @@ export default function StoryboardWizard() {
               </div>
             )}
 
-            {/* MODE — SHORT FILM ONLY: ADVERT OR ORIGINAL STORY
-                Two cards, clip-first like every other picker in the product. The
+            {/* MODE — SHORT FILM ONLY: WHICH KIND OF SHORT FILM
+                Four cards, clip-first like every other picker in the product. The
                 ADVERT is first and is already selected, because it is what this
                 platform has always made and what picking "Short film" already
                 means — a director who wants one just presses Continue.
 
                 The choice is not cosmetic: it routes the whole generation to a
-                different storyboard system (functions/optiqSkills for the advert,
-                functions/optiqStory for the story) and it removes three steps
-                from the rest of this wizard. */}
+                different storyboard system — functions/optiqSkills for the advert,
+                functions/optiqStory for the story, functions/optiqStoryX for the
+                experimental story, functions/optiqDocumentary for the documentary
+                — and it removes three steps from the rest of this wizard.
+
+                The experimental story goes further still: it is the only mode that
+                does not run start to finish. See its entry in _flow/types.ts. */}
             {at("mode") && (
               <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6">
                 <h1 className="text-center text-2xl font-black tracking-tight text-foreground sm:text-3xl">
                   What is this film for?
                 </h1>
 
-                {/* Three across, the same shape as the type picker on the screen
-                    before it — so a mode card is the same size as a type card and
-                    this reads as the same screen asking a narrower question. */}
-                <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
+                {/* Two-by-two on a phone, four across from sm up. It was three
+                    across to match the type picker before it; the experimental
+                    story made a fourth, and four cards squeezed onto a phone row
+                    are four cards nobody can read. */}
+                <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
                   {SHORT_FILM_MODES.map((mode) => {
                     const active = videoTypeId === mode.id;
                     return (
@@ -385,6 +390,13 @@ export default function StoryboardWizard() {
                         {active && (
                           <span className="absolute right-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-white shadow-md">
                             <Check size={9} />
+                          </span>
+                        )}
+                        {/* Left, so the selected-tick at the right never sits on
+                            top of it. */}
+                        {mode.badge && (
+                          <span className="absolute left-1.5 top-1.5 z-20 rounded-full bg-foreground px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-background">
+                            {mode.badge}
                           </span>
                         )}
 

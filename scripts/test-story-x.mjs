@@ -1,0 +1,479 @@
+/**
+ * Optiq STORY X sandbox test. Run: node scripts/test-story-x.mjs
+ *
+ * The experimental long-form story: the film type that is PHOTOGRAPHED before it
+ * is filmed, that stops twice for the director's approval, and that runs to five
+ * or ten minutes rather than three.
+ *
+ * Three things are worth proving here and are hard to prove any other way.
+ *
+ * 1. THE BLUEPRINT SPENDS NOTHING BUT TOKENS. It is the screen where the director
+ *    decides whether to buy the film at all, so a stage that quietly renders eight
+ *    character sheets first has charged them for a decision they have not made.
+ *    The test asserts that no image function is even reachable from it.
+ *
+ * 2. IT SURVIVES ITS OWN LENGTH. Thirty scenes of 2,000 words do not fit in one
+ *    540s invocation. So the pass has to stop cleanly, report what is missing,
+ *    and — on the continuation — REUSE the storyline and registry verbatim rather
+ *    than re-deciding what film this is. A continuation that re-rolls the story
+ *    would change the film under a director who has already read fifteen scenes
+ *    of it, and every scene built against the old registry would then fail its
+ *    lock gate. This is the failure mode with no cheap symptom, so it is tested
+ *    directly.
+ *
+ * 3. THE VOICES ARE LOCKED. Every other consistency axis in this film type is
+ *    held by a photograph. A voice is not: it survives thirty separate clips only
+ *    because the same words are pasted into every prompt. The registry has to
+ *    author one per character and the gate has to catch a scene that drops it.
+ *
+ * Vertex is stubbed throughout — this proves the WIRING, not the writing.
+ */
+
+import { createRequire } from "node:module";
+
+const require_ = createRequire(import.meta.url);
+const {
+  storyStructureLaw,
+  storyStructureViolations,
+} = require_("../functions/optiqStoryX/storyCraft.js");
+const { runOptiqStoryXBlueprint, STORY_KIND, STORYX_VIDEO_TYPE } =
+  require_("../functions/optiqStoryX/pipeline.js");
+
+let passed = 0;
+const failures = [];
+
+function test(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  ok  ${name}`);
+  } catch (err) {
+    failures.push(name);
+    console.error(`FAIL  ${name}\n      ${err?.message ?? err}`);
+  }
+}
+
+async function testAsync(name, fn) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ok  ${name}`);
+  } catch (err) {
+    failures.push(name);
+    console.error(`FAIL  ${name}\n      ${err?.message ?? err}`);
+  }
+}
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+
+// ── THE LONG-FORM STRUCTURE LAW ─────────────────────────────────────────────
+//
+// The five-obligation spine is satisfiable by a thirty-scene film that turns once
+// and then escalates fifteen times — and escalating fifteen times is one scene
+// fifteen times. Every individual scene passes; only the shape is wrong. These
+// are the two gates that see it.
+
+/** A 30-scene film, with whatever act pattern the caller wants to try. */
+function longFilm(actFor) {
+  const sceneBeats = [];
+  for (let i = 1; i <= 30; i++) {
+    sceneBeats.push({
+      sceneNumber: i,
+      act: actFor(i),
+      purpose: "p",
+      location: "the compound",
+      castingMode: "recurring",
+      charactersPresent: ["Awa"],
+      moment: "She lifts the lid, counts, and puts it back.",
+      cuts: [
+        { time: "0-4s", shot: "The lid comes off." },
+        { time: "4-7s", shot: "Counting." },
+        { time: "7-10s", shot: "The lid goes back." },
+      ],
+    });
+  }
+  return {
+    title: "The Long One",
+    concept: "c", storyPitch: "p", emotionalHook: "h", storyArc: "a",
+    whatIsAtStake: "the school fees due on Friday",
+    theEnding: "she puts the tin back and leaves the lid off",
+    sceneBeats,
+  };
+}
+
+/** One turn at 14, climax at 25 — a spine that passes and a middle that does not. */
+const oneTurn = (i) =>
+  i === 1 ? "open" : i <= 3 ? "want" : i === 14 ? "turn" : i === 25 ? "climax" : i === 30 ? "land" : "escalate";
+
+/** The same film with a real midpoint and its escalation broken up. */
+const withMidpoint = (i) => {
+  if (i === 1) return "open";
+  if (i <= 3) return "want";
+  if (i === 10 || i === 15 || i === 21) return "turn";
+  if (i === 25) return "climax";
+  if (i === 30) return "land";
+  return "escalate";
+};
+
+test("a long film with only one turn is caught", () => {
+  const v = storyStructureViolations(longFilm(oneTurn), { numScenes: 30 });
+  assert(
+    v.some((x) => /1 turn in it/.test(x)),
+    `a single-turn 30-scene film must be caught: ${v.map((x) => x.slice(0, 60)).join(" | ")}`
+  );
+});
+
+test("a long film that escalates for ten straight scenes is caught", () => {
+  const v = storyStructureViolations(longFilm(oneTurn), { numScenes: 30 });
+  assert(
+    v.some((x) => /consecutive scenes are all tagged/.test(x)),
+    `a long unbroken run must be caught: ${v.map((x) => x.slice(0, 60)).join(" | ")}`
+  );
+});
+
+test("a long film with a midpoint and a broken-up middle passes", () => {
+  const v = storyStructureViolations(longFilm(withMidpoint), { numScenes: 30 });
+  assert(v.length === 0, `expected none, got: ${v.map((x) => x.slice(0, 90)).join(" | ")}`);
+});
+
+test("the long-form gates do NOT fire on a short film", () => {
+  // A six-scene film turns once and that is correct. Applying the long-form law
+  // to it would demand a midpoint in sixty seconds.
+  const short = {
+    ...longFilm(oneTurn),
+    sceneBeats: longFilm((i) =>
+      i === 1 ? "open" : i === 2 ? "want" : i === 3 ? "turn" : i === 4 ? "escalate" : i === 5 ? "climax" : "land"
+    ).sceneBeats.slice(0, 6),
+  };
+  const v = storyStructureViolations(short, { numScenes: 6 });
+  assert(!v.some((x) => /turn in it|consecutive scenes/.test(x)), `long-form gate fired on a short film: ${v.join(" | ")}`);
+});
+
+test("the long-form law only appears for genuinely long films", () => {
+  assert(/THIS IS LONG FORM/.test(storyStructureLaw({ numScenes: 30 })), "a 30-scene film must get the long-form law");
+  assert(/MIDPOINT/.test(storyStructureLaw({ numScenes: 30 })), "it must ask for a midpoint");
+  assert(!/THIS IS LONG FORM/.test(storyStructureLaw({ numScenes: 6 })), "a 6-scene film must not get it");
+});
+
+// ── THE WIRING ──────────────────────────────────────────────────────────────
+
+const SCENE_COUNT = 30;
+
+function beats() {
+  return longFilm(withMidpoint).sceneBeats;
+}
+
+const STORYLINE = longFilm(withMidpoint);
+
+const REGISTRY = {
+  characters: [
+    {
+      name: "Awa",
+      role: "lead",
+      scenes: Array.from({ length: SCENE_COUNT }, (_, i) => i + 1),
+      tell: "she smooths her wrapper when she is lying",
+      lcb: "AWA — a Black Gambian woman in her late thirties with golden-brown skin and short natural hair.",
+      wardrobe: "A TEAL wax-print wrapper.",
+      voice: "Low and unhurried, a smoker's rasp under it, Wolof-inflected English; she goes quiet when she is angry rather than loud.",
+    },
+    {
+      name: "Ndey",
+      role: "daughter",
+      scenes: [10, 15, 21, 25, 30],
+      tell: "she checks a pocket she has already checked",
+      lcb: "NDEY — a Black Gambian woman of nineteen with very deep blue-black skin and long box braids.",
+      wardrobe: "A faded YELLOW dress.",
+      voice: "Bright and fast, high in her chest, mission-school precise; she answers before you have finished asking.",
+    },
+  ],
+  elements: [{ name: "rice tin", anchor: "a dented aluminium rice tin with a loose lid", scenes: [1, 15, 30] }],
+  recurringSets: [{ name: "the kitchen", anchor: "a narrow kitchen with a blue-washed wall", scenes: [1, 2, 30] }],
+  soundSpec:
+    "NO MUSIC of any kind. The compound's own noise carries the clip: the fridge hum, the yard beyond, distant traffic.",
+  ambienceSpec: "Low fridge hum and a quiet yard.",
+  styleHeader: "Documentary-real, handheld, honest daylight. Nobody looks at the lens. Dialogue in ENGLISH.",
+};
+
+const WORLD = {
+  environments: [
+    { key: "kitchen", name: "The kitchen", scenes: [1, 2, 30], lock: "A narrow kitchen with a blue-washed wall.", geometry: "Door left, stove right, table centre." },
+  ],
+  settings: [
+    { key: "table-laid", name: "The table, laid", environmentKey: "kitchen", scenes: [1, 2], layout: "Two bowls, the tin behind the pot." },
+  ],
+  objects: [{ key: "tin", name: "The rice tin", scenes: [1, 15, 30], anchor: "A dented aluminium rice tin." }],
+  sceneWorld: Array.from({ length: SCENE_COUNT }, (_, i) => ({
+    sceneNumber: i + 1,
+    environmentKey: "kitchen",
+    settingKeys: ["table-laid"],
+    objectKeys: ["tin"],
+  })),
+};
+
+function skillReply(obj) {
+  return { candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(obj) }] } }] };
+}
+
+/** A prompt long enough to clear the word gate, carrying every lock AND the voice. */
+function fatPrompt(beat, chars) {
+  const filler = "authored specific detail about the room and the people in it ".repeat(230);
+  return [
+    chars.map((c) => `${c.lcb} ${c.wardrobe}`).join(" "),
+    REGISTRY.styleHeader,
+    "ABSOLUTE RULES: NO MUSIC of any kind.",
+    `SOUND: NO MUSIC. ${REGISTRY.soundSpec}`,
+    `DIALOGUE. ${chars.map((c) => `${c.name} — ${c.voice} ${c.name}: "How much?"`).join(" ")}`,
+    "[0-3s] She lifts the lid. [3-6s] She counts. [6-10s] She puts it back.",
+    "Every person in frame is Black Gambian.",
+    filler,
+    "CLOSING RESTATEMENT: unscored and musically silent, no music of any kind.",
+  ].join("\n");
+}
+
+function stubVertex(captured, { slowScenes = false } = {}) {
+  let sceneCalls = 0;
+  return async (_path, body) => {
+    const system = body.systemInstruction.parts[0].text;
+    const userText = (body.contents[0].parts || []).map((p) => p.text || "").join("\n");
+    const parts = body.contents[0].parts || [];
+    captured.push({ system, userText, parts, all: `${system}\n───── USER ─────\n${userText}` });
+
+    if (/You are the PREMISE ANALYST/.test(system)) {
+      return skillReply({
+        genre: "domestic drama", premiseSummary: "a woman hides money", whoItIsAbout: "Awa",
+        whatTheyWant: "to pay the school fees", whatIsInTheWay: "her daughter finds the tin",
+        whatIsAtStake: "the fees due Friday", audienceFeeling: "quietly wrecked",
+        toneRegister: "held-in", language: "English", setting: "Serrekunda, The Gambia",
+        castingShape: "ensemble", castingRationale: "two people, one tin",
+      });
+    }
+    if (/THE CONCEPT ROOM/.test(system) && /WHAT TO RETURN/.test(system)) {
+      return skillReply({
+        concepts: [
+          {
+            title: "The Rice Tin", logline: "A woman hides money and is found out by the person she is hiding it for.",
+            engine: "the thing taken without asking", openingImage: "notes going into a tin, fast",
+            eventDensity: ["notes hidden", "key turns", "tin found"],
+            whatIsAtStake: "the school fees", theTurn: "Ndey is already holding the tin",
+            theEnding: "the tin goes back with the lid off", risk: "too quiet",
+          },
+        ],
+        pick: "The Rice Tin",
+        pickRationale: "the tin generates events",
+      });
+    }
+    if (/You are the STORY DOCTOR/.test(system)) return skillReply(STORYLINE);
+    if (/You are STORYLINE/.test(system)) return skillReply(STORYLINE);
+    if (/You are CASTING-REGISTRY/.test(system)) return skillReply(REGISTRY);
+    if (/You are the CONTINUITY SUPERVISOR/.test(system)) return skillReply(WORLD);
+    if (/You are a SCENE BUILDER/.test(system)) {
+      // Simulates a pass that runs out of clock partway through a long film: each
+      // scene "takes" long enough that the budget lapses after a handful.
+      if (slowScenes) {
+        sceneCalls++;
+        if (sceneCalls > 5) await new Promise((r) => setTimeout(r, 60));
+      }
+      const n = Number(/Build scene (\d+)/.exec(userText)?.[1] || 1);
+      const beat = beats().find((b) => b.sceneNumber === n) || beats()[0];
+      const chars = REGISTRY.characters.filter((c) => (beat.charactersPresent || []).includes(c.name));
+      return skillReply({
+        sceneNumber: n, setting: beat.location, action: beat.moment,
+        dialogue: chars.map((c) => `${c.name}: How much?`).join(" "),
+        sound: "Room tone.", fullPrompt: fatPrompt(beat, chars),
+      });
+    }
+    if (/You are the SCENE VERIFIER/.test(system)) {
+      const scene = JSON.parse(/THE SCENE TO REPAIR:\n([\s\S]+)$/.exec(userText)[1]);
+      return skillReply(scene);
+    }
+    throw new Error(`unstubbed skill:\n${system.slice(0, 200)}`);
+  };
+}
+
+// ── A COMPLETE PASS ─────────────────────────────────────────────────────────
+
+const captured = [];
+const film = await runOptiqStoryXBlueprint({
+  vertexFetch: stubVertex(captured),
+  prompt: "A woman hides money from her own family.",
+  length: "300s",
+  aspectRatio: "16:9",
+  castingSeed: "storyx-test-1",
+  // Deliberately passed and deliberately ignored, exactly as the router does.
+  brandName: "Zorblaxco",
+  product: "hyperwidget nine thousand",
+});
+
+await testAsync("wiring: a 300s blueprint is 30 scenes and reports itself done", async () => {
+  assert(film.scenes.length === SCENE_COUNT, `${film.scenes.length} scenes`);
+  assert(film.done === true, "a completed pass must say so");
+  assert(film.missing.length === 0, `${film.missing.length} scene(s) reported missing`);
+  assert(film.videoType === STORYX_VIDEO_TYPE, `videoType is ${film.videoType}`);
+  assert(STORY_KIND.dialogueInVideo === true, "the characters speak on camera");
+});
+
+await testAsync("wiring: the blueprint spends NO image quota", async () => {
+  // The gate's whole promise. Every part of every call is text; an inlineData
+  // part would mean a picture was made or attached before the director approved
+  // anything.
+  for (const { parts } of captured) {
+    assert(
+      parts.every((p) => p.text !== undefined && p.inlineData === undefined),
+      "an image rode along with a blueprint skill call"
+    );
+  }
+  // And the cast sheets are PLANNED, not photographed: named, scened, no url.
+  assert(film.characterRefs.length >= 2, `${film.characterRefs.length} sheets planned`);
+  for (const ref of film.characterRefs) {
+    assert(!!ref.name, "a planned sheet has no name");
+    assert(!ref.url && !ref.path, `${ref.name}'s sheet was photographed during the blueprint`);
+  }
+});
+
+await testAsync("wiring: no scene builder is handed a reference image or a reference clause", async () => {
+  const builders = captured.filter(({ system }) => /You are a SCENE BUILDER/.test(system));
+  assert(builders.length === SCENE_COUNT, `${builders.length} scene builders ran`);
+  for (const b of builders) {
+    assert(!/ATTACHED CHARACTER REFERENCE/.test(b.all), "a builder was told a reference was attached when none is");
+    assert(
+      /NO REFERENCE IMAGE IS ATTACHED TO YOU/.test(b.system),
+      "a builder must be told it is writing the source the pictures come FROM"
+    );
+  }
+});
+
+await testAsync("wiring: the world is designed, and it is what stage 2 photographs", async () => {
+  assert(film.world, "the blueprint must carry a world plan");
+  assert((film.world.environments || []).length > 0, "the world has no places");
+  assert((film.world.sceneWorld || []).length === SCENE_COUNT, "every scene must be mapped to a place");
+  const designer = captured.find(({ system }) => /You are the CONTINUITY SUPERVISOR/.test(system));
+  assert(designer, "the world designer never ran");
+  // It designs from the FINISHED scenes, which is why it runs at the end of the
+  // blueprint rather than at the start of the board.
+  assert(/SCENE 30/.test(designer.userText), "the world designer did not see the whole film");
+});
+
+await testAsync("wiring: every character gets a locked VOICE, and the scenes paste it", async () => {
+  const registryPrompt = captured.find(({ system }) => /You are CASTING-REGISTRY/.test(system));
+  assert(/THE VOICE PROFILE/.test(registryPrompt.system), "the registry was never asked for voice profiles");
+  const builder = captured.find(({ system }) => /You are a SCENE BUILDER/.test(system));
+  assert(
+    /VOICE PROFILE IS PASTED VERBATIM/.test(builder.system),
+    "a builder was not told to paste the voice profile"
+  );
+  assert(
+    /NOTHING will hold the voices still/.test(builder.system),
+    "a builder was not told WHY the voice lock is the one that matters here"
+  );
+  // The gate ran and did not fire: every scene with dialogue pasted the voice.
+  for (const scene of film.scenes) {
+    if (!/Awa:/.test(scene.dialogue || "")) continue;
+    assert(
+      scene.fullPrompt.includes(REGISTRY.characters[0].voice),
+      `scene ${scene.sceneNumber} has Awa speaking but no voice lock`
+    );
+  }
+});
+
+await testAsync("wiring: the spine is echoed back so a continuation can reuse it", async () => {
+  assert(film.brief && film.storyline && film.registry, "the blueprint must return its own spine");
+  assert(film.storyline.sceneBeats.length === SCENE_COUNT, "the storyline came back short");
+  assert((film.registry.characters || []).length === 2, "the registry came back short");
+});
+
+await testAsync("wiring: the brand name and product are ignored, not passed through", async () => {
+  for (const { all } of captured) {
+    assert(!/Zorblaxco/i.test(all), "the brand name leaked into a story prompt");
+    assert(!/hyperwidget/i.test(all), "the product leaked into a story prompt");
+  }
+});
+
+// ── RUNNING OUT OF TIME, AND CONTINUING ─────────────────────────────────────
+
+const partialCaptured = [];
+const partial = await runOptiqStoryXBlueprint({
+  vertexFetch: stubVertex(partialCaptured, { slowScenes: true }),
+  prompt: "A woman hides money from her own family.",
+  length: "300s",
+  aspectRatio: "16:9",
+  castingSeed: "storyx-test-1",
+  // Tiny budget: enough to decide the film, not enough to write thirty scenes.
+  budgetMs: 150,
+});
+
+await testAsync("a pass that runs out of clock stops cleanly and says what is missing", async () => {
+  assert(partial.done === false, "a truncated pass must not claim to be done");
+  assert(partial.missing.length > 0, "it must report the scenes it did not build");
+  assert(
+    partial.scenes.length + partial.missing.length === SCENE_COUNT,
+    `${partial.scenes.length} built + ${partial.missing.length} missing ≠ ${SCENE_COUNT}`
+  );
+  // What it DID build is complete and usable, not half-written.
+  for (const scene of partial.scenes) {
+    assert(scene.fullPrompt && scene.fullPrompt.split(/\s+/).length > 1000, "a saved scene is truncated");
+  }
+  assert(
+    partial.missing.every((n) => Number.isInteger(n)) &&
+      partial.missing.every((n, i, a) => i === 0 || a[i - 1] < n),
+    "the missing list must be sorted scene numbers"
+  );
+});
+
+const continueCaptured = [];
+const finished = await runOptiqStoryXBlueprint({
+  vertexFetch: stubVertex(continueCaptured),
+  prompt: "A woman hides money from her own family.",
+  length: "300s",
+  aspectRatio: "16:9",
+  castingSeed: "storyx-test-1",
+  previous: {
+    brief: partial.brief,
+    storyline: partial.storyline,
+    registry: partial.registry,
+    scenes: partial.scenes,
+    world: partial.world,
+  },
+});
+
+await testAsync("the continuation finishes the film without re-deciding what it is", async () => {
+  assert(finished.done === true, `the continuation did not finish: ${finished.missing.length} still missing`);
+  assert(finished.scenes.length === SCENE_COUNT, `${finished.scenes.length} scenes after continuing`);
+
+  // THE POINT OF THE TEST. Re-running the storyline would hand pass 2 a different
+  // film from the one pass 1 wrote fifteen scenes of — and every reused scene
+  // would then fail its lock gate against a registry it was not built from.
+  const rerolled = continueCaptured.filter(({ system }) =>
+    /You are STORYLINE|You are CASTING-REGISTRY|You are the PREMISE ANALYST|THE CONCEPT ROOM/.test(system)
+  );
+  assert(rerolled.length === 0, `the continuation re-ran ${rerolled.length} spine skill(s)`);
+
+  // And it only built what was missing.
+  const rebuilt = continueCaptured
+    .filter(({ userText }) => /Build scene (\d+)/.test(userText))
+    .map(({ userText }) => Number(/Build scene (\d+)/.exec(userText)[1]));
+  assert(
+    rebuilt.length === partial.missing.length,
+    `the continuation built ${rebuilt.length} scenes but only ${partial.missing.length} were missing`
+  );
+  assert(
+    rebuilt.every((n) => partial.missing.includes(n)),
+    "the continuation rebuilt a scene that already existed"
+  );
+});
+
+await testAsync("the finished film's scenes are in order and none are duplicated", async () => {
+  const numbers = finished.scenes.map((s) => s.sceneNumber);
+  assert(new Set(numbers).size === numbers.length, "a scene was built twice");
+  for (let i = 1; i < numbers.length; i++) {
+    assert(numbers[i] > numbers[i - 1], `scenes out of order at ${numbers[i - 1]} → ${numbers[i]}`);
+  }
+});
+
+console.log(
+  failures.length === 0
+    ? `\n${passed} passed, 0 failed\n`
+    : `\n${passed} passed, ${failures.length} failed: ${failures.join(", ")}\n`
+);
+process.exit(failures.length === 0 ? 0 : 1);

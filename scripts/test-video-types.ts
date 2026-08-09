@@ -54,6 +54,13 @@ const doc = require_("../functions/optiqDocumentary/pipeline.js") as {
   };
   scenesForLength: (length: string) => number;
 };
+// The FOURTH box: the experimental long-form story, the only one that
+// photographs a film before it films it.
+const storyX = require_("../functions/optiqStoryX/pipeline.js") as {
+  STORYX_VIDEO_TYPE: string;
+  STORY_KIND: { id: string; noun: string; register: string; dialogueInVideo: boolean; ttsVoiceover: boolean; branded: boolean };
+  scenesForLength: (length: string) => number;
+};
 
 let passed = 0;
 const failures: string[] = [];
@@ -117,13 +124,13 @@ test("the original three prices are unchanged", () => {
 // ── The three types ─────────────────────────────────────────────────────────
 
 test("the picker still shows exactly three cards, and the default is one of them", () => {
-  // Five types exist, but only three are CARDS: the original story and the
-  // documentary are both reached by picking Short film and then choosing what the
-  // film is for. Three across is the picker's whole design — a fourth card pushes
-  // it off a phone, which is exactly why the unbranded types live behind the mode
-  // screen instead.
+  // Six types exist, but only three are CARDS: the original story, the
+  // experimental original story and the documentary are all reached by picking
+  // Short film and then choosing what the film is for. Three across is the
+  // picker's whole design — a fourth card pushes it off a phone, which is exactly
+  // why the unbranded types live behind the mode screen instead.
   assert(VIDEO_TYPE_CARDS.length === 3, `${VIDEO_TYPE_CARDS.length} cards`);
-  assert(VIDEO_TYPES.length === 5, `${VIDEO_TYPES.length} types`);
+  assert(VIDEO_TYPES.length === 6, `${VIDEO_TYPES.length} types`);
   assert(VIDEO_TYPE_CARDS.some((t) => t.id === DEFAULT_VIDEO_TYPE), "the default is a card");
 });
 
@@ -362,24 +369,47 @@ test("the client and the documentary box agree on what a documentary is", () => 
 });
 
 test("no box can build another box's films", () => {
-  // The ad swarm has never heard of either unbranded type…
+  // The ad swarm has never heard of any unbranded type…
   assert(!server.FILM_KINDS["short-film-story"], "the ad swarm must not know the story type");
+  assert(!server.FILM_KINDS["short-film-story-x"], "the ad swarm must not know the experimental story type");
   assert(!server.FILM_KINDS["short-film-documentary"], "the ad swarm must not know the documentary type");
-  // …and each unbranded box exposes exactly one kind, so neither can be handed an
-  // ad — nor each other's films, since these two ids are what index.js routes on.
+  // …and each unbranded box exposes exactly one kind, so none can be handed an
+  // ad — nor each other's films, since these ids are what index.js routes on.
   assert(story.STORY_KIND.id === "short-film-story", "the story box must expose only its own kind");
   assert(doc.DOCUMENTARY_KIND.id === "short-film-documentary", "the doc box must expose only its own kind");
+  assert(storyX.STORY_KIND.id === "short-film-story-x", "the experimental box must expose only its own kind");
+  // The two story boxes are the pair most likely to be confused for each other,
+  // because one is a copy of the other. They must never answer to the same id:
+  // that would route a photographed film to a pipeline with no board, or an
+  // ordinary story to one that stops and waits for approval it will never get.
+  // Compared as plain strings: these are declared as literal types, so tsc
+  // "helpfully" proves the comparison can never be true and errors on it — which
+  // would be reassuring if the values came from types rather than from two
+  // independently-editable JS files.
+  assert(
+    String(story.STORY_KIND.id) !== String(storyX.STORY_KIND.id),
+    "the two story boxes must not answer to the same videoType"
+  );
 });
 
-test("the three boxes share no code", () => {
+test("the four boxes share no code", () => {
   // Proved by module identity: if one pipeline required another's modules, these
   // objects would be the same instance out of Node's cache.
-  const adCreative = require_("../functions/optiqSkills/creative.js");
-  const storyCreative = require_("../functions/optiqStory/creative.js");
-  const docCreative = require_("../functions/optiqDocumentary/creative.js");
-  assert(adCreative !== storyCreative, "ad and story concept rooms must be different modules");
-  assert(adCreative !== docCreative, "ad and documentary concept rooms must be different modules");
-  assert(storyCreative !== docCreative, "story and documentary concept rooms must be different modules");
+  const creatives = {
+    ad: require_("../functions/optiqSkills/creative.js"),
+    story: require_("../functions/optiqStory/creative.js"),
+    doc: require_("../functions/optiqDocumentary/creative.js"),
+    storyX: require_("../functions/optiqStoryX/creative.js"),
+  };
+  const names = Object.keys(creatives) as (keyof typeof creatives)[];
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      assert(
+        creatives[names[i]] !== creatives[names[j]],
+        `${names[i]} and ${names[j]} concept rooms must be different modules`
+      );
+    }
+  }
 
   const docIndex = require_("../functions/optiqDocumentary/index.js");
   assert(
@@ -389,14 +419,87 @@ test("the three boxes share no code", () => {
   // Each box's craft module belongs to it alone.
   const storyCraft = require_("../functions/optiqStory/storyCraft.js");
   const docCraft = require_("../functions/optiqDocumentary/documentaryCraft.js");
+  const storyXCraft = require_("../functions/optiqStoryX/storyCraft.js");
   assert(storyCraft !== docCraft, "the two craft modules must be separate");
+  assert(storyCraft !== storyXCraft, "the two story craft modules must be separate");
   assert(storyCraft.ACTS.join() !== docCraft.ACTS.join(), "a story's acts and a documentary's are not the same shape");
+});
+
+test("only the experimental box has a shot board, and it is the long-form one", () => {
+  // The board was built for every film once and reverted on cost. It lives in
+  // exactly one box now; a copy appearing in any other is the revert coming
+  // undone, and it would put a hundred images in front of every ad again.
+  for (const box of ["optiqSkills", "optiqStory", "optiqDocumentary"]) {
+    let found = false;
+    try {
+      require_(`../functions/${box}/shotBoard.js`);
+      found = true;
+    } catch {
+      /* expected: no such module */
+    }
+    assert(!found, `${box} must NOT have a shot board — it was reverted for exactly this reason`);
+  }
+  const brain = require_("../functions/optiqStoryX/shotBoard.js") as {
+    framedPromptViolations: (framed: string, scene: { fullPrompt?: string }) => string[];
+  };
+  assert(typeof brain.framedPromptViolations === "function", "the experimental box must have its board");
+
+  // Only the experimental type offers long run-times, and it must offer the 300s
+  // the whole thing was built for.
+  const x = videoType("short-film-story-x");
+  assert(x.lengths.includes("300s"), "the experimental story must offer 5 minutes");
+  assert(x.lengths.includes("600s"), "the experimental story must offer 10 minutes");
+  for (const type of VIDEO_TYPES) {
+    if (type.id === "short-film-story-x") continue;
+    for (const length of type.lengths) {
+      assert(
+        lengthSeconds(length) <= 180,
+        `${type.id} offers ${length}; only the experimental story is long form`
+      );
+    }
+  }
+});
+
+test("the experimental story's render prompt carries no appearance", () => {
+  // The whole trade of this film type: the pictures carry how things look, the
+  // words carry everything else. A brief that describes a complexion gives the
+  // model two accounts of one thing, and it reconciles them by inventing a third.
+  const brain = require_("../functions/optiqStoryX/shotBoard.js") as {
+    framedPromptViolations: (framed: string, scene: { fullPrompt?: string }) => string[];
+  };
+  const scene = { fullPrompt: 'She says "Take it back." and he does not move.' };
+  const good = `CAST KEY. Awa — seated left, green wrapper. WHAT HAPPENS. 0.0s she sets the bowl down. 2.0s he stands.
+DIALOGUE. Awa (low, unhurried, Wolof-inflected): "Take it back." SOUND. Room tone under everything, the bowl on wood.
+NO MUSIC of any kind. CAMERA. Locked.`;
+  assert(
+    brain.framedPromptViolations(good, scene).every((v) => !/complexion|a face|the film's look/.test(v)),
+    "a clean brief must not be flagged for appearance"
+  );
+
+  const bad = `${good} Awa has a warm dark-brown complexion and high cheekbones.`;
+  const faults = brain.framedPromptViolations(bad, scene);
+  assert(
+    faults.some((v) => /complexion/.test(v)),
+    "a brief that describes a complexion must be caught"
+  );
+  assert(
+    faults.some((v) => /a face/.test(v)),
+    "a brief that describes a face must be caught"
+  );
+
+  // And the one thing it MUST have: dialogue is worthless if nobody can tell who
+  // is speaking, because no character sheet is attached to say.
+  const noKey = good.replace("CAST KEY. Awa — seated left, green wrapper.", "");
+  assert(
+    brain.framedPromptViolations(noKey, scene).some((v) => /CAST KEY/.test(v)),
+    "a brief with dialogue and no cast key must be caught"
+  );
 });
 
 test("nobody under 18 is castable in any box", () => {
   // The palette is the one input the registry reliably builds toward, so an
   // under-age band in any of the three would put a minor in films nobody asked to.
-  for (const box of ["optiqSkills", "optiqStory", "optiqDocumentary"]) {
+  for (const box of ["optiqSkills", "optiqStory", "optiqDocumentary", "optiqStoryX"]) {
     const casting = require_(`../functions/${box}/casting.js`) as {
       AGE_BANDS: string[];
       minorViolations: (text: string, where?: string) => string[];
@@ -462,10 +565,15 @@ test("every wizard step list starts at the projects screen and ends somewhere re
 });
 
 test("the short-film mode screen offers the advert first", () => {
-  assert(SHORT_FILM_MODES.length === 3, `${SHORT_FILM_MODES.length} modes`);
+  assert(SHORT_FILM_MODES.length === 4, `${SHORT_FILM_MODES.length} modes`);
   assert(SHORT_FILM_MODES[0].id === "short-film", "the advert must come first — it is the default");
   assert(SHORT_FILM_MODES[1].id === "short-film-story", "the story is the second option");
-  assert(SHORT_FILM_MODES[2].id === "short-film-documentary", "the documentary is the third option");
+  // The experimental story sits third, next to the ordinary one it is a variant
+  // of, and it is the only mode that carries a badge — because it is the only one
+  // that behaves differently enough to need a warning before it is picked.
+  assert(SHORT_FILM_MODES[2].id === "short-film-story-x", "the experimental story is the third option");
+  assert(!!SHORT_FILM_MODES[2].badge, "the experimental mode must be marked as experimental");
+  assert(SHORT_FILM_MODES[3].id === "short-film-documentary", "the documentary is the fourth option");
   for (const mode of SHORT_FILM_MODES) {
     assert(isShortFilm(mode.id), `${mode.id} is not a short film`);
     assert(!!videoType(mode.id).clip, `${mode.id} has no cover clip`);
