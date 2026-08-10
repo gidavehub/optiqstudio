@@ -16,6 +16,7 @@ import React from "react";
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Play, RefreshCw, Video } from "lucide-react";
 import { SceneTake } from "../../_flow/types";
 import { previewBox } from "../../_shared/aspect";
+import { renderErrorLabel } from "../../_shared/renderError";
 
 export type SceneRenderStatus = "idle" | "rendering" | "succeeded" | "failed";
 
@@ -138,10 +139,11 @@ export default function SceneRenderPanel({
     return (
       <div style={box.style} className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-danger-soft text-center overflow-hidden ${box.className} ${pad}`}>
         <AlertCircle size={24} className="text-danger" />
-        <h4 className="mt-2.5 text-xs font-bold text-foreground">Generation failed</h4>
-        <p className="mt-1 max-w-xs text-[10px] leading-normal text-danger">
-          {error || "The render timed out."}
-        </p>
+        {/* The reason, not the exception. A render that was refused and one that
+            hit the per-minute cap are different problems with different answers,
+            and a raw throw — for a video render, the whole failed interaction as
+            JSON — told the director neither. See _shared/renderError.ts. */}
+        <h4 className="mt-2.5 text-xs font-bold text-foreground">{renderErrorLabel(error)}</h4>
         <button
           onClick={onRender}
           className="mt-3.5 flex items-center gap-1 rounded-xl border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold transition-colors hover:bg-surface-2"

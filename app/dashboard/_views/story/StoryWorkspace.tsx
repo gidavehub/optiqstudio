@@ -39,6 +39,7 @@ import { useAuth } from "../../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
 import useIsMobile from "../../_shared/useIsMobile";
 import { audioStageLabel } from "../../_shared/audioStages";
+import { renderErrorLabel } from "../../_shared/renderError";
 import BlueprintStage from "../blueprint/BlueprintStage";
 import EditorStudio from "../editor/EditorStudio";
 import StoryMobileDeck from "./StoryMobileDeck";
@@ -334,11 +335,19 @@ export default function StoryWorkspace() {
                   ) : failed ? (
                     <button
                       onClick={() => requestRender(idx, renderPrompt(scene, stat?.customPrompt))}
-                      className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-danger-soft p-3 text-center transition-colors hover:bg-danger-soft"
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-danger-soft p-3 text-center transition-colors hover:bg-danger-soft"
                     >
                       <AlertCircle size={20} className="text-danger" />
-                      <span className="text-[10px] font-bold text-foreground">Scene {scene.sceneNumber} failed</span>
-                      <span className="flex items-center gap-1 rounded-xl border border-line bg-surface px-2.5 py-1 text-[10px] font-semibold text-foreground">
+                      {/* THE REASON, AND ONLY THE REASON. A full quota and a
+                          refused prompt want opposite responses — wait, versus
+                          rewrite the scene — and this card used to say the same
+                          thing for both. It is also two inches wide with thirty
+                          of them on screen, so it gets the one word that decides
+                          what the director does next and nothing else. The rest
+                          is on the generation doc as errorDetail. */}
+                      <span className="text-[10px] font-bold text-foreground">Scene {scene.sceneNumber}</span>
+                      <span className="text-[11px] font-bold text-danger">{renderErrorLabel(stat?.error)}</span>
+                      <span className="mt-0.5 flex items-center gap-1 rounded-xl border border-line bg-surface px-2.5 py-1 text-[10px] font-semibold text-foreground">
                         <RefreshCw size={10} /> Retry
                       </span>
                     </button>

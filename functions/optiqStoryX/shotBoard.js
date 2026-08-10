@@ -108,6 +108,15 @@
 // ./creative.js is pure and calls nothing.
 const { countSpokenLines, MIN_LINES_PER_SCENE } = require("./creative");
 
+// What may be photographed.
+//
+// The board is where this bites hardest, and where it was actually lost: a
+// weapon written into a world STATE is photographed once into a plate, and every
+// frame of that scene is then generated FROM that plate. The object outlives any
+// number of rewrites of the scene's words, because by then it is in a picture.
+// See ./safety.js.
+const { shootableMandate, SHOOTABLE_PLATE_RULE, graphicViolations } = require("./safety");
+
 // ── The numbers, and why they are these numbers ─────────────────────────────
 
 /**
@@ -204,7 +213,8 @@ const STILL_PROHIBITIONS = `- NO text of any kind anywhere in the image: no capt
 - NO split screen, no collage, no inset, no picture-in-picture, no grid of variations, no before-and-after, no film-strip border, no letterbox bars, no frame or matte around the image.
 - NO camera, crew, tripod, boom, light stand, reflector or monitor visible anywhere in frame.
 - Photographic realism: a real photograph of a real place, taken on a real camera. Not an illustration, not a render, not a painting, not 3D, not stylised, not a cartoon, not AI-glossy.
-- Natural skin texture on every person. Not retouched, not airbrushed, not glamorised.`;
+- Natural skin texture on every person. Not retouched, not airbrushed, not glamorised.
+- ${SHOOTABLE_PLATE_RULE}`;
 
 /**
  * What "a real camera was there" means, stated to the image model.
@@ -481,6 +491,10 @@ That memorylessness is the whole problem you exist to solve. Nothing carries fro
 
 You are writing the film's WORLD BIBLE, in four parts. Everything you write here gets PHOTOGRAPHED before a single clip is rendered, and every photograph is built from the one above it, so an error you make on the top tier is reproduced faithfully all the way down.
 
+${shootableMandate()}
+
+THAT RULE MATTERS MORE HERE THAN ANYWHERE ELSE IN THE FILM, and the reason is the hierarchy you are at the top of. A weapon you write into a place or into one of its states gets photographed into a plate, and every frame of every scene in that place is then generated FROM that plate. The object survives being deleted from the script, because by then it is in a picture rather than in a sentence. A room that a fight happened in is written as the AFTERMATH — the splintered door, the overturned stool, the scattered floor — and never as a room with the weapon still lying in it.
+
 ═══ 1. ENVIRONMENTS — the places ═══
 
 Read every scene and group them by PLACE. Two scenes share an environment only if they are literally the same physical place — the same room, the same stretch of road, the same vehicle interior, the same patch of water. A different corner of the same compound is the same environment; a different compound is not.
@@ -588,6 +602,10 @@ function shotDesignDirective({ environment, settings = [], maxShots = MAX_SHOTS_
   return `You are the SHOT DESIGNER. One scene of a film has been fully written as a video-generation prompt. You are deciding how that ten seconds is SHOT — how many camera setups it takes, what each one sees, where each one starts, and where it ends up.
 
 Every setup you name gets PHOTOGRAPHED before the clip is rendered: an image model builds a still of it, the director looks at it, and the approved stills are handed to the video model as the clip's own frames. So a setup you describe vaguely becomes a still that is wrong, and a still that is wrong becomes a clip that is wrong. Be exact.
+
+${shootableMandate()}
+
+YOU ARE THE LAST PERSON WHO CAN HONOUR THAT RULE, because you decide where the camera stands. The scene may be written with a beating in it; your job is to choose the angle that tells the audience it happened without photographing it — the face of the man watching, the empty doorway it is happening beyond, the stool going over, the hand on the counter. A setup that frames the act itself produces a still the video model refuses, and one refused still takes the whole clip with it.
 
 ═══ HOW MANY SETUPS ═══
 Read the scene's own timestamped beats and follow them — the cuts are already planned in the prompt and you are not re-editing the film.
@@ -1441,6 +1459,8 @@ Be exhaustive and be concrete. Every beat, every sound, every voice, every piece
    • a specific sound for every physical event in the beats, named where it happens. Something that touches, opens, closes, lands, tears, spills, starts or stops MAKES A NOISE, and if you do not name it the clip comes back half-silent;
    • the film's locked sound spec, kept as it appears in the long prompt.
 
+5b. THE CAMERA NEVER WATCHES THE VIOLENCE. The long prompt has already been written so the act happens off frame — keep it that way, and never restore it while "keeping every beat". No weapon in shot, no blow or grab or pin as it lands, nobody restrained, nobody cowering, no blood. But NAME THE SOUND OF IT EXACTLY — the impact, the scuffle, the body, the wood — because sound is unrestricted here and is where the violence belongs. Threats in dialogue are unrestricted too.
+
 5. NO MUSIC. State it explicitly and state it plainly: this clip carries NO MUSIC of any kind — no score, no soundtrack, no instrument, no hum, no drone, no rhythmic bed. Never name an instrument, a tempo, a BPM or a musical mood. This law is absolute and it must survive the rewrite.
 
 6. CAMERA MOVEMENT AND CUTS. Where the camera goes across each setup, and where the cuts fall. Keep it short — the frames already show where the camera IS; this is only where it TRAVELS.
@@ -1611,6 +1631,13 @@ function shotPlanViolations(plan, { maxShots = MAX_SHOTS_PER_SCENE, sceneSeconds
   const violations = [];
   const shots = plan?.shots || [];
 
+  // Read back what the setups actually put in frame. A setup labelled "The
+  // Tackle and Pin" is a still the image model will refuse and, if it somehow
+  // gets made, a picture the video model then refuses in turn — and neither says
+  // why. Checked on the whole plan so a weapon mentioned in blocking is caught
+  // as readily as one in the label.
+  violations.push(...graphicViolations(JSON.stringify(shots), "This shot list"));
+
   if (shots.length === 0) {
     violations.push("No setups were returned. Every scene has at least one camera setup.");
     return violations;
@@ -1695,6 +1722,14 @@ function shotPlanViolations(plan, { maxShots = MAX_SHOTS_PER_SCENE, sceneSeconds
 /** What the world pass has to satisfy. Faults here poison every plate below them. */
 function worldViolations(world, scenes) {
   const violations = [];
+
+  // THE ONE THAT WAS MISSED. A club written into a market stall's state was
+  // photographed into a plate, and every frame of that scene was then built from
+  // it — so the weapon outlived being deleted from the script twice. The whole
+  // bible is checked as one document because it does not matter which tier the
+  // object was written into; they all end up in the same photograph.
+  violations.push(...graphicViolations(JSON.stringify(world || {}), "The world bible"));
+
   const environments = world?.environments || [];
   const settings = world?.settings || [];
   const objects = world?.objects || [];
@@ -1826,6 +1861,12 @@ function framedPromptViolations(framed, scene) {
   const violations = [];
   const text = String(framed || "").trim();
   const words = countWords(text);
+
+  // The brief is what the video model is actually sent, so this is the last gate
+  // in the entire pipeline. It catches a brief that re-introduced the act while
+  // faithfully "keeping every beat" — the beats are exactly what it is told never
+  // to lose, so this is a live risk rather than a theoretical one.
+  violations.push(...graphicViolations(text, "This shooting brief"));
 
   if (words < FRAMED_PROMPT_MIN * 0.7) {
     violations.push(

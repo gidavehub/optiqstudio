@@ -69,6 +69,11 @@ const {
   adultsOnlyMandate,
   minorViolations,
 } = require("./casting");
+// What may be filmed. Enforced exactly like adults-only above — a mandate at
+// every tier that invents content, plus a gate that reads the result back —
+// because the video model refuses to photograph violence and says nothing when
+// it does. See ./safety.js.
+const { shootableMandate, graphicViolations } = require("./safety");
 const {
   conceptDirective,
   densityLaw,
@@ -216,7 +221,9 @@ const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene'
 
 12. ADULTS ONLY — every person visible is 18 or older. No child, no toddler, no schoolchild, no teenager under 18 appears in any frame, in any role, foreground or background. If the story implied one, they are written as an adult of 18+ doing the same thing. Never state an age below 18.
 
-13. VOICE PROFILES — every character who SPEAKS has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block before their first line: pitch, register, texture, pace, accent and their one habit of speech. This is the one consistency a picture CANNOT hold. A face survives thirty clips because thirty photographs say what it looks like; a voice survives them only because every prompt repeats the same words about it. A film whose lead sounds like four different people has failed as completely as one whose lead looks like four different people.`;
+13. THE CAMERA NEVER WATCHES THE VIOLENCE — the story keeps its teeth; the frame does not show the act. No weapon anywhere in shot (not held, not on a surface, not in the background), no blow/tackle/pin/grab/drag as it lands, nobody restrained or handcuffed, nobody cowering or with hands raised, no blood or wounds, and no crime performed on camera. Photograph the instant BEFORE, the aftermath, the face of somebody watching, or hold the frame while it happens just outside it — and NAME THE SOUND of it exactly, which is where the violence belongs and is completely unrestricted. Threats and menace in DIALOGUE are unrestricted too. This exists because the video model silently refuses to photograph violence and the scene comes back empty: a robbery filmed on the merchant's face renders, and the same robbery filmed on the raised club does not.
+
+14. VOICE PROFILES — every character who SPEAKS has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block before their first line: pitch, register, texture, pace, accent and their one habit of speech. This is the one consistency a picture CANNOT hold. A face survives thirty clips because thirty photographs say what it looks like; a voice survives them only because every prompt repeats the same words about it. A film whose lead sounds like four different people has failed as completely as one whose lead looks like four different people.`;
 
 /** "180s" → 18 scenes. The one place the scene count is decided. */
 function scenesForLength(length) {
@@ -650,6 +657,8 @@ ${noCommercialMandate()}
 
 ${adultsOnlyMandate()}
 
+${shootableMandate()}
+
 ${adaptation}
 
 If the director's brief names or implies anyone under 18, say so plainly in your
@@ -765,6 +774,8 @@ ${noCommercialMandate()}
 
 ${adultsOnlyMandate()}
 
+${shootableMandate()}
+
 How you work:
 1. ${
       adapting
@@ -858,6 +869,11 @@ ${knowledgeFor("storyline")}`;
     ...sceneCastingViolations(storyline.sceneBeats),
     ...storyPurityViolations(storyline),
     ...minorViolations(JSON.stringify(storyline.sceneBeats || []), "The outline"),
+    // The earliest place a beat that cannot be photographed can be caught. A
+    // storyline that plans "he beats the merchant with a club" sends that staging
+    // down through the scene builder, the world bible and the shot board, and by
+    // the time the video model refuses it, four passes have agreed on it.
+    ...graphicViolations(JSON.stringify(storyline.sceneBeats || []), "The outline"),
   ];
   if (storyFaults.length > 0) {
     console.warn(
@@ -1446,6 +1462,10 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     // last place it can be caught for free: after this the prompt goes to the
     // video model, and a rendered minor costs money to replace.
     violations.push(...minorViolations(scene.fullPrompt, `Scene ${scene.sceneNumber}`));
+    // Same reasoning as the minor gate above: the last place this is free. After
+    // here the prompt goes to the video model, which refuses it without saying so
+    // and bills for the attempt.
+    violations.push(...graphicViolations(scene.fullPrompt, `Scene ${scene.sceneNumber}`));
     return violations;
   };
 

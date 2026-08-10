@@ -73,6 +73,47 @@ function buildInput(prompt, media) {
   return [{ type: "user_input", content }];
 }
 
+/**
+ * Whatever a failed interaction says about itself, in one short string.
+ *
+ * Two passes, because the useful sentence is usually in a named field and only
+ * sometimes buried in the steps:
+ *
+ *   1. the fields that plausibly carry a reason, whether or not the SDK's types
+ *      admit they exist — the Interactions API is younger than its typings,
+ *   2. failing that, the whole object with the heavy parts removed.
+ *
+ * `data` is dropped everywhere on the way out. A step can hold a base64 image we
+ * sent up, and putting a megabyte of it into an Error message means the message
+ * lands in a Firestore document that is capped at one.
+ */
+function failureDetail(interaction) {
+  const named = [
+    interaction.output_text,
+    interaction.error,
+    interaction.incomplete_details,
+    interaction.status_message,
+    interaction.blocked_reason,
+    interaction.block_reason,
+    interaction.finish_reason,
+    interaction.safety_ratings,
+  ].filter(Boolean);
+
+  const render = (value) =>
+    typeof value === "string" ? value : JSON.stringify(value, (key, v) => (key === "data" ? "[bytes]" : v));
+
+  if (named.length > 0) return `: ${named.map(render).slice(0, 3).join(" | ").slice(0, 500)}`;
+
+  try {
+    const { steps, ...rest } = interaction;
+    const dump = render(rest);
+    // "{}" or near enough — say nothing rather than print punctuation.
+    return dump && dump.length > 2 ? `: ${dump.slice(0, 500)}` : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Generates a video and returns { base64, mimeType }. */
 async function generateOmniVideo(prompt, media) {
   const db = admin.firestore();
@@ -114,10 +155,16 @@ async function generateOmniVideo(prompt, media) {
   }
 
   if (current.status !== "completed") {
-    throw new Error(
-      `Video generation ${current.status}` +
-        (current.output_text ? `: ${String(current.output_text).slice(0, 300)}` : "")
-    );
+    // EVERYTHING THE INTERACTION WILL TELL US, not just output_text.
+    //
+    // A refused prompt and a full quota both arrived here as the bare words
+    // "Video generation failed", which is the one thing a director cannot act
+    // on: one of them means wait, the other means rewrite the scene. The status
+    // alone never distinguishes them — the reason is somewhere in the object,
+    // and the SDK's own Interaction type does not declare a field for it, so
+    // there is nothing specific to read. We serialise what came back instead and
+    // let renderFailure.js name it.
+    throw new Error(`Video generation ${current.status}${failureDetail(current)}`);
   }
 
   const video = current.output_video;

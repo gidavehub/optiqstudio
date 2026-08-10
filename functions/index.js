@@ -884,6 +884,7 @@ async function loadReferenceMedia(gen) {
 // this model through the Interactions API (generateContent returns 400), so
 // the implementation lives in omniVideo.js: background interaction + polling.
 const { generateOmniVideo } = require("./omniVideo");
+const { classifyRenderFailure } = require("./renderFailure");
 
 // gemini-omni-flash-preview has no structured video config, so duration/aspect/
 // negative hints are woven into the prompt on a best-effort basis.
@@ -1528,7 +1529,12 @@ async function runVideoGeneration(id, ref, gen) {
     });
     console.log(`[video ${id}] succeeded`);
   } catch (err) {
-    console.error(`[video ${id}] generation failed:`, err);
+    // NAME THE FAILURE BEFORE STORING IT. The scene card shows this string and
+    // nothing else, and "Video generation failed" meant a director could not
+    // tell a full quota (wait, then re-render) from a refused prompt (rewrite
+    // the scene, or it will be refused forever). See renderFailure.js.
+    const failure = classifyRenderFailure(err.message || "Generation failed");
+    console.error(`[video ${id}] generation failed (${failure.kind}):`, err);
     if (gen.prepaidProjectId) {
       // The scene was covered by the ad's prepaid allowance — give it back so a
       // failure doesn't quietly consume something the user already paid for.
@@ -1541,7 +1547,15 @@ async function runVideoGeneration(id, ref, gen) {
     await refundCredits(gen.uid, gen.cost || 0, `${label} ${id} failed`);
     await ref.update({
       status: "failed",
-      error: err.message || "Generation failed",
+      // The clean sentence — this is what the scene card shows.
+      error: failure.message,
+      // Kept as its own field so anything deciding whether to retry can branch on
+      // it without pattern-matching English back out of the message.
+      failureKind: failure.kind,
+      // The raw throw, kept off the UI but kept. For a video render this holds
+      // the entire failed interaction, which is the only place the evidence for
+      // the classification exists — see renderFailure.js.
+      errorDetail: String(err.message || "").slice(0, 1500),
       completedAt: new Date().toISOString(),
     });
   }

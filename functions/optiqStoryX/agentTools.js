@@ -48,6 +48,7 @@ function speaksIn(text, name) {
 const { sceneSoundViolations } = require("./soundPolicy");
 const { scenePurityViolations } = require("./storyCraft");
 const { minorViolations } = require("./casting");
+const { graphicViolations } = require("./safety");
 const {
   WORD_BUDGETS,
   countWords,
@@ -167,6 +168,10 @@ function sceneViolations(scene, project) {
   // Adults only, platform-wide. check_film must never call a scene clean when
   // there is somebody under 18 in it.
   violations.push(...minorViolations(prompt, `Scene ${scene.sceneNumber}`));
+  // What the video model will not photograph. check_film must never call a scene
+  // clean when it stages the violence on camera — that scene renders empty, and
+  // the director finds out by paying for it.
+  violations.push(...graphicViolations(prompt, `Scene ${scene.sceneNumber}`));
   return { sceneNumber: scene.sceneNumber, words, violations };
 }
 
