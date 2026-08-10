@@ -63,7 +63,7 @@ export default function StoryWorkspace() {
     pipelineStage, pipelineProgress,
     copyToClipboard, copiedIndex,
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
-    shotBoard, buildShotBoard, removeBoardShot, addBoardShot,
+    shotBoard, buildShotBoard, removeBoardShot, addBoardShot, addBoardShotImages,
     goHome, projects, activeProjectId, projectLink, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
@@ -432,6 +432,9 @@ export default function StoryWorkspace() {
           shotBoard={shotBoard}
           shotBoardBusy={shotBoardBusy}
           onRetryBoard={(i) => void buildShotBoard([i], true)}
+          onRemoveBoardShot={(i, order) => void removeBoardShot(i, order)}
+          onAddBoardShot={(i, note) => void addBoardShot(i, note)}
+          onAddBoardImages={(i, files) => void addBoardShotImages(i, files)}
           reviseScenePrompt={reviseScenePrompt}
           copyToClipboard={copyToClipboard}
           copiedIndex={copiedIndex}
@@ -545,6 +548,7 @@ export default function StoryWorkspace() {
                     onRetry={(i) => void buildShotBoard([i], true)}
                     onRemove={(i, order) => void removeBoardShot(i, order)}
                     onAdd={(i, note) => void addBoardShot(i, note)}
+                    onAddImages={(i, files) => void addBoardShotImages(i, files)}
                   />
                 </div>
 

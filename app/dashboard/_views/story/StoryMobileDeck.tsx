@@ -33,6 +33,12 @@ interface StoryMobileDeckProps {
   shotBoard: ShotBoard | null;
   shotBoardBusy: boolean;
   onRetryBoard: (sceneIndex: number) => void;
+  /** Drop a setup. Same affordances as the desktop strip — see SceneBoardShots. */
+  onRemoveBoardShot?: (sceneIndex: number, order: number) => void;
+  /** Ask for one more angle, in the director's own words. */
+  onAddBoardShot?: (sceneIndex: number, note: string) => void;
+  /** The director's own pictures, straight onto the board. */
+  onAddBoardImages?: (sceneIndex: number, files: File[]) => void;
   reviseScenePrompt: (sceneIndex: number) => Promise<void>;
   copyToClipboard: (text: string, index: number) => void;
   copiedIndex: number | null;
@@ -58,6 +64,9 @@ export default function StoryMobileDeck({
   shotBoard,
   shotBoardBusy,
   onRetryBoard,
+  onRemoveBoardShot,
+  onAddBoardShot,
+  onAddBoardImages,
   reviseScenePrompt,
   copyToClipboard,
   copiedIndex,
@@ -204,6 +213,9 @@ export default function StoryMobileDeck({
                 aspectRatio={aspect || "16:9"}
                 busy={shotBoardBusy}
                 onRetry={onRetryBoard}
+                onRemove={onRemoveBoardShot}
+                onAdd={onAddBoardShot}
+                onAddImages={onAddBoardImages}
               />
             </div>
           ) : null}

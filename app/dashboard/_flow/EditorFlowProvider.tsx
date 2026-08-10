@@ -173,6 +173,8 @@ interface EditorFlowValue {
   removeBoardShot: (sceneIndex: number, order: number) => Promise<void>;
   /** Ask for one more angle, described in the director's own words. */
   addBoardShot: (sceneIndex: number, note: string) => Promise<void>;
+  /** Put the director's own pictures on the board — already photographed. */
+  addBoardShotImages: (sceneIndex: number, files: File[]) => Promise<void>;
   /** True when this project is an experimental story, i.e. one that is
    * photographed, gated and rendered only from its board. */
   isBoardFilm: boolean;
@@ -1414,6 +1416,106 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     [activeProjectId, boardEntryFor, buildShotBoard]
   );
 
+  /**
+   * Put the director's OWN pictures on the board.
+   *
+   * The board is derived, and for the look of a film that is right — a frame the
+   * system photographed is built from the place plate, the arrangement inside it
+   * and the cast sheets, and it agrees with every other frame because of it. But
+   * a director with a reference in their hand — a location photo, a still from
+   * something they are quoting, a frame they made elsewhere — had no way to put
+   * it in front of the video model at all.
+   *
+   * A dropped image is ALREADY a photograph, which is what makes this cheap and
+   * why it does not touch the shot-board job: there is nothing to design and
+   * nothing to generate. It is appended as a setup that is already shot, and the
+   * next render attaches it exactly like any other frame.
+   *
+   * Read as data URLs and uploaded with `uploadString`, the same path
+   * uploadBrandMaterials takes — and into the film's own shotboard folder, so
+   * deleting the project takes these with it (see cleanupDeletedProject).
+   */
+  const addBoardShotImages = useCallback(
+    async (sceneIndex: number, files: File[]) => {
+      if (!user || !activeProjectId || files.length === 0) return;
+      const entry = boardEntryFor(sceneIndex);
+      if (!entry) {
+        setError("This scene has no board yet — photograph it first, then add your own stills.");
+        return;
+      }
+
+      // Anything that is not an image would upload happily and then be attached
+      // to a video render as an unreadable blob.
+      const images = files.filter((file) => file.type.startsWith("image/"));
+      const rejected = files.length - images.length;
+      if (images.length === 0) {
+        setError("Those aren't images. A board shot has to be a picture.");
+        return;
+      }
+
+      try {
+        const shots = entry.shots || [];
+        const added = await Promise.all(
+          images.map(async (file, i) => {
+            const data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result || ""));
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            });
+            const safeName = file.name.replace(/[^\w.-]/g, "_");
+            // A fresh path every time: Storage serves generated media immutably,
+            // so re-using a name would serve the previous picture.
+            const path = `users/${user.uid}/projects/${activeProjectId}/shotboard/upload-s${
+              sceneIndex + 1
+            }-${Date.now().toString(36)}-${i}-${safeName}`;
+            const fileRef = storageRef(storage, path);
+            await uploadString(fileRef, data, "data_url");
+            const url = await getDownloadURL(fileRef);
+            return {
+              order: shots.length + i,
+              time: "",
+              label: file.name.replace(/\.[^.]+$/, "").slice(0, 60) || `Added still ${shots.length + i + 1}`,
+              camera: "",
+              blocking: "",
+              firstFrame: "",
+              motion: "",
+              endFrame: "",
+              cameraMove: "locked" as const,
+              entry: "straight-into-action" as const,
+              settingKey: shots[0]?.settingKey || "",
+              characters: shots[0]?.characters || [],
+              objectKeys: [],
+              // Already photographed — that is the whole point.
+              url,
+              path,
+              mimeType: file.type || "image/png",
+              renderedAt: new Date().toISOString(),
+              /** So the board screen can say which stills the system did not take. */
+              uploaded: true,
+            };
+          })
+        );
+
+        const updated: SceneShotBoard = { ...entry, shots: [...shots, ...added] };
+        await updateDoc(doc(db, "projects", activeProjectId), {
+          [`shotBoard.scenes.${sceneIndex}`]: updated,
+          // The mirror the render reads, through the same helper, so the two
+          // cannot disagree about what this scene attaches.
+          [`sceneImages.${sceneIndex}`]: sceneStills({ scenes: { [sceneIndex]: updated } }, sceneIndex),
+          updatedAt: new Date().toISOString(),
+        });
+        if (rejected > 0) {
+          setError(`Added ${added.length}. Skipped ${rejected} file(s) that weren't images.`);
+        }
+      } catch (err) {
+        console.error("Could not add board shot images:", err);
+        setError(err instanceof Error ? err.message : "Could not add those stills");
+      }
+    },
+    [user, activeProjectId, boardEntryFor]
+  );
+
   // ─── THE TWO GATES ────────────────────────────────────────────────────────
   //
   // What makes this film type different from every other one: it does not run
@@ -1760,7 +1862,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     addSceneImages, attachMaterialToScene, removeSceneImage,
     shotBoard, shotBoardStage, shotBoardProgress, shotBoardError, shotBoardBusy, buildShotBoard,
     characterRefs,
-    removeBoardShot, addBoardShot,
+    removeBoardShot, addBoardShot, addBoardShotImages,
     isBoardFilm, continueToBoard, continueToFilm, projectLink,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,

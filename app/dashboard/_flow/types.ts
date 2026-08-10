@@ -137,6 +137,16 @@ export interface ShotFrame {
   /** Why this frame has no picture, when it has none. Drives the Retry button. */
   error?: string;
   /**
+   * True when the DIRECTOR supplied this picture rather than the board taking it.
+   *
+   * An uploaded still is attached to the render exactly like a photographed one —
+   * that is the point of allowing it — but it was never built from the place
+   * plate or the cast sheets, so it carries none of their consistency. Worth
+   * saying so on screen, and worth knowing before blaming the hierarchy when one
+   * frame does not match the others.
+   */
+  uploaded?: boolean;
+  /**
    * The still this setup ENDS on, for setups whose camera or action carries the
    * frame somewhere different. Photographed from the first frame, and attached
    * to the render right after it, so a pan is specified by both of its ends

@@ -14,14 +14,18 @@
 // expands, and the strip says plainly when a scene has no pictures, because on
 // this film type that scene cannot render at all.
 //
-// Two things the derivation cannot decide, though, and they are the director's
-// alone: THIS ANGLE IS WRONG, and THIS SCENE NEEDS ONE MORE. So a still can be
-// dropped, and an angle can be asked for in plain words. Both edit the stored
-// shot list, which the board treats as the design on its next pass — so an added
-// angle is photographed and the ones already taken are left exactly as they are.
+// Three things the derivation cannot decide, though, and they are the director's
+// alone: THIS ANGLE IS WRONG, THIS SCENE NEEDS ONE MORE, and HERE IS A PICTURE I
+// ALREADY HAVE. So a still can be removed, an angle can be asked for in plain
+// words, and images can be dropped straight onto the strip.
+//
+// The first two edit the stored shot list, which the board treats as the design
+// on its next pass — so an added angle is photographed and the ones already taken
+// are left alone. The third needs no pass at all: a dropped image is already a
+// photograph, so it goes on the board as a setup that is already shot.
 
-import React, { useEffect, useState } from "react";
-import { Camera, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Camera, Plus, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { SceneImage } from "../../_flow/types";
 import { aspectStyle } from "../../_shared/aspect";
 
@@ -37,6 +41,8 @@ interface SceneBoardShotsProps {
   onRemove?: (sceneIndex: number, order: number) => void;
   /** Ask for one more angle, described in the director's own words. */
   onAdd?: (sceneIndex: number, note: string) => void;
+  /** Put the director's own pictures on the board. Already photographed. */
+  onAddImages?: (sceneIndex: number, files: File[]) => void;
   /** True while a board pass is running, so retry does not stack requests. */
   busy?: boolean;
 }
@@ -48,6 +54,7 @@ export default function SceneBoardShots({
   onRetry,
   onRemove,
   onAdd,
+  onAddImages,
   busy = false,
 }: SceneBoardShotsProps) {
   const [expanded, setExpanded] = useState<SceneImage | null>(null);
@@ -61,6 +68,27 @@ export default function SceneBoardShots({
     setAdding(false);
   };
 
+  // ── DROPPING PICTURES ON THE STRIP ────────────────────────────────────────
+  //
+  // `dragDepth` rather than a boolean, and it is not fussiness: dragging across
+  // a child element fires dragleave on the parent, so a boolean flickers the
+  // highlight off while the file is still over the strip. Counting enter/leave
+  // pairs is the only thing that survives nested children.
+  const [dragDepth, setDragDepth] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  const takeFiles = async (list: FileList | null) => {
+    const files = Array.from(list || []);
+    if (files.length === 0 || !onAddImages) return;
+    setUploading(true);
+    try {
+      await onAddImages(sceneIndex, files);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // A lightbox reachable only by mouse is a trap on a keyboard.
   useEffect(() => {
     if (!expanded) return;
@@ -71,8 +99,29 @@ export default function SceneBoardShots({
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
 
+  const dropping = dragDepth > 0;
+
   return (
-    <div className="rounded-[28px] border border-line bg-surface p-3.5">
+    <div
+      // The WHOLE strip is the target, not a separate dashed rectangle. A
+      // director dragging a location photo aims at the pictures, which is where
+      // it is going.
+      onDragEnter={onAddImages ? (e) => { e.preventDefault(); setDragDepth((d) => d + 1); } : undefined}
+      onDragLeave={onAddImages ? (e) => { e.preventDefault(); setDragDepth((d) => Math.max(0, d - 1)); } : undefined}
+      onDragOver={onAddImages ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } : undefined}
+      onDrop={
+        onAddImages
+          ? (e) => {
+              e.preventDefault();
+              setDragDepth(0);
+              void takeFiles(e.dataTransfer.files);
+            }
+          : undefined
+      }
+      className={`rounded-[28px] border bg-surface p-3.5 transition-colors ${
+        dropping ? "border-accent-line bg-surface-2" : "border-line"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide text-muted">
           <Camera size={11} />
@@ -83,16 +132,44 @@ export default function SceneBoardShots({
             </span>
           )}
         </span>
-        {onRetry && (
-          <button
-            onClick={() => onRetry(sceneIndex)}
-            disabled={busy}
-            className="text-[11px] text-muted transition-colors hover:text-accent-ink disabled:opacity-40"
-          >
-            <RefreshCw size={10} className="mr-1 inline" />
-            {stills.length === 0 ? "Photograph" : "Re-shoot"}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-3">
+          {onAddImages && (
+            <>
+              {/* Drag-and-drop cannot be performed on a phone, and this strip is
+                  used on one — so the same action is always available as a tap. */}
+              <button
+                onClick={() => fileInput.current?.click()}
+                disabled={busy || uploading}
+                className="text-[11px] text-muted transition-colors hover:text-accent-ink disabled:opacity-40"
+              >
+                <Upload size={10} className="mr-1 inline" />
+                {uploading ? "Adding…" : "Upload"}
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => {
+                  void takeFiles(e.target.files);
+                  // Cleared so choosing the same file twice fires again.
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
+          {onRetry && (
+            <button
+              onClick={() => onRetry(sceneIndex)}
+              disabled={busy}
+              className="text-[11px] text-muted transition-colors hover:text-accent-ink disabled:opacity-40"
+            >
+              <RefreshCw size={10} className="mr-1 inline" />
+              {stills.length === 0 ? "Photograph" : "Re-shoot"}
+            </button>
+          )}
+        </div>
       </div>
 
       {stills.length === 0 ? (
@@ -103,7 +180,9 @@ export default function SceneBoardShots({
         <p className="mt-2.5 rounded-2xl border border-dashed border-line-2 px-3 py-2.5 text-[11px] leading-relaxed text-muted">
           {busy
             ? "Being photographed…"
-            : "Not photographed yet — this scene cannot render until it is. Its script describes what happens, not how anything looks; the pictures carry that."}
+            : dropping
+              ? "Drop to add these as board shots."
+              : "Not photographed yet — this scene cannot render until it is. Its script describes what happens, not how anything looks; the pictures carry that."}
         </p>
       ) : (
         <div className="mt-2.5 flex flex-wrap items-start gap-2">
@@ -155,6 +234,12 @@ export default function SceneBoardShots({
             </button>
           )}
         </div>
+      )}
+
+      {(dropping || uploading) && stills.length > 0 && (
+        <p className="mt-2 text-[10px] font-semibold text-accent-ink">
+          {uploading ? "Adding your stills…" : "Drop to add these as board shots."}
+        </p>
       )}
 
       {/* ── ASKING FOR AN ANGLE ──
