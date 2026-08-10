@@ -13,7 +13,7 @@
 
 const functions = require("firebase-functions/v1");
 const { onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentDeleted } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleAuth } = require("google-auth-library");
@@ -1464,6 +1464,10 @@ exports.videoGenerate = onRequest(
         negativePrompt: negativePrompt || null,
         // Recorded so a failed render hands the paid scene back.
         prepaidProjectId: usedPrepaid ? projectId : null,
+        // The link the cascade delete follows. prepaidProjectId cannot serve —
+        // it is only set when the allowance actually covered this render, so a
+        // re-render charged to the wallet would be left behind.
+        projectId: projectId || null,
         ...media,
         createdAt: new Date().toISOString(),
       });
@@ -1473,6 +1477,217 @@ exports.videoGenerate = onRequest(
       console.error("videoGenerate error:", err);
       return res.status(500).json({ error: err.message });
     }
+  }
+);
+
+/**
+ * The weekly sweep for media nothing owns any more.
+ *
+ * cleanupDeletedProject handles the deletions that happen from now on; this is
+ * for what the fix arrives too late for, and for whatever escapes it later — a
+ * cleanup that timed out halfway, a document removed straight from the console,
+ * a render whose project went while it was still uploading.
+ *
+ * Sunday, deliberately: it reads the entire bucket listing, and that is worth
+ * doing when nobody is waiting on a render. See ./orphanSweep.js for what counts
+ * as orphaned and, more importantly, for the several things it will never touch.
+ */
+exports.sweepOrphanedMedia = onSchedule(
+  {
+    schedule: "0 4 * * 0",
+    timeZone: "UTC",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    maxInstances: 1,
+    retryCount: 0,
+  },
+  async () => {
+    const { findOrphans, deleteOrphans, humanBytes } = require("./orphanSweep");
+    const bucket = admin.storage().bucket(STORAGE_BUCKET);
+
+    const { orphans, kept, unknown, bytes } = await findOrphans({
+      db,
+      bucket,
+      onProgress: (line) => console.log(`[orphanSweep] ${line}`),
+    });
+
+    if (unknown.length > 0) {
+      // Not deleted — reported. A path this module does not recognise means
+      // something writes somewhere it has never heard of, and the right response
+      // is to teach it that prefix deliberately, not to guess.
+      console.warn(
+        `[orphanSweep] ${unknown.length} file(s) under unrecognised prefixes, left alone. ` +
+          `First few: ${unknown.slice(0, 5).join(", ")}`
+      );
+    }
+
+    if (orphans.length === 0) {
+      console.log(`[orphanSweep] nothing orphaned; ${kept} file(s) all accounted for`);
+      return;
+    }
+
+    console.log(`[orphanSweep] deleting ${orphans.length} orphaned file(s), ${humanBytes(bytes)}`);
+    const removed = await deleteOrphans(orphans, {
+      onProgress: (line) => console.log(`[orphanSweep] ${line}`),
+    });
+    console.log(`[orphanSweep] done: ${removed} deleted, ${kept} kept`);
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DELETING A PROJECT DELETES EVERYTHING IT OWNS
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Deleting the project document used to be the whole of "delete this project",
+// and everything that document merely POINTED AT stayed where it was: a
+// hundred-plus shot-board plates and frames, character sheets, uploaded
+// materials, agent uploads, every rendered clip, and the job records. Storage is
+// billed by the gigabyte and nothing was ever going to come back for those files
+// — nothing even knew their names any more, because the only record of them was
+// in the document that had just been removed.
+//
+// So the delete now cascades, and it is driven by the deletion itself rather than
+// by the button: a project deleted from the workspace, from a script, or from the
+// Firebase console all clean up identically.
+//
+// WHAT A PROJECT OWNS, and every one of these is swept:
+//   Storage  users/{uid}/projects/{projectId}/…   plates, frames, character
+//                                                 sheets, uploaded materials
+//            projects/{projectId}/agentUploads/…  stills sent to the agent
+//   Firestore  every job queued against it, in all five job collections
+//              every generation it paid for
+//   Storage  the media those generations produced, and their input media
+//
+// DELIBERATELY NOT SWEPT: users/{uid}/library/… — the media library belongs to
+// the user, not to any one project, and a clip reused from it outlives the film
+// it was made for.
+//
+// Best-effort throughout. A project that half-deletes is worse than one that
+// deletes noisily, so every step is caught and logged rather than thrown: the
+// document is already gone by the time this runs, and there is no undo to offer.
+
+/** Everything under a Storage prefix. Returns how many objects went. */
+async function deleteStoragePrefix(prefix) {
+  try {
+    const [files] = await admin.storage().bucket(STORAGE_BUCKET).getFiles({ prefix });
+    if (files.length === 0) return 0;
+    await Promise.all(
+      files.map((file) =>
+        file.delete().catch((err) => {
+          // A file already gone is the outcome we wanted anyway.
+          if (err.code !== 404) console.error(`[cleanup] could not delete ${file.name}:`, err.message);
+        })
+      )
+    );
+    return files.length;
+  } catch (err) {
+    console.error(`[cleanup] could not list ${prefix}:`, err.message);
+    return 0;
+  }
+}
+
+/** Every doc a query matches, in batches Firestore will accept. */
+async function deleteQueryBatched(query, label) {
+  let removed = 0;
+  for (;;) {
+    const snap = await query.limit(300).get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    removed += snap.size;
+    if (snap.size < 300) break;
+  }
+  if (removed) console.log(`[cleanup] removed ${removed} ${label}`);
+  return removed;
+}
+
+/** The media one generation produced, plus whatever was uploaded into it. */
+async function deleteGenerationMedia(id, gen) {
+  const paths = new Set();
+  for (const key of ["path", "imagePath", "videoPath", "audioPath"]) {
+    if (gen[key]) paths.add(gen[key]);
+  }
+  for (const image of gen.images || []) {
+    // `shared` marks a file that lives on the PROJECT rather than on this
+    // generation — a shot-board frame attached to a render. The project sweep
+    // owns those; deleting them here would take them out from under a scene that
+    // is still using them.
+    if (image?.path && !image.shared) paths.add(image.path);
+  }
+  // The output. Stored under a name derived from the doc id, in whichever
+  // extension it came back as.
+  for (const ext of ["mp4", "png", "jpg", "wav", "mp3"]) {
+    paths.add(`generations/${gen.uid}/${id}.${ext}`);
+  }
+
+  await Promise.all(
+    [...paths].map((path) =>
+      admin
+        .storage()
+        .bucket(STORAGE_BUCKET)
+        .file(path)
+        .delete()
+        .catch((err) => {
+          if (err.code !== 404) console.error(`[cleanup] could not delete ${path}:`, err.message);
+        })
+    )
+  );
+  // Input media is written under a folder named for the doc — see
+  // persistReferenceMedia.
+  await deleteStoragePrefix(`generations/${gen.uid}/${id}/`);
+}
+
+exports.cleanupDeletedProject = onDocumentDeleted(
+  { document: "projects/{projectId}", region: "us-central1", timeoutSeconds: 540, memory: "512MiB", maxInstances: 5 },
+  async (event) => {
+    const projectId = event.params.projectId;
+    const project = event.data?.data() || {};
+    const uid = project.uid;
+    console.log(`[cleanup] project ${projectId} deleted; sweeping what it owned`);
+
+    // ── The pictures and the uploads ──────────────────────────────────────
+    if (uid) {
+      const owned = await deleteStoragePrefix(`users/${uid}/projects/${projectId}/`);
+      if (owned) console.log(`[cleanup] ${owned} file(s) under users/${uid}/projects/${projectId}/`);
+    }
+    const agentUploads = await deleteStoragePrefix(`projects/${projectId}/`);
+    if (agentUploads) console.log(`[cleanup] ${agentUploads} agent upload(s)`);
+
+    // ── The jobs queued against it ────────────────────────────────────────
+    for (const collection of [
+      "storyboardJobs",
+      "shotBoardJobs",
+      "audioPostJobs",
+      "storyXBlueprintJobs",
+      "agentJobs",
+    ]) {
+      await deleteQueryBatched(
+        db.collection(collection).where("projectId", "==", projectId),
+        `${collection} record(s)`
+      ).catch((err) => console.error(`[cleanup] ${collection} sweep failed:`, err.message));
+    }
+
+    // ── The renders it paid for, and their media ──────────────────────────
+    // Only reachable for generations that carry the link. Older ones, and any
+    // this misses, are caught by sweepOrphanedMedia.
+    try {
+      const gens = await db.collection("generations").where("projectId", "==", projectId).get();
+      for (const doc of gens.docs) {
+        await deleteGenerationMedia(doc.id, doc.data());
+      }
+      if (gens.size > 0) {
+        const batch = db.batch();
+        gens.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+        console.log(`[cleanup] removed ${gens.size} generation(s) and their media`);
+      }
+    } catch (err) {
+      console.error(`[cleanup] generation sweep failed:`, err.message);
+    }
+
+    console.log(`[cleanup] project ${projectId} swept`);
   }
 );
 
@@ -2961,6 +3176,8 @@ exports.storylineAgent = onDocumentCreated(
             // Lets processVideoGeneration hand the allowance back if the render
             // fails, so a failure never quietly costs a paid-for scene.
             prepaidProjectId: usedPrepaid ? job.projectId : null,
+            // The link the cascade delete follows — see videoGenerate.
+            projectId: job.projectId || null,
             createdAt: new Date().toISOString(),
           });
 

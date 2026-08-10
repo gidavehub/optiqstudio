@@ -305,6 +305,55 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // save queued moments earlier can't land on top of the agent's work.
   const appliedRevisionRef = useRef(0);
 
+  // ─── WHICH FILM THE STATE IN THIS PROVIDER BELONGS TO ─────────────────────
+  //
+  // The provider holds ONE set of scenes, videoStatus and timeline, and it is
+  // reused as the director moves between films. That is fine while the two are
+  // kept in step, and it corrupts a film the moment they are not — which is how
+  // clips from one project ended up inside another:
+  //
+  //   • A render poller ticks every 5s and writes its clip into videoStatus by
+  //     SCENE INDEX. It was stored on `window._scene_poll_3`, keyed by index
+  //     alone, so it survived leaving the film. Open film A with scene 3
+  //     rendering, move to film B, and A's poller writes A's clip into B's
+  //     scene 3 — after which autosave persists it to B's document.
+  //   • The debounced autosave fires 1.5s after a change, against whatever
+  //     `activeProjectId` says at that moment. Switch films inside that window
+  //     and the previous film's scenes are written over the new one's.
+  //
+  // Both are fixed the same way: everything asynchronous captures the project it
+  // started for, and refuses to write when that is no longer the project on
+  // screen. This ref is what it checks against — the id the CURRENT state was
+  // loaded for, which is not the same thing as the id the router is pointing at.
+  const stateProjectIdRef = useRef<string | null>(null);
+
+  /**
+   * Every render poller, keyed by project AND scene.
+   *
+   * A Map on a ref rather than globals on `window`: two films can legitimately
+   * have a scene 3 in flight, and `window._scene_poll_3` can only hold one of
+   * them — so the second overwrote the first's handle and the first ran forever,
+   * unstoppable and writing into whatever film was open.
+   */
+  const scenePollersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  const pollerKey = (projectId: string | null, sceneIndex: number) => `${projectId || "none"}:${sceneIndex}`;
+
+  const stopScenePoller = useCallback((projectId: string | null, sceneIndex: number) => {
+    const key = pollerKey(projectId, sceneIndex);
+    const existing = scenePollersRef.current.get(key);
+    if (existing) {
+      clearInterval(existing);
+      scenePollersRef.current.delete(key);
+    }
+  }, []);
+
+  /** Everything in flight, for every film. Used when the film on screen changes. */
+  const stopAllScenePollers = useCallback(() => {
+    for (const interval of scenePollersRef.current.values()) clearInterval(interval);
+    scenePollersRef.current.clear();
+  }, []);
+
   // Derived, never stored: a boolean in state would be frozen at whatever the
   // last snapshot said, and a project whose turn crashed sends no further
   // snapshots — so a stale "running" would never clear. Recomputing on render
@@ -329,6 +378,13 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
 
   // ─── PROJECT STATE LOADER (no navigation) ─────────────────────────────────
   const loadProjectState = useCallback((proj: any) => {
+    // The film on screen is changing. Anything still polling belongs to the one
+    // being left, and its next tick would write a clip into this one — so it
+    // stops here, before a single piece of the new film is loaded. The state and
+    // the id it belongs to are set together and never drift.
+    stopAllScenePollers();
+    stateProjectIdRef.current = proj?.id || null;
+
     // A project whose cloud job hasn't produced scenes yet: leave the storyboard
     // null so the workspace shows the live "generating" state (driven by
     // pipelineStage), not an empty scene grid.
@@ -389,6 +445,11 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     // (possibly stuck) generation. Without this reset, a stale activeProjectId
     // left the /create route showing a past project's "writing your story…"
     // stage with its fields autofilled, and a fresh generate duplicated it.
+    // Leaving every film. Pollers from the one being left would otherwise keep
+    // ticking into the blank state this is about to create, and then into
+    // whatever film is started next.
+    stopAllScenePollers();
+    stateProjectIdRef.current = null;
     setActiveProjectId(null);
     setRouteProjectId(null);
     setStoryboard(null);
@@ -420,13 +481,12 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
 
   // Clean up any polling intervals on unmount
   useEffect(() => {
-    return () => {
-      for (let i = 0; i < 20; i++) {
-        const intervalId = (window as any)[`_scene_poll_${i}`];
-        if (intervalId) clearInterval(intervalId);
-      }
-    };
-  }, []);
+    // Every poller for every film. The old version walked indexes 0..19 on
+    // `window`, so a film with more than twenty scenes left the rest running for
+    // the life of the tab — and this only ever ran on unmount, which does not
+    // happen when the director moves between films inside the app.
+    return () => stopAllScenePollers();
+  }, [stopAllScenePollers]);
 
   // ─── FIRESTORE PAST PROJECTS REAL-TIME LISTENER ──────────────────────────
   useEffect(() => {
@@ -491,6 +551,13 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     // would be the same class of bug as echoing compileStatus back: our
     // debounced copy is older than what the agent just wrote.
     if (agentRunning) return;
+    // AND THE STATE MUST BELONG TO THE FILM WE ARE ABOUT TO WRITE IT TO. This
+    // write is debounced by 1.5s and sends the WHOLE scene array; switching
+    // films inside that window used to land the previous film's scenes, clips
+    // and timeline on the new film's document. The ref is set by
+    // loadProjectState in the same breath as the state itself, so a mismatch
+    // means exactly one thing: what is in memory is not this project's.
+    if (stateProjectIdRef.current !== activeProjectId) return;
 
     const updateFirebaseProject = async () => {
       try {
@@ -742,8 +809,13 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // Inline scene video generation using Gemini Omni Flash
   const generateVideoForScene = useCallback(
     async (sceneIndex: number, promptTextArg: string) => {
-      const existingInterval = (window as any)[`_scene_poll_${sceneIndex}`];
-      if (existingInterval) clearInterval(existingInterval);
+      // The film this render belongs to, captured now. Every write below checks
+      // it: a render outlives the screen it was started from, and a clip written
+      // into whatever film happens to be open is the bug this guards.
+      const renderProjectId = activeProjectId;
+      const ownsScreen = () => stateProjectIdRef.current === renderProjectId;
+
+      stopScenePoller(renderProjectId, sceneIndex);
 
       setVideoStatus((prev) => {
         const copy = { ...prev };
@@ -793,17 +865,26 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
           }),
         });
 
-        setVideoStatus((prev) => {
-          const copy = { ...prev };
-          if (copy[sceneIndex]) {
-            const updated = { ...copy[sceneIndex], status: "rendering" as const, id: res.id };
-            delete updated.error;
-            copy[sceneIndex] = updated;
-          }
-          return copy;
-        });
+        if (ownsScreen()) {
+          setVideoStatus((prev) => {
+            const copy = { ...prev };
+            if (copy[sceneIndex]) {
+              const updated = { ...copy[sceneIndex], status: "rendering" as const, id: res.id };
+              delete updated.error;
+              copy[sceneIndex] = updated;
+            }
+            return copy;
+          });
+        }
 
         const intervalId = setInterval(async () => {
+          // The film moved on while this was in flight. Stop, and write nothing:
+          // the render itself is unaffected and its result is on the project
+          // document, which is where the workspace reads it from on return.
+          if (!ownsScreen()) {
+            stopScenePoller(renderProjectId, sceneIndex);
+            return;
+          }
           try {
             const status = await apiFetch<{ status: string; videoUrl?: string; error?: string }>(
               `/api/video/status?id=${res.id}`
@@ -843,7 +924,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
           }
         }, 5000);
 
-        (window as any)[`_scene_poll_${sceneIndex}`] = intervalId;
+        scenePollersRef.current.set(pollerKey(renderProjectId, sceneIndex), intervalId);
       } catch (err) {
         setVideoStatus((prev) => ({
           ...prev,
@@ -855,7 +936,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         }));
       }
     },
-    [apiFetch, refreshProfile, aspectRatio, activeProjectId]
+    [apiFetch, refreshProfile, aspectRatio, activeProjectId, stopScenePoller]
   );
 
   // Put a different take of a scene back on air. Everything downstream reads
@@ -885,8 +966,13 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   // Resume background polling with existing generation ID
   const resumePollingForScene = useCallback(
     async (sceneIndex: number, generationId: string) => {
-      const existingInterval = (window as any)[`_scene_poll_${sceneIndex}`];
-      if (existingInterval) clearInterval(existingInterval);
+      // Same ownership rule as generateVideoForScene — this resumes a render
+      // that was already in flight, so it is if anything MORE likely to outlive
+      // the screen that started it.
+      const renderProjectId = activeProjectId;
+      const ownsScreen = () => stateProjectIdRef.current === renderProjectId;
+
+      stopScenePoller(renderProjectId, sceneIndex);
 
       setVideoStatus((prev) => {
         const copy = { ...prev };
@@ -901,6 +987,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       });
 
       const intervalId = setInterval(async () => {
+        if (!ownsScreen()) {
+          stopScenePoller(renderProjectId, sceneIndex);
+          return;
+        }
         try {
           const status = await apiFetch<{ status: string; videoUrl?: string; error?: string }>(
             `/api/video/status?id=${generationId}`
@@ -934,9 +1024,9 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         }
       }, 5000);
 
-      (window as any)[`_scene_poll_${sceneIndex}`] = intervalId;
+      scenePollersRef.current.set(pollerKey(renderProjectId, sceneIndex), intervalId);
     },
-    [apiFetch, refreshProfile]
+    [apiFetch, refreshProfile, activeProjectId, stopScenePoller]
   );
 
   // Uploads the wizard's brand materials to per-user Storage so the cloud job
@@ -1046,6 +1136,12 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         updatedAt: new Date().toISOString(),
       });
       const projectId = docRef.id;
+      // A NEW film is now what the provider's state describes. Claimed here, in
+      // the same breath as activeProjectId, or the first autosave would see a
+      // mismatch and skip — and anything still polling from the film the
+      // director came from would write into this one.
+      stopAllScenePollers();
+      stateProjectIdRef.current = projectId;
       setActiveProjectId(projectId);
       setRouteProjectId(projectId);
       router.push(projectHref(videoTypeId, projectId));
@@ -1349,7 +1445,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     const boardHolding = isBoardFilm && shotBoardStage !== "ready";
     storyboard.scenes.forEach((scene, idx) => {
       const status = videoStatus[idx];
-      const isPolling = !!(window as any)[`_scene_poll_${idx}`];
+      const isPolling = scenePollersRef.current.has(pollerKey(activeProjectId, idx));
       if (!status || status.status === "succeeded" || status.status === "failed") return;
       if (status.status === "rendering" && status.id && !isPolling) {
         void resumePollingForScene(idx, status.id);

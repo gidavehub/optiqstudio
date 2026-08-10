@@ -35,13 +35,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // model's "requests per minute". Override any of them without a redeploy via an
 // env var, e.g. VERTEX_CAP_IMAGE=12. A cap of 0 disables proactive limiting for
 // that family (reactive retry still protects it).
+// Sized from what this project actually gets back, not from documentation: a
+// text pass paced at 10/min took a RESOURCE_EXHAUSTED inside a minute, and video
+// is a stated 3/min. Every one of these is deliberately UNDER the believed limit,
+// because the cost of being 20% too slow is waiting and the cost of being 20% too
+// fast is a paid attempt that returns nothing.
+//
+// Override any of them without a redeploy: VERTEX_CAP_IMAGE=10, and so on.
 const DEFAULT_CAPS = {
-  image: 8,
-  tts: 8,
-  text: 15,
-  video: 4,
-  music: 4,
-  default: 10,
+  image: 6,
+  tts: 6,
+  text: 6,
+  // Video is paced by the queue in index.js — one at a time, with a cooldown
+  // measured from the finish — so this is a backstop rather than the control.
+  video: 1,
+  music: 3,
+  default: 6,
 };
 
 function capFor(family) {
@@ -188,14 +197,31 @@ function makeError(kind, model, status, rawMessage) {
 }
 
 // ── Proactive limiter (Firestore token bucket) ──────────────────────────────
-// FAILS OPEN: any error here is logged and ignored so the limiter can never be
-// the reason a generation doesn't run.
+//
+// FAILS OPEN on an ERROR — a broken limiter must never be the reason a
+// generation doesn't run. But it no longer fails open on being BUSY, and that
+// distinction is the whole fix.
+//
+// WHAT WAS WRONG. The wait was capped at ~one window and then the call went
+// through anyway: "give up smoothing; let the reactive retry guard it." With
+// thirty scenes enqueued at once that is thirty callers who wait one minute in
+// perfect lockstep and then fire together — a bigger spike than the one the
+// limiter was added to prevent, and every one of them a paid attempt. It is why
+// nineteen of thirty scenes failed on a film, and the same shape of failure hits
+// a hundred-image shot board.
+//
+// Now it waits across as many windows as it takes, up to a bound generous enough
+// that a correctly-sized cap always gets a slot. Callers still cannot be held
+// forever: the bound is well inside the 540s function ceiling, and past it the
+// reactive layer takes over exactly as before.
+const RESERVE_MAX_WAIT_MS = Number(process.env.VERTEX_RESERVE_MAX_WAIT_MS || 5 * 60 * 1000);
+
 async function reserveSlot(db, model) {
   const family = modelFamily(model);
   const cap = capFor(family);
   if (!db || !cap || cap <= 0) return; // limiting disabled for this family
 
-  const maxWaitMs = 65000; // never hold a request longer than ~one window here
+  const maxWaitMs = RESERVE_MAX_WAIT_MS;
   const start = Date.now();
 
   for (;;) {
@@ -228,12 +254,22 @@ async function reserveSlot(db, model) {
     if (granted) return;
 
     const remaining = maxWaitMs - (Date.now() - start);
-    const waitMs = Math.min(msToNextMinute() + 300, remaining);
-    if (waitMs <= 0) {
-      // Give up smoothing; let the reactive layer catch any real 429.
-      console.warn(`[vertexQuota ${family}] window ${windowId} saturated (${cap}/min); proceeding, reactive retry will guard.`);
+    if (remaining <= 0) {
+      // Only after minutes of waiting, not after one window. By here either the
+      // cap is set too low for the load or something upstream is wedged, and
+      // holding the caller past the function's own ceiling helps nobody — the
+      // reactive layer takes it from here, exactly as it always did.
+      console.warn(
+        `[vertexQuota ${family}] still saturated (${cap}/min) after ${Math.round(maxWaitMs / 1000)}s; proceeding, reactive retry will guard.`
+      );
       return;
     }
+    // Sleep to the top of the next window, where the counter resets. The jitter
+    // matters: without it every caller that piled up behind this cap wakes on
+    // the same millisecond and they race for the new window in lockstep, which
+    // is the stampede in miniature.
+    const jitter = Math.floor(Math.random() * 750);
+    const waitMs = Math.min(msToNextMinute() + 300 + jitter, remaining);
     console.log(`[vertexQuota ${family}] window ${windowId} full (${cap}/min) — waiting ${Math.round(waitMs / 1000)}s`);
     await sleep(waitMs);
   }
