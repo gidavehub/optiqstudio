@@ -72,6 +72,15 @@ export interface SceneImage {
   path: string;
   url: string;
   mimeType: string;
+  /**
+   * Which SETUP this still came from, when it came from a shot board.
+   *
+   * Not the same as its position in the strip: a setup that moves contributes
+   * two stills, its start and its end, and both carry the same order. Anything
+   * acting on a setup — removing it, say — needs this rather than the index, or
+   * it acts on the wrong one the moment a scene contains a move.
+   */
+  order?: number;
 }
 
 export type SceneImagesMap = Record<number, SceneImage[]>;

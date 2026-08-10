@@ -37,6 +37,7 @@ import {
   ProjectLength,
   SceneImage,
   SceneImagesMap,
+  SceneShotBoard,
   ShotBoard,
   ShotBoardProgress,
   ShotBoardStage,
@@ -56,7 +57,7 @@ import {
   sceneTakes,
   videoType,
 } from "./types";
-import { renderAttachments, renderPrompt } from "./shotBoard";
+import { renderAttachments, renderPrompt, sceneStills } from "./shotBoard";
 
 interface EditorFlowValue {
   // Auth passthrough (handy for views that only need these two)
@@ -159,6 +160,10 @@ interface EditorFlowValue {
    * that isn't photographed yet. `keepDesign` re-shoots the existing setups
    * instead of re-deciding how the scene is covered. */
   buildShotBoard: (sceneIndexes?: number[], keepDesign?: boolean) => Promise<void>;
+  /** Drop one setup from a scene's board. The picture stays in Storage. */
+  removeBoardShot: (sceneIndex: number, order: number) => Promise<void>;
+  /** Ask for one more angle, described in the director's own words. */
+  addBoardShot: (sceneIndex: number, note: string) => Promise<void>;
   /** True when this project is an experimental story, i.e. one that is
    * photographed, gated and rendered only from its board. */
   isBoardFilm: boolean;
@@ -1282,6 +1287,120 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     [user, activeProjectId]
   );
 
+  // ─── EDITING THE BOARD BY HAND ────────────────────────────────────────────
+  //
+  // The board is derived — the swarm decides how many setups a scene takes and
+  // what each one sees — and for the most part that is the right default. But
+  // the director is the one looking at the result, and two judgements are theirs
+  // alone: "this angle is wrong, lose it" and "this scene needs one more".
+  //
+  // Both edit `shotBoard.scenes[i].shots`, which is server-owned everywhere else
+  // in this file. That is safe here for a specific reason: the board job only
+  // ever writes while it is running, `shotBoardBusy` is false when these are
+  // reachable, and the runner treats the stored shot list as the design under
+  // keepDesign — so a hand-edited list is honoured rather than overwritten.
+
+  /** The scene's board entry, or null. Firestore returns index keys as strings. */
+  const boardEntryFor = useCallback(
+    (sceneIndex: number) => {
+      const scenes = (activeProjectDoc?.shotBoard as ShotBoard | undefined)?.scenes as
+        | Record<string, SceneShotBoard>
+        | undefined;
+      return scenes?.[sceneIndex] ?? scenes?.[String(sceneIndex)] ?? null;
+    },
+    [activeProjectDoc]
+  );
+
+  /**
+   * Drop one setup from a scene.
+   *
+   * The picture itself is left in Storage. It is small, the project still owns
+   * it, and a director who deletes an angle and immediately wants it back is a
+   * likelier event than the few kilobytes mattering — see functions/orphanSweep.js
+   * for what does eventually collect it, once the project itself goes.
+   */
+  const removeBoardShot = useCallback(
+    async (sceneIndex: number, order: number) => {
+      if (!activeProjectId) return;
+      const entry = boardEntryFor(sceneIndex);
+      if (!entry) return;
+      const remaining = (entry.shots || [])
+        .filter((shot) => (shot.order ?? 0) !== order)
+        // Re-numbered so the setups stay a contiguous 0..n. The shot-board
+        // clause numbers the attached images from this order and tells the video
+        // model "ATTACHED IMAGE 2 is where this setup ends" — a gap in it points
+        // the model at the wrong picture.
+        .map((shot, i) => ({ ...shot, order: i }));
+      const updated: SceneShotBoard = { ...entry, shots: remaining };
+
+      try {
+        await updateDoc(doc(db, "projects", activeProjectId), {
+          [`shotBoard.scenes.${sceneIndex}`]: updated,
+          // The mirror the render path reads. Kept in step here, or the scene
+          // would still attach the still that was just removed. Same helper the
+          // render uses, so the two cannot disagree about what a setup flattens
+          // to.
+          [`sceneImages.${sceneIndex}`]: sceneStills({ scenes: { [sceneIndex]: updated } }, sceneIndex),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("Could not remove the board shot:", err);
+        setError(err instanceof Error ? err.message : "Could not remove that board shot");
+      }
+    },
+    [activeProjectId, boardEntryFor]
+  );
+
+  /**
+   * Ask for one more angle on a scene, in the director's own words.
+   *
+   * Appended to the stored shot list as an un-photographed setup and then handed
+   * to the board with keepDesign, which is what makes this cheap: the runner
+   * takes the stored list as the design and — since the frame-reuse added
+   * alongside this — photographs only the setup that has no picture yet. One
+   * image, not a whole scene's worth.
+   */
+  const addBoardShot = useCallback(
+    async (sceneIndex: number, note: string) => {
+      if (!activeProjectId || !note.trim()) return;
+      const entry = boardEntryFor(sceneIndex);
+      if (!entry) return;
+      const shots = entry.shots || [];
+      const order = shots.length;
+
+      // Written into the fields the frame prompt is actually built from. The
+      // director's sentence is the shot; there is no second pass that "designs"
+      // it, because the whole point is that they already said what they want.
+      const addition = {
+        order,
+        time: "",
+        label: note.trim().slice(0, 60),
+        camera: note.trim(),
+        blocking: "",
+        firstFrame: note.trim(),
+        motion: "",
+        endFrame: "",
+        cameraMove: "locked",
+        entry: "straight-into-action",
+        settingKey: shots[0]?.settingKey || "",
+        characters: shots[0]?.characters || [],
+        objectKeys: [],
+      };
+
+      try {
+        await updateDoc(doc(db, "projects", activeProjectId), {
+          [`shotBoard.scenes.${sceneIndex}`]: { ...entry, shots: [...shots, addition] },
+          updatedAt: new Date().toISOString(),
+        });
+        await buildShotBoard([sceneIndex], true);
+      } catch (err) {
+        console.error("Could not add the board shot:", err);
+        setError(err instanceof Error ? err.message : "Could not add that board shot");
+      }
+    },
+    [activeProjectId, boardEntryFor, buildShotBoard]
+  );
+
   // ─── THE TWO GATES ────────────────────────────────────────────────────────
   //
   // What makes this film type different from every other one: it does not run
@@ -1627,6 +1746,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     shotBoard, shotBoardStage, shotBoardProgress, shotBoardError, shotBoardBusy, buildShotBoard,
+    removeBoardShot, addBoardShot,
     isBoardFilm, continueToBoard, continueToFilm, projectLink,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,

@@ -923,6 +923,33 @@ ${brief}`,
   await mapWithConcurrency(frameJobs, IMAGE_CONCURRENCY, async (job) => {
     if (outOfTime()) return;
     const { index, number, shot, wantsEnd } = job;
+
+    // ── A SETUP THAT IS ALREADY PHOTOGRAPHED IS NOT PHOTOGRAPHED AGAIN ──────
+    //
+    // Only under keepDesign, where the shot list is the stored one and a frame
+    // on disk therefore belongs to exactly this setup. Without it, adding a
+    // single angle to a scene re-shoots every other angle in that scene — four
+    // images to gain one, against a quota that is already the binding
+    // constraint. It also makes a continuation pass idempotent: it takes what is
+    // missing and leaves what is there.
+    //
+    // The url is verified rather than trusted, for the same reason makePlate
+    // verifies a plate: a row saying the file exists is not the file existing.
+    if (scope?.keepDesign) {
+      const previousScene = previous?.scenes?.[index] || previous?.scenes?.[String(index)];
+      const already = (previousScene?.shots || []).find((s) => (s.order ?? 0) === (shot.order ?? 0) && s.url);
+      if (already && (!wantsEnd || already.end?.url)) {
+        const verified = loadImage && already.path ? await loadImage(already.path).catch(() => null) : "assumed";
+        if (verified) {
+          if (!framesByScene.has(index)) framesByScene.set(index, []);
+          framesByScene.get(index).push({ ...already });
+          framesDone += wantsEnd ? 2 : 1;
+          await report("framing", { framesDone, framesTotal });
+          return;
+        }
+        console.warn(`[shotboard ${projectId}] frame ${number}.${(shot.order ?? 0) + 1} was gone from storage; re-shooting`);
+      }
+    }
     const { environment, environmentState, sceneSettings, sceneObjects } = worldForScene(number);
     const sceneCharacters = charactersInScene(characterRefs, number);
 
@@ -1273,6 +1300,9 @@ function sceneStills(entry) {
         path: shot.path,
         url: shot.url,
         mimeType: shot.mimeType || "image/png",
+        // Which setup this came from. The editor removes a setup by it, and a
+        // moving setup's two stills share it.
+        order: shot.order ?? 0,
       });
       if (shot.end?.url && shot.end?.path) {
         stills.push({
@@ -1280,6 +1310,7 @@ function sceneStills(entry) {
           path: shot.end.path,
           url: shot.end.url,
           mimeType: shot.end.mimeType || "image/png",
+          order: shot.order ?? 0,
         });
       }
     }

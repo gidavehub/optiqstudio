@@ -1414,6 +1414,35 @@ exports.videoGenerate = onRequest(
       const duration = Math.min(Math.max(Number(durationSeconds) || 8, 4), 10);
       let cost = videoCost(model, duration);
 
+      // ── THE PAUSE THE CLIENT CANNOT UNDO ──────────────────────────────────
+      //
+      // Cancelling a film's queued renders does not keep them cancelled. The
+      // editor's auto-render pass fires every idle scene whenever the film is in
+      // `auto-merge`, and an open workspace tab autosaves its own copy of
+      // `productionMode` back over the document — so a film switched to `manual`
+      // to stop the bleeding is switched back a second later and enqueues the
+      // whole film again. That is not a race we can win from the client side.
+      //
+      // `rendersPaused` is set on the project by
+      // scripts/cancel-queued-renders.mjs and checked HERE, on the server, before
+      // a single credit moves. The client neither writes it nor knows about it,
+      // so it cannot be echoed away. Lifted with `--resume`.
+      if (projectId) {
+        const paused = await db
+          .collection("projects")
+          .doc(projectId)
+          .get()
+          .then((snap) => snap.exists && snap.data().rendersPaused === true)
+          .catch(() => false);
+        if (paused) {
+          return res.status(409).json({
+            error:
+              "Rendering is paused for this film. Nothing was charged. Resume it when the film is ready to shoot.",
+            paused: true,
+          });
+        }
+      }
+
       // An ad is ONE price. Paying for the storyboard buys its scene renders up
       // front, so a storyboard project carries a `prepaidRenders` allowance and
       // those scenes cost nothing again. The allowance is decremented inside a

@@ -12,9 +12,10 @@
 //
 //   • BOARD SHOTS, NOT REFERENCE IMAGES. A scene here renders from photographs
 //     the system took — from the place plate, the arrangement inside it, the
-//     object plates and the cast sheets. There is nothing to upload and nothing
-//     to remove, so the tray is replaced by a strip that expands each still and
-//     offers a re-shoot. See ./SceneBoardShots.tsx.
+//     object plates and the cast sheets. There is nothing to UPLOAD, so the tray
+//     is replaced by a strip that expands each still, offers a re-shoot, and lets
+//     the director drop an angle or ask for one more in their own words. See
+//     ./SceneBoardShots.tsx.
 //
 //   • FOUR FACES, NOT THREE. Script, timeline, agent — and the BOARD, which only
 //     this film type has.
@@ -62,7 +63,7 @@ export default function StoryWorkspace() {
     pipelineStage, pipelineProgress,
     copyToClipboard, copiedIndex,
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
-    shotBoard, buildShotBoard,
+    shotBoard, buildShotBoard, removeBoardShot, addBoardShot,
     goHome, projects, activeProjectId, projectLink, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
@@ -542,6 +543,8 @@ export default function StoryWorkspace() {
                     aspectRatio={aspectRatio}
                     busy={shotBoardBusy}
                     onRetry={(i) => void buildShotBoard([i], true)}
+                    onRemove={(i, order) => void removeBoardShot(i, order)}
+                    onAdd={(i, note) => void addBoardShot(i, note)}
                   />
                 </div>
 

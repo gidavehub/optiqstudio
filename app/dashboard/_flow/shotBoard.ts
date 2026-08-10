@@ -52,6 +52,7 @@ export function sceneStills(board: ShotBoard | null | undefined, sceneIndex: num
       path: shot.path as string,
       url: shot.url as string,
       mimeType: shot.mimeType || "image/png",
+      order: shot.order ?? 0,
     });
     if (shot.end?.url && shot.end?.path) {
       stills.push({
@@ -59,6 +60,9 @@ export function sceneStills(board: ShotBoard | null | undefined, sceneIndex: num
         path: shot.end.path,
         url: shot.end.url,
         mimeType: shot.end.mimeType || "image/png",
+        // The same setup, so the same order: removing either end removes the
+        // setup, which is the only sensible reading of "remove this shot".
+        order: shot.order ?? 0,
       });
     }
   }
