@@ -1169,7 +1169,35 @@ ${brief}`,
   for (const index of targetIndexes) {
     const design = designed.get(index);
     const frames = (framesByScene.get(index) || []).sort((a, b) => a.order - b.order);
-    if (!design || frames.length === 0) continue;
+    if (!design) continue;
+
+    // A SCENE THAT WAS DESIGNED BUT NEVER REACHED THE CAMERA STILL KEEPS ITS
+    // DESIGN, and this is the difference between a continuation that continues
+    // and one that starts again.
+    //
+    // The design stage runs for every target scene BEFORE any frame is shot. On
+    // a long film against a slow quota it can use most of the pass on its own —
+    // and when the clock ran out there, `frames.length === 0` sent every one of
+    // those scenes down this `continue`, discarding the whole stage. The next
+    // pass re-cut the same twenty-nine scenes, spent the same budget, and threw
+    // it away again. Ten passes, seventy minutes, two scenes photographed.
+    //
+    // Stored with no urls on the shots, which is exactly what the shot list is:
+    // a plan, waiting to be photographed. `sceneStills` and the client both
+    // filter on url, so a scene in this state attaches nothing and renders
+    // nothing — it simply stops being re-planned.
+    if (frames.length === 0) {
+      const scene = scenes[index];
+      boardScenes[index] = {
+        ...(boardScenes[index] || {}),
+        sceneNumber: Number(scene.sceneNumber ?? index + 1),
+        environmentKey: sceneEnvironmentKey.get(Number(scene.sceneNumber ?? index + 1)) || null,
+        coverage: design.coverage,
+        shots: design.shots.map(stripImageFields),
+        designedAt: new Date().toISOString(),
+      };
+      continue;
+    }
     const scene = scenes[index];
     const number = Number(scene.sceneNumber ?? index + 1);
 
