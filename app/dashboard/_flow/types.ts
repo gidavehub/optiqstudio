@@ -829,3 +829,28 @@ export interface BrandMaterial {
   name: string;
   data: string;
 }
+
+/**
+ * A cast sheet: one photograph of one recurring character, on a plain backdrop.
+ *
+ * The tier of the hierarchy that fixes FACES. Every scene frame containing this
+ * person is generated with their sheet attached, which is what stops a lead
+ * looking like four different people across thirty separately-rendered clips.
+ *
+ * Planned by the blueprint and photographed by the shot board on its first pass,
+ * so `url` is absent until then. Server-owned — read by the client, never
+ * written by it.
+ */
+export interface CharacterRef {
+  id?: string;
+  name: string;
+  /** Which scenes this person appears in. 1-based, as the editor numbers them. */
+  scenes?: number[];
+  /** What they look like — the locked block every frame prompt quotes. */
+  description?: string;
+  /** What they wear, when the film locks it across scenes. */
+  wardrobe?: string;
+  url?: string;
+  path?: string;
+  mimeType?: string;
+}

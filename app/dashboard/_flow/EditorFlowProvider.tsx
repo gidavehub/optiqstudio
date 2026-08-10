@@ -36,6 +36,7 @@ import {
   ProductionMode,
   ProjectLength,
   SceneImage,
+  CharacterRef,
   SceneImagesMap,
   SceneShotBoard,
   ShotBoard,
@@ -160,6 +161,14 @@ interface EditorFlowValue {
    * that isn't photographed yet. `keepDesign` re-shoots the existing setups
    * instead of re-deciding how the scene is covered. */
   buildShotBoard: (sceneIndexes?: number[], keepDesign?: boolean) => Promise<void>;
+  /**
+   * The film's cast sheets — one portrait per recurring character.
+   *
+   * Photographed by the shot board on its first pass (the blueprint writes only
+   * the PLAN), and the thing every frame containing that person is generated
+   * from. Server-owned, read here, never written by the client.
+   */
+  characterRefs: CharacterRef[];
   /** Drop one setup from a scene's board. The picture stays in Storage. */
   removeBoardShot: (sceneIndex: number, order: number) => Promise<void>;
   /** Ask for one more angle, described in the director's own words. */
@@ -1234,6 +1243,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     (activeProjectDoc?.videoType as VideoTypeId | undefined) ?? videoTypeId
   );
   const shotBoard = (activeProjectDoc?.shotBoard as ShotBoard | undefined) ?? null;
+  // Read off the project doc for the same reason shotBoard and audioStage are:
+  // the sheets are written by the board job, and mirroring server state into
+  // client state is how an autosave echoes a stale copy back over it.
+  const characterRefs = (activeProjectDoc?.characterRefs as CharacterRef[] | undefined) ?? [];
   const shotBoardStage = (activeProjectDoc?.shotBoardStage as ShotBoardStage) ?? null;
   const shotBoardProgress = (activeProjectDoc?.shotBoardProgress as ShotBoardProgress | undefined) ?? null;
   const shotBoardError = (activeProjectDoc?.shotBoardError as string | undefined) ?? null;
@@ -1746,6 +1759,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
     shotBoard, shotBoardStage, shotBoardProgress, shotBoardError, shotBoardBusy, buildShotBoard,
+    characterRefs,
     removeBoardShot, addBoardShot,
     isBoardFilm, continueToBoard, continueToFilm, projectLink,
     startSpeechRecognition, stopSpeechRecognition,

@@ -6,6 +6,14 @@
 // rather than as a flat gallery, because the hierarchy is the whole mechanism:
 //
 //   PLACE  →  ARRANGEMENT  →  OBJECT  →  SCENE FRAMES
+//                                            ↑
+//                                     CAST SHEETS
+//
+// The cast is the OTHER root, and it is drawn above the hierarchy rather than
+// inside it: a portrait is not built from a place the way an arrangement is,
+// but every frame containing that person is built from it. Faces first, because
+// a wrong one is cheapest to catch before it has been photographed into fifty
+// frames.
 //
 // Every tier is generated FROM the picture of the tier above it, never from a
 // re-reading of the words — that is what stops the room drifting between clips.
@@ -71,10 +79,24 @@ export default function BoardShots() {
     activeProjectId,
     projectLink,
     aspectRatio,
+    characterRefs,
   } = useEditorFlow();
 
   const [lightbox, setLightbox] = useState<Still | null>(null);
   const status = shotBoardStatusLabel(shotBoardStage, shotBoardProgress);
+
+  /**
+   * The cast members who have actually been photographed.
+   *
+   * A sheet is PLANNED by the blueprint and PHOTOGRAPHED by the board's first
+   * pass, so between those two a character legitimately exists with no picture.
+   * Showing an empty frame for them would read as a failure rather than as work
+   * still to come.
+   */
+  const castWithPortraits = useMemo(
+    () => (characterRefs || []).filter((ref) => ref?.url && ref?.name),
+    [characterRefs]
+  );
 
   // ── The graph ─────────────────────────────────────────────────────────────
   const { nodes, edges } = useMemo(() => {
@@ -370,6 +392,67 @@ export default function BoardShots() {
           </button>
         </div>
       </div>
+
+      {/* ── THE CAST ─────────────────────────────────────────────────────────
+          Above the hierarchy rather than inside it, and that is the honest
+          placement: a cast sheet is not built FROM a place the way an
+          arrangement is, it is the other root the frames descend from. Every
+          scene frame containing a person is generated with their sheet
+          attached, which is what stops a lead looking like four different people
+          across thirty separately-rendered clips.
+
+          So it belongs at the top, where a director checks the faces before
+          reading the rooms — and where a wrong one is caught before it has been
+          photographed into fifty frames. */}
+      {castWithPortraits.length > 0 && (
+        <div className="shrink-0 border-b border-line px-3 py-3 sm:px-6">
+          <div className="mx-auto max-w-6xl">
+            <span className="text-[9px] font-bold uppercase tracking-wide text-muted">Cast</span>
+            <p className="text-[10px] text-faint">
+              Every frame these people appear in is built from these portraits.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-3">
+              {castWithPortraits.map((ref) => (
+                <button
+                  key={ref.id || ref.name}
+                  onClick={() =>
+                    setLightbox({
+                      url: ref.url as string,
+                      title: ref.name,
+                      caption: ref.scenes?.length
+                        ? `In ${ref.scenes.length} scene${ref.scenes.length === 1 ? "" : "s"}`
+                        : undefined,
+                    })
+                  }
+                  title={`${ref.name} — tap to expand`}
+                  className="group w-20 shrink-0 text-left sm:w-24"
+                >
+                  {/* 3:4, because that is the shape a cast sheet is
+                      photographed in — see regenerateCharacterRef. */}
+                  <div
+                    style={{ aspectRatio: "3 / 4" }}
+                    className="overflow-hidden rounded-xl border border-line bg-background transition-colors group-hover:border-accent-line"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={ref.url}
+                      alt={ref.name}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <p className="mt-1 truncate text-[10px] font-semibold text-foreground">{ref.name}</p>
+                  {ref.scenes?.length ? (
+                    <p className="truncate tabular-nums text-[9px] text-faint">
+                      {ref.scenes.length} scene{ref.scenes.length === 1 ? "" : "s"}
+                    </p>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CANVAS ──────────────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-auto px-3 py-4 sm:px-6">
