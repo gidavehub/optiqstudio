@@ -1596,10 +1596,18 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     }
   }, [user, activeProjectId, videoStatus]);
 
-  /** True once every scene of an auto-produced ad has rendered. */
+  /**
+   * True once every scene has a clip.
+   *
+   * A CLIP, not a verdict. This gates audio post — the score is written against
+   * the finished cut — and it used to require `status === "succeeded"` on every
+   * scene. So a film that was completely shot, and then had one re-render
+   * refused, stopped being scoreable: the clip was right there and playing, and
+   * the film was held back by the outcome of an attempt to replace it.
+   */
   const allScenesRendered = useCallback(
     (scenes: unknown[], statuses: VideoStatusMap) =>
-      scenes.length > 0 && scenes.every((_, idx) => statuses[idx]?.status === "succeeded"),
+      scenes.length > 0 && scenes.every((_, idx) => !!statuses[idx]?.url),
     []
   );
 

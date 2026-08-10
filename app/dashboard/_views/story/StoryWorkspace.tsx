@@ -140,9 +140,13 @@ export default function StoryWorkspace() {
     let done = 0;
     let failed = 0;
     for (let i = 0; i < sceneCount; i++) {
-      const s = videoStatus[i]?.status;
-      if (s === "succeeded") done++;
-      else if (s === "failed") failed++;
+      const entry = videoStatus[i];
+      // HAVING a clip is what counts as done, not the verdict on the last
+      // attempt. A scene that rendered and was then refused on a re-render is a
+      // finished scene with a failed retry — counting it as failed held the
+      // whole film out of the timeline over a clip that plays perfectly.
+      if (entry?.url) done++;
+      else if (entry?.status === "failed") failed++;
     }
     return { done, failed, pending: sceneCount - done - failed };
   }, [sceneCount, videoStatus]);
@@ -318,7 +322,10 @@ export default function StoryWorkspace() {
           >
             {storyboard.scenes.map((scene, idx) => {
               const stat = videoStatus[idx];
-              const ready = stat?.status === "succeeded" && stat.url;
+              // A scene that HAS a clip shows it, whatever the last attempt did.
+              // A failed re-render is something that happened to the scene, not
+              // what the scene now is — see StoryRenderPanel for the same rule.
+              const ready = !!stat?.url;
               const failed = stat?.status === "failed";
               return (
                 <div
@@ -329,9 +336,17 @@ export default function StoryWorkspace() {
                   {ready ? (
                     <>
                       <video src={stat.url} autoPlay loop muted playsInline preload="auto" className="h-full w-full object-cover" />
-                      <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-success text-background shadow-lg">
-                        <Play size={10} fill="currentColor" className="translate-x-[1px]" />
-                      </span>
+                      {failed ? (
+                        // The clip is fine; the last attempt at replacing it was
+                        // not. Said quietly, over the picture that survived.
+                        <span className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[9px] font-bold text-danger backdrop-blur">
+                          <AlertCircle size={9} /> {renderErrorLabel(stat?.error)}
+                        </span>
+                      ) : (
+                        <span className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-success text-background shadow-lg">
+                          <Play size={10} fill="currentColor" className="translate-x-[1px]" />
+                        </span>
+                      )}
                     </>
                   ) : failed ? (
                     <button

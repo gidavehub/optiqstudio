@@ -61,11 +61,26 @@ export default function SceneRenderPanel({
   const priceLabel = cost > 0 ? `GMD ${cost.toLocaleString()}` : "Included";
   const canSwitch = !!onSelectTake && takes.length > 1 && activeTake >= 0;
 
-  if (status === "succeeded" && url) {
+  // ── A FAILED RE-RENDER DOES NOT DESTROY THE CLIP YOU HAD ──────────────────
+  //
+  // This screen used to answer `status === "failed"` with a red box INSTEAD of
+  // the player, which read — correctly — as "your clip is gone". It was not: the
+  // scene still held its url and every take, and the only thing that had
+  // happened was that the LATEST attempt failed. A director who re-rendered a
+  // finished scene and got refused therefore watched thirty seconds of work
+  // disappear, and there was no way back to it from this panel.
+  //
+  // So a failure is now something that happened TO a scene, not something a
+  // scene IS. If there is a clip, the clip is shown, the takes stay switchable,
+  // and the reason sits underneath where the status line goes.
+  const failedWithClip = status === "failed" && (!!url || takes.length > 0);
+  const shownUrl = url || takes[activeTake]?.url || takes[takes.length - 1]?.url;
+
+  if ((status === "succeeded" || failedWithClip) && shownUrl) {
     return (
       <div className="space-y-3">
         <div style={box.style} className={`relative overflow-hidden rounded-3xl border border-line bg-background elevate-lg ${box.className}`}>
-          <video src={url} controls playsInline className="h-full w-full object-cover" />
+          <video src={shownUrl} controls playsInline className="h-full w-full object-cover" />
         </div>
 
         {canSwitch && (
@@ -108,17 +123,35 @@ export default function SceneRenderPanel({
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 rounded-full border border-success bg-success-soft px-2.5 py-0.5 text-[11px] font-bold text-success">
-            <CheckCircle size={11} />
-            {canSwitch ? `Take ${activeTake + 1} of ${takes.length}` : "Rendered"}
-          </span>
+          {failedWithClip ? (
+            <span className="flex items-center gap-1.5 rounded-full border border-danger bg-danger-soft px-2.5 py-0.5 text-[11px] font-bold text-danger">
+              <AlertCircle size={11} />
+              {renderErrorLabel(error)}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 rounded-full border border-success bg-success-soft px-2.5 py-0.5 text-[11px] font-bold text-success">
+              <CheckCircle size={11} />
+              {canSwitch ? `Take ${activeTake + 1} of ${takes.length}` : "Rendered"}
+            </span>
+          )}
           <button
             onClick={onRender}
             className="flex items-center gap-1 rounded-xl border border-line bg-surface px-3 py-1.5 text-[11px] font-semibold text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent-ink"
           >
-            <RefreshCw size={11} /> Re-render · {priceLabel}
+            <RefreshCw size={11} /> {failedWithClip ? "Try again" : "Re-render"} · {priceLabel}
           </button>
         </div>
+
+        {/* What went wrong, under the picture that survived it — so the scene
+            reads as "this still works, and the last attempt did not" rather than
+            as a loss. The take strip above is still live, so the director can
+            move back to an earlier one without re-rendering anything. */}
+        {failedWithClip && (
+          <p className="rounded-2xl border border-danger bg-danger-soft px-3 py-2 text-[10px] leading-relaxed text-danger">
+            The last render of this scene failed{canSwitch ? " — the take above is the one before it." : "."}
+            {" "}Nothing was charged for it.
+          </p>
+        )}
       </div>
     );
   }
@@ -135,6 +168,7 @@ export default function SceneRenderPanel({
     );
   }
 
+  // Only reachable when the scene has NEVER produced a clip — see above.
   if (status === "failed") {
     return (
       <div style={box.style} className={`flex flex-col items-center justify-center rounded-3xl border border-danger bg-danger-soft text-center overflow-hidden ${box.className} ${pad}`}>

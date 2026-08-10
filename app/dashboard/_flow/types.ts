@@ -385,12 +385,28 @@ export function activeTakeIndex(entry?: VideoStatusEntry): number {
  * generate call's poller and the resume-on-load poller both watch it), and that
  * must not produce two entries for one clip.
  */
+/**
+ * A take carries the clip, not the script that made it.
+ *
+ * `prompt` used to be stored on every take. On this film type a render prompt is
+ * fifteen thousand characters, so a thirty-scene film with a couple of takes
+ * each is most of a megabyte of duplicated prose — and Firestore refuses any
+ * document over one. The write fails, which means the CLIP IS LOST while the
+ * generation that made it sits there perfectly fine. The prompt is on that
+ * generation if anyone ever wants it.
+ */
+function slimTake(take: SceneTake): SceneTake {
+  const { prompt, ...rest } = take;
+  return rest;
+}
+
 export function recordTake(entry: VideoStatusEntry | undefined, take: SceneTake): VideoStatusEntry {
   const base: VideoStatusEntry = entry ?? { status: "rendering" };
-  const takes = [...sceneTakes(base)];
+  const takes = [...sceneTakes(base)].map(slimTake);
+  const slim = slimTake(take);
   const existing = take.id ? takes.findIndex((t) => t.id === take.id) : -1;
-  if (existing !== -1) takes[existing] = { ...takes[existing], ...take };
-  else takes.push(take);
+  if (existing !== -1) takes[existing] = { ...takes[existing], ...slim };
+  else takes.push(slim);
   const activeTake = existing === -1 ? takes.length - 1 : existing;
   return { ...base, status: "succeeded", url: take.url, id: take.id ?? base.id, takes, activeTake };
 }
