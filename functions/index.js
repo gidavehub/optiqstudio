@@ -1451,7 +1451,9 @@ exports.videoGenerate = onRequest(
       await doc.set({
         uid: user.uid,
         type: "video",
-        status: "generating",
+        // Born QUEUED. Nothing starts a render except the global gate — see
+        // THE VIDEO QUEUE.
+        status: "queued",
         prompt,
         model,
         cost,
@@ -1474,6 +1476,131 @@ exports.videoGenerate = onRequest(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// THE VIDEO QUEUE
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ONE VIDEO STARTS EVERY 90 SECONDS, ACROSS THE WHOLE PLATFORM.
+//
+// The video model's quota is a handful of requests per MINUTE, counted per GCP
+// project — so it is shared by every user, every film and every Direct Studio
+// clip at once. Nothing else in this file could see that:
+//
+//   • vertexQuota.js smooths calls INSIDE one function invocation. Thirty scenes
+//     are thirty separate invocations, and thirty instances that each politely
+//     wait for the next minute still arrive in the same minute.
+//   • The editor's auto-render pass starts every idle scene the moment a film
+//     enters auto-merge. On a thirty-scene film that is thirty video calls in a
+//     few seconds. The first few land; the rest come back RESOURCE_EXHAUSTED,
+//     get recorded as failures, and refunded — and the director presses retry and
+//     burns the same minute again.
+//
+// So a render is no longer started by whoever asked for it. Every generation doc
+// is born QUEUED, and starting is a privilege handed out by a single global gate:
+// one doc at a time, at most one every VIDEO_START_GAP_MS, oldest first, no
+// matter which user or which film it belongs to.
+//
+// TWO THINGS TAKE FROM THE GATE, and both go through claimVideoStartSlot():
+//   1. processVideoGeneration, on create — so a clip asked for on a quiet system
+//      starts instantly instead of waiting for the next scheduler tick.
+//   2. dispatchVideoQueue, once a minute — which drains everything that had to
+//      wait, in the order it was asked for.
+//
+// The gate is a single Firestore doc updated in a transaction, which is what
+// makes it hold across instances, across users and across regions. It is the one
+// piece of state that must be globally consistent, and it is exactly one write.
+
+/** Minimum wall-clock between two video renders STARTING, platform-wide. */
+const VIDEO_START_GAP_MS = Number(process.env.VIDEO_START_GAP_MS || 90_000);
+
+/** The gate. One document, one field, transactional. */
+const videoGateRef = () => db.collection("system").doc("videoQueue");
+
+/**
+ * Take the next start slot, or don't.
+ *
+ * Returns true at most once per VIDEO_START_GAP_MS across every instance of
+ * every function in this project. The caller may start exactly one render when
+ * it returns true, and must leave the doc queued when it returns false.
+ *
+ * FAILS CLOSED, unlike vertexQuota's bucket. That limiter fails open because a
+ * broken limiter must never block generation entirely; this one is the opposite
+ * — if the gate cannot be read we do not know whether a render just started, and
+ * guessing wrong reproduces the pile-up this exists to prevent. A queued doc
+ * costs a minute of waiting; a wrong guess costs the director a scene.
+ */
+async function claimVideoStartSlot(reason = "") {
+  const gapMs = VIDEO_START_GAP_MS;
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(videoGateRef());
+      const lastAt = Date.parse(snap.exists ? snap.data().lastStartedAt || "" : "") || 0;
+      const waited = Date.now() - lastAt;
+      if (waited < gapMs) return false;
+      tx.set(
+        videoGateRef(),
+        {
+          lastStartedAt: new Date().toISOString(),
+          lastReason: String(reason).slice(0, 120),
+          // Purely for operators reading the doc in the console.
+          gapMs,
+        },
+        { merge: true }
+      );
+      return true;
+    });
+  } catch (err) {
+    console.error("[videoQueue] could not read the start gate; holding:", err.message);
+    return false;
+  }
+}
+
+/**
+ * Drains the queue: the oldest waiting render, if the gate allows one.
+ *
+ * Every minute rather than every 90 seconds because a minute is the finest
+ * grain Cloud Scheduler offers. The gate is what actually enforces the spacing —
+ * this only decides how often we ASK, so a tick that is refused is free and
+ * common by design.
+ *
+ * Renders inline and waits for the result, which is why it carries the same
+ * 540s/2GiB as processVideoGeneration: it is the same work. Ticks overlap
+ * happily — each one holds its own claimed job — and that is what lets several
+ * clips be in flight while still only ever STARTING one per gap.
+ */
+exports.dispatchVideoQueue = onSchedule(
+  {
+    schedule: "* * * * *",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    maxInstances: 10,
+    retryCount: 0,
+  },
+  async () => {
+    const waiting = await db
+      .collection("generations")
+      .where("type", "==", "video")
+      .where("status", "==", "queued")
+      // Oldest first: the queue is fair across users and films by arrival, and a
+      // thirty-scene film enqueued at once drains in scene order.
+      .orderBy("createdAt", "asc")
+      .limit(1)
+      .get();
+
+    if (waiting.empty) return;
+
+    const doc = waiting.docs[0];
+    if (!(await claimVideoStartSlot(`queue ${doc.id}`))) {
+      console.log(`[videoQueue] ${waiting.size} waiting; gate is closed, next tick`);
+      return;
+    }
+
+    console.log(`[videoQueue] starting ${doc.id}`);
+    await runVideoGeneration(doc.id, doc.ref, doc.data());
+  }
+);
+
 // Runs the actual video generation for a generation doc, entirely server-side.
 // Invoked by the Firestore onCreate trigger below so generation no longer
 // depends on the client polling (a backgrounded/closed tab previously left docs
@@ -1484,14 +1611,18 @@ exports.videoGenerate = onRequest(
 async function runVideoGeneration(id, ref, gen) {
   const claimed = await db.runTransaction(async (tx) => {
     const dSnap = await tx.get(ref);
-    if (dSnap.exists && dSnap.data().status === "generating") {
-      tx.update(ref, { status: "processing" });
+    // "queued" is the state every render is now born in (see THE VIDEO QUEUE);
+    // "generating" is kept so a doc written by an older client, or by anything
+    // that skips the queue, is still picked up rather than stranded forever.
+    const status = dSnap.exists ? dSnap.data().status : null;
+    if (status === "queued" || status === "generating") {
+      tx.update(ref, { status: "processing", startedAt: new Date().toISOString() });
       return true;
     }
     return false;
   });
   if (!claimed) {
-    console.log(`[video ${id}] not in 'generating' state, skipping (already claimed/done)`);
+    console.log(`[video ${id}] not startable, skipping (already claimed/done)`);
     return;
   }
 
@@ -1584,7 +1715,19 @@ exports.processVideoGeneration = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
     const gen = snap.data();
-    if (gen.type !== "video" || gen.status !== "generating") return;
+    if (gen.type !== "video") return;
+    if (gen.status !== "queued" && gen.status !== "generating") return;
+
+    // THE FAST PATH, and the only reason this still starts renders at all. A
+    // director who asks for one clip on a quiet system should not wait for the
+    // next scheduler tick to find out nothing else is running. If the gate says
+    // no, the doc simply stays queued and dispatchVideoQueue picks it up in
+    // arrival order — which is what happens to 29 of the 30 scenes an
+    // auto-merging film enqueues at once.
+    if (!(await claimVideoStartSlot(`create ${event.params.id}`))) {
+      console.log(`[video ${event.params.id}] queued — the platform started one too recently`);
+      return;
+    }
     await runVideoGeneration(event.params.id, snap.ref, gen);
   }
 );
@@ -1612,6 +1755,11 @@ exports.videoStatus = onRequest(
       return res.status(200).json({
         id,
         status: done ? gen.status : "generating",
+        // `status` stays in the vocabulary every caller already branches on
+        // (succeeded / failed / generating). `queued` rides alongside as a flag
+        // so a UI that wants to say "waiting for a slot" can, and one that does
+        // not keeps working unchanged. See THE VIDEO QUEUE.
+        queued: gen.status === "queued",
         videoUrl: gen.videoUrl || null,
         audioUrl: gen.audioUrl || null,
         error: gen.error || null,
@@ -1753,7 +1901,9 @@ exports.apiGenerateVideo = onRequest(
       await doc.set({
         uid: developer.uid,
         type: "video",
-        status: "generating",
+        // Born QUEUED. Nothing starts a render except the global gate — see
+        // THE VIDEO QUEUE.
+        status: "queued",
         prompt,
         model,
         cost,
@@ -1797,6 +1947,11 @@ exports.apiGetVideoStatus = onRequest(
       return res.status(200).json({
         id,
         status: done ? gen.status : "generating",
+        // `status` stays in the vocabulary every caller already branches on
+        // (succeeded / failed / generating). `queued` rides alongside as a flag
+        // so a UI that wants to say "waiting for a slot" can, and one that does
+        // not keeps working unchanged. See THE VIDEO QUEUE.
+        queued: gen.status === "queued",
         videoUrl: gen.videoUrl || null,
         error: gen.error || null,
         prompt: gen.prompt,
@@ -2707,7 +2862,9 @@ exports.storylineAgent = onDocumentCreated(
           await genRef.set({
             uid: job.uid,
             type: "video",
-            status: "generating",
+            // Born QUEUED, like every other render — see THE VIDEO QUEUE. The
+            // agent's own renders wait in the same line as the editor's.
+            status: "queued",
             prompt,
             model,
             cost,
