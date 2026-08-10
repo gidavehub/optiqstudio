@@ -1480,7 +1480,12 @@ exports.videoGenerate = onRequest(
 // THE VIDEO QUEUE
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// ONE VIDEO STARTS EVERY 90 SECONDS, ACROSS THE WHOLE PLATFORM.
+// ONE VIDEO AT A TIME, PLUS A 90-SECOND COOLDOWN, ACROSS THE WHOLE PLATFORM.
+//
+// Shoot one. Wait for it to finish. Wait ninety seconds more. Shoot the next.
+// The cooldown runs from the FINISH, which is what makes this strictly serial —
+// spacing starts ninety seconds apart would let a five-minute render have three
+// more started underneath it, all reaching for the same minute's quota.
 //
 // The video model's quota is a handful of requests per MINUTE, counted per GCP
 // project — so it is shared by every user, every film and every Direct Studio
@@ -1497,8 +1502,9 @@ exports.videoGenerate = onRequest(
 //
 // So a render is no longer started by whoever asked for it. Every generation doc
 // is born QUEUED, and starting is a privilege handed out by a single global gate:
-// one doc at a time, at most one every VIDEO_START_GAP_MS, oldest first, no
-// matter which user or which film it belongs to.
+// only when nothing is running AND nothing has finished inside the last
+// VIDEO_START_GAP_MS. Oldest first, no matter which user or which film it
+// belongs to.
 //
 // TWO THINGS TAKE FROM THE GATE, and both go through claimVideoStartSlot():
 //   1. processVideoGeneration, on create — so a clip asked for on a quiet system
@@ -1510,18 +1516,41 @@ exports.videoGenerate = onRequest(
 // makes it hold across instances, across users and across regions. It is the one
 // piece of state that must be globally consistent, and it is exactly one write.
 
-/** Minimum wall-clock between two video renders STARTING, platform-wide. */
+/**
+ * The cooldown after a render FINISHES before the next one may start.
+ *
+ * Measured from the finish, not from the start, and the difference is the whole
+ * behaviour: spacing STARTS 90s apart lets renders pile up in flight whenever one
+ * takes longer than the gap — a five-minute render would have three more started
+ * underneath it, all competing for the same minute's quota, which is the pile-up
+ * this queue exists to prevent. Measuring from the finish makes it strictly one
+ * at a time: shoot, wait out the cooldown, shoot the next.
+ */
 const VIDEO_START_GAP_MS = Number(process.env.VIDEO_START_GAP_MS || 90_000);
 
-/** The gate. One document, one field, transactional. */
+/**
+ * How long a render may sit in "processing" before it is presumed dead.
+ *
+ * Without this the queue is one hard kill away from stopping forever: an OOM or
+ * an instance eviction never reaches the code that stamps the finish, so the doc
+ * stays "processing", the gate keeps seeing a render in flight, and nothing ever
+ * starts again. Past this age it no longer counts as in flight. Generous — the
+ * function's own ceiling is 540s and omniVideo gives up at 8 minutes — because
+ * the cost of being wrong is starting a second render alongside a live one.
+ * See scripts/rescue-stuck-renders.mjs for the cleanup of what this leaves.
+ */
+const VIDEO_INFLIGHT_STALE_MS = Number(process.env.VIDEO_INFLIGHT_STALE_MS || 12 * 60 * 1000);
+
+/** The gate. One document, transactional. */
 const videoGateRef = () => db.collection("system").doc("videoQueue");
 
 /**
  * Take the next start slot, or don't.
  *
- * Returns true at most once per VIDEO_START_GAP_MS across every instance of
- * every function in this project. The caller may start exactly one render when
- * it returns true, and must leave the doc queued when it returns false.
+ * Returns true only when NOTHING is currently rendering and the last render
+ * finished at least VIDEO_START_GAP_MS ago — across every instance of every
+ * function in this project. The caller may start exactly one render when it
+ * returns true, and must leave the doc queued when it returns false.
  *
  * FAILS CLOSED, unlike vertexQuota's bucket. That limiter fails open because a
  * broken limiter must never block generation entirely; this one is the opposite
@@ -1533,14 +1562,44 @@ async function claimVideoStartSlot(reason = "") {
   const gapMs = VIDEO_START_GAP_MS;
   try {
     return await db.runTransaction(async (tx) => {
+      const now = Date.now();
       const snap = await tx.get(videoGateRef());
-      const lastAt = Date.parse(snap.exists ? snap.data().lastStartedAt || "" : "") || 0;
-      const waited = Date.now() - lastAt;
-      if (waited < gapMs) return false;
+      const gate = snap.exists ? snap.data() : {};
+
+      // THE COOLDOWN, from whichever happened later. `lastFinishedAt` is the
+      // rule; `lastStartedAt` is the guard that closes the window between a slot
+      // being claimed here and the render actually reaching "processing" — for a
+      // few seconds a started render is neither finished nor visible in flight,
+      // and without this two instances can both walk through.
+      const since = now - Math.max(
+        Date.parse(gate.lastFinishedAt || "") || 0,
+        Date.parse(gate.lastStartedAt || "") || 0
+      );
+      if (since < gapMs) return false;
+
+      // AND NOTHING IS RUNNING RIGHT NOW. The cooldown alone cannot express
+      // this: a render that has been going for five minutes finished nothing, so
+      // the clock says yes while a clip is very much in flight. One at a time is
+      // the point.
+      const running = await tx.get(
+        db
+          .collection("generations")
+          .where("type", "==", "video")
+          .where("status", "==", "processing")
+          .orderBy("createdAt", "asc")
+          .limit(5)
+      );
+      const live = running.docs.filter((d) => {
+        const data = d.data();
+        const startedAt = Date.parse(data.startedAt || data.createdAt || "") || 0;
+        return now - startedAt < VIDEO_INFLIGHT_STALE_MS;
+      });
+      if (live.length > 0) return false;
+
       tx.set(
         videoGateRef(),
         {
-          lastStartedAt: new Date().toISOString(),
+          lastStartedAt: new Date(now).toISOString(),
           lastReason: String(reason).slice(0, 120),
           // Purely for operators reading the doc in the console.
           gapMs,
@@ -1556,17 +1615,30 @@ async function claimVideoStartSlot(reason = "") {
 }
 
 /**
+ * Stamp the finish. This is what the next render's cooldown counts from, so it
+ * must happen on EVERY exit — succeeded, failed, refused, or thrown — or the
+ * queue stops dead. Best-effort by design: a render that worked must not be
+ * reported as failed because a bookkeeping write did not land.
+ */
+async function releaseVideoStartSlot(id) {
+  await videoGateRef()
+    .set({ lastFinishedAt: new Date().toISOString(), lastFinished: String(id).slice(0, 60) }, { merge: true })
+    .catch((err) => console.error(`[videoQueue] could not stamp the finish for ${id}:`, err.message));
+}
+
+/**
  * Drains the queue: the oldest waiting render, if the gate allows one.
  *
  * Every minute rather than every 90 seconds because a minute is the finest
  * grain Cloud Scheduler offers. The gate is what actually enforces the spacing —
  * this only decides how often we ASK, so a tick that is refused is free and
- * common by design.
+ * common by design. Most ticks are refused: while a render is running, every one
+ * of them is.
  *
  * Renders inline and waits for the result, which is why it carries the same
- * 540s/2GiB as processVideoGeneration: it is the same work. Ticks overlap
- * happily — each one holds its own claimed job — and that is what lets several
- * clips be in flight while still only ever STARTING one per gap.
+ * 540s/2GiB as processVideoGeneration: it is the same work. Ticks overlap in the
+ * sense that a new one fires each minute while an older one is still rendering —
+ * they simply find the gate closed and return, which costs nothing.
  */
 exports.dispatchVideoQueue = onSchedule(
   {
@@ -1630,6 +1702,9 @@ async function runVideoGeneration(id, ref, gen) {
   try {
     const duration = gen.durationSeconds || 8;
     console.log(`[video ${id}] generating server-side (requested duration: ${duration}s)`);
+    // Wrapped from here so the finish is stamped whatever happens below — the
+    // next render's cooldown counts from it, and a path that returns without
+    // stamping stalls the whole platform's queue until the staleness cutoff.
 
     const { images, imageBase64, videoBase64, audioBase64 } = await loadReferenceMedia(gen);
     if (images.length) console.log(`[video ${id}] integrating ${images.length} reference image(s)`);
@@ -1689,6 +1764,12 @@ async function runVideoGeneration(id, ref, gen) {
       errorDetail: String(err.message || "").slice(0, 1500),
       completedAt: new Date().toISOString(),
     });
+  } finally {
+    // The cooldown starts HERE, not when this render began. A failure counts the
+    // same as a success: a scene refused after thirty seconds must not let the
+    // next one start thirty seconds early, because the quota does not care why
+    // the last call was made.
+    await releaseVideoStartSlot(id);
   }
 }
 
