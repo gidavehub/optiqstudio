@@ -4048,7 +4048,23 @@ exports.shotBoard = onDocumentCreated(
           uid: job.uid,
           projectId: job.projectId,
           attempt: attempt + 1,
-          scope: report.remaining.length ? { scenes: report.remaining } : null,
+          // keepDesign TRUE, and this is not an optimisation — it is what makes a
+          // continuation continue.
+          //
+          // Without it every pass re-cut every scene it had not finished. A
+          // 30-scene film spent five to ten minutes of a SEVEN-minute budget
+          // re-designing scenes it had already designed, photographed one, ran
+          // out of clock, and enqueued a pass that threw that design away and did
+          // it again. Ten attempts, seventy minutes, two scenes photographed —
+          // with no error anywhere, because nothing had failed.
+          //
+          // The runner already stores the design for any scene it reached, and
+          // says so in the comment above its assemble step: a scene whose
+          // pictures all failed still keeps its design, so a continuation can
+          // re-shoot the frames without re-cutting the scene. This is the caller
+          // finally asking for that. Scenes the earlier pass never reached have
+          // no stored design and are cut normally.
+          scope: report.remaining.length ? { scenes: report.remaining, keepDesign: true } : null,
           status: "queued",
           createdAt: new Date().toISOString(),
         });

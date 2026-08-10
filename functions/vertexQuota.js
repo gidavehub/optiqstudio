@@ -35,22 +35,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // model's "requests per minute". Override any of them without a redeploy via an
 // env var, e.g. VERTEX_CAP_IMAGE=12. A cap of 0 disables proactive limiting for
 // that family (reactive retry still protects it).
-// Sized from what this project actually gets back, not from documentation: a
-// text pass paced at 10/min took a RESOURCE_EXHAUSTED inside a minute, and video
-// is a stated 3/min. Every one of these is deliberately UNDER the believed limit,
-// because the cost of being 20% too slow is waiting and the cost of being 20% too
-// fast is a paid attempt that returns nothing.
+// ── WHY THESE ARE NOT LOWER ─────────────────────────────────────────────────
 //
-// Override any of them without a redeploy: VERTEX_CAP_IMAGE=10, and so on.
+// A cap is not free, and setting one too low fails in a way that looks nothing
+// like a quota problem. These were briefly cut to 6/min across the board on the
+// theory that under the limit is always the safe direction. It is not.
+//
+// The shot board runs on a SEVEN-MINUTE soft deadline and designs every scene —
+// one text call each — before it photographs anything. At 15/min a 30-scene film
+// finishes designing in about two minutes and spends the rest of its budget
+// making pictures. At 6/min the design alone needs five to ten, so the pass
+// expired having produced nothing, enqueued a continuation, and did it again:
+// ten passes, seventy minutes, two scenes photographed out of thirty, and no
+// error anywhere because nothing had failed. It had simply been throttled into
+// uselessness by its own limiter.
+//
+// So the rule is: a cap must leave the caller enough throughput to finish the
+// work inside its own deadline. Under the model's real limit is necessary and
+// nowhere near sufficient.
+//
+// These are the values this pipeline is known to run on — a 12-scene film
+// photographed end to end on them. Override any without a redeploy:
+// VERTEX_CAP_IMAGE=10, and so on.
 const DEFAULT_CAPS = {
-  image: 6,
-  tts: 6,
-  text: 6,
+  image: 8,
+  tts: 8,
+  text: 15,
   // Video is paced by the queue in index.js — one at a time, with a cooldown
   // measured from the finish — so this is a backstop rather than the control.
   video: 1,
-  music: 3,
-  default: 6,
+  music: 4,
+  default: 10,
 };
 
 function capFor(family) {
@@ -210,11 +225,17 @@ function makeError(kind, model, status, rawMessage) {
 // nineteen of thirty scenes failed on a film, and the same shape of failure hits
 // a hundred-image shot board.
 //
-// Now it waits across as many windows as it takes, up to a bound generous enough
-// that a correctly-sized cap always gets a slot. Callers still cannot be held
-// forever: the bound is well inside the 540s function ceiling, and past it the
-// reactive layer takes over exactly as before.
-const RESERVE_MAX_WAIT_MS = Number(process.env.VERTEX_RESERVE_MAX_WAIT_MS || 5 * 60 * 1000);
+// Now it waits across a couple of windows rather than one, and the ceiling on
+// that wait is deliberately SHORT.
+//
+// It was five minutes for one afternoon, and that was the second half of the
+// throttling disaster described above: a job with a seven-minute deadline cannot
+// afford to spend five of them inside a single reserve call. A limiter that
+// blocks longer than the caller's own budget does not smooth the work, it
+// deletes it. Two and a half windows is enough to ride out a genuine burst, and
+// short enough that a caller with a deadline still gets to do its job — past it,
+// the reactive retry takes over exactly as it always did.
+const RESERVE_MAX_WAIT_MS = Number(process.env.VERTEX_RESERVE_MAX_WAIT_MS || 150_000);
 
 async function reserveSlot(db, model) {
   const family = modelFamily(model);
