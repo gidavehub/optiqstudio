@@ -3781,7 +3781,27 @@ exports.audioPost = onDocumentCreated(
 // every plate and frame already made and only builds what is missing. `attempt`
 // is the loop guard: past this many passes something is wrong and looping further
 // only spends money.
-const SHOT_BOARD_MAX_ATTEMPTS = 10;
+// The ceiling exists to stop a loop that is going nowhere from spending money
+// forever. Ten was that number when a pass could be expected to photograph most
+// of a film — but the real per-minute image quota on this project delivers
+// roughly fourteen frames inside a seven-minute pass, and a thirty-scene film is
+// about a hundred and thirty frames. Ten passes cannot finish one, so the guard
+// was firing on films that were progressing perfectly well and leaving them
+// half-photographed.
+//
+// Raised, and paired with the check below that actually expresses the intent: a
+// pass that achieves NOTHING stops the loop immediately, whatever the count. A
+// film that is still making pictures is allowed to carry on.
+const SHOT_BOARD_MAX_ATTEMPTS = 30;
+
+/**
+ * Passes allowed to finish without a single frame before we call it stuck.
+ *
+ * Not zero, because the first pass or two of a long film legitimately spend all
+ * their time on the world bible and the shot designs — real, stored, necessary
+ * work that produces no photographs of its own.
+ */
+const SHOT_BOARD_BARREN_PASSES = 2;
 
 /**
  * Which image model photographs the film.
@@ -3992,7 +4012,29 @@ exports.shotBoard = onDocumentCreated(
         return next;
       });
 
-      const more = !report.done && attempt < SHOT_BOARD_MAX_ATTEMPTS;
+      // STOP WHEN A PASS ACHIEVES NOTHING, not when a counter runs out.
+      //
+      // A pass that photographed a frame — or finished a scene — is making
+      // progress, however slowly, and slow is the normal condition here: the
+      // real image quota delivers a fraction of what the caps allow, so a long
+      // film legitimately takes many passes. Counting them punished exactly the
+      // films that were working.
+      //
+      // A pass that produced no frame at all is the thing worth stopping for,
+      // and `barrenPasses` carries that count forward on the job so a run cannot
+      // spin indefinitely against a wedged quota or an unphotographable scene.
+      // The first passes are exempt: the world bible and the shot designs are
+      // real work that produces no photographs.
+      const madeProgress = report.framesRendered > 0 || report.completed.length > 0;
+      const barrenPasses = madeProgress ? 0 : (Number(job.barrenPasses) || 0) + 1;
+      if (!madeProgress) {
+        console.warn(
+          `[shotboard ${job.projectId}] pass ${attempt} photographed nothing ` +
+            `(${barrenPasses}/${SHOT_BOARD_BARREN_PASSES} barren)`
+        );
+      }
+      const more =
+        !report.done && attempt < SHOT_BOARD_MAX_ATTEMPTS && barrenPasses <= SHOT_BOARD_BARREN_PASSES;
 
       await projectRef.update(
         stripUndefined({
@@ -4048,6 +4090,10 @@ exports.shotBoard = onDocumentCreated(
           uid: job.uid,
           projectId: job.projectId,
           attempt: attempt + 1,
+          // Carried forward so consecutive barren passes are counted across the
+          // chain rather than forgotten at each hand-off — the count is what
+          // stops a wedged run, and it resets the moment a frame lands.
+          barrenPasses,
           // keepDesign TRUE, and this is not an optimisation — it is what makes a
           // continuation continue.
           //
