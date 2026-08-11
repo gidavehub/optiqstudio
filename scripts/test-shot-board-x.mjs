@@ -19,6 +19,20 @@
  * resumable board rather than a mess.
  *
  * Whether the frames are any GOOD is scripts/probe-nano-banana-2.mjs's question.
+ *
+ * ═══ THE BOARD IS RETIRED. THIS TESTS CODE NOTHING CALLS. ═══
+ *
+ * As of the text-to-video rewrite, no film type is photographed: optiqStoryX
+ * renders from its own 2,500–3,000-word prompts and attaches nothing. See the
+ * header of functions/optiqStoryX/pipeline.js for the three reasons, the
+ * decisive one being that a photorealistic face attached to a render of that
+ * person under arrest is refused by the classifier, silently, and billed anyway.
+ *
+ * The machinery and this test are kept rather than deleted because this sandbox
+ * has reversed itself on photography once already, and a working test is what
+ * would make reinstating it a decision rather than an excavation. It should keep
+ * passing; if it starts failing, that is a signal about shotBoardRun.js and not
+ * about any film anybody can currently make.
  */
 import { runShotBoard, renderAttachments } from "../functions/shotBoardRun.js";
 import * as brainNs from "../functions/optiqStoryX/shotBoard.js";

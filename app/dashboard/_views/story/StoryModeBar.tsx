@@ -18,12 +18,14 @@
 // that happens to float.
 
 import React from "react";
-import { Camera, Edit3, Tv, Undo2 } from "lucide-react";
+import { Edit3, Tv, Undo2 } from "lucide-react";
 import OptiqMark from "../../../../components/OptiqMark";
 
-// A fourth face here that the ad tree does not have: only this film type is
-// photographed, so only this one has a board to go back to.
-export type StoryFace = "agent" | "manual" | "auto-merge" | "board";
+// Three faces, same as the ad tree. There used to be a fourth — the BOARD, the
+// film's photographs — back when this type was photographed before it was
+// filmed. Nothing is photographed now, so there is nothing to go back to. See
+// functions/optiqStoryX/pipeline.js.
+export type StoryFace = "agent" | "manual" | "auto-merge";
 
 interface StoryModeBarProps {
   /** Which face is on screen. "agent" is a route, the other two are modes. */
@@ -31,8 +33,6 @@ interface StoryModeBarProps {
   onAgent: () => void;
   onScript: () => void;
   onTimeline: () => void;
-  /** Back to the film's photographs. Only this tree has them. */
-  onBoard: () => void;
   onReset?: () => void;
   /** Pulses the agent tab while a turn is rewriting the film server-side. */
   agentRunning?: boolean;
@@ -46,7 +46,6 @@ export default function StoryModeBar({
   onAgent,
   onScript,
   onTimeline,
-  onBoard,
   onReset,
   agentRunning = false,
   done,
@@ -66,7 +65,6 @@ export default function StoryModeBar({
     { key: "agent", label: "Optiq Agent", icon: <OptiqMark size={13} />, onClick: onAgent },
     { key: "manual", label: "Script", icon: <Edit3 size={13} className="shrink-0" />, onClick: onScript },
     { key: "auto-merge", label: "Timeline", icon: <Tv size={13} className="shrink-0" />, onClick: onTimeline },
-    { key: "board", label: "Board", icon: <Camera size={13} className="shrink-0" />, onClick: onBoard },
   ];
 
   // Only the ways OUT. The face you're on is not a destination.
@@ -75,8 +73,7 @@ export default function StoryModeBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 top-3 z-30 flex justify-center px-3 sm:top-4">
       <div className="glass pointer-events-auto flex items-center gap-1 rounded-full px-1.5 py-1.5">
-        {/* Three destinations now that the board is one of them, so the labels
-            fold away below sm rather than pushing the pill off a phone. */}
+        {/* Labels fold away below sm rather than pushing the pill off a phone. */}
         {faces.map(({ key, label, icon, onClick }) => (
           <button
             key={key}

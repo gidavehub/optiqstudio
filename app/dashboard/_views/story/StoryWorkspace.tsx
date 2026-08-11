@@ -10,19 +10,18 @@
 //
 // What differs, and it is the whole reason the copy exists:
 //
-//   • BOARD SHOTS, NOT REFERENCE IMAGES. A scene here renders from photographs
-//     the system took — from the place plate, the arrangement inside it, the
-//     object plates and the cast sheets. There is nothing to UPLOAD, so the tray
-//     is replaced by a strip that expands each still, offers a re-shoot, and lets
-//     the director drop an angle or ask for one more in their own words. See
-//     ./SceneBoardShots.tsx.
-//
-//   • FOUR FACES, NOT THREE. Script, timeline, agent — and the BOARD, which only
-//     this film type has.
+//   • NO REFERENCE IMAGES AT ALL. A scene here renders from its own words and
+//     nothing else — no uploads, no character sheets, no board frames. This film
+//     type is pure text-to-video, which is why its prompts are 2,500–3,000 words
+//     and why there is no image tray on this screen. See
+//     functions/optiqStoryX/pipeline.js for what that bought and what it cost.
 //
 //   • IT STOPS AT THE BLUEPRINT. Before any of the above, the film waits on a
-//     screen built for reading five minutes of script before paying to
-//     photograph it. See ../blueprint/BlueprintStage.tsx.
+//     screen built for reading five minutes of script — the story, the cast, the
+//     location bible — before paying to render it. See
+//     ../blueprint/BlueprintStage.tsx.
+//
+//   • IT IS LONG. Up to 600s, where the ad workspace tops out at 180.
 //
 // Everything else is the ad workspace one-for-one, on purpose, so the two can be
 // diffed. If you fix something here, decide deliberately whether the other wants
@@ -35,7 +34,7 @@ import {
 } from "lucide-react";
 import { useEditorFlow } from "../../_flow/EditorFlowProvider";
 import { activeTakeIndex, sceneTakes } from "../../_flow/types";
-import { renderPrompt, sceneStills } from "../../_flow/shotBoard";
+import { renderPrompt } from "../../_flow/shotBoard";
 import { useAuth } from "../../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../../components/ConfirmGenerationModal";
 import useIsMobile from "../../_shared/useIsMobile";
@@ -46,7 +45,6 @@ import EditorStudio from "../editor/EditorStudio";
 import StoryMobileDeck from "./StoryMobileDeck";
 import StorySceneDialogue from "./StorySceneDialogue";
 import StoryPromptBlock from "./StoryPromptBlock";
-import SceneBoardShots from "./SceneBoardShots";
 import StoryRewriteBar from "./StoryRewriteBar";
 import StoryRenderPanel, { SceneRenderStatus } from "./StoryRenderPanel";
 import StoryModeBar from "./StoryModeBar";
@@ -63,19 +61,17 @@ export default function StoryWorkspace() {
     pipelineStage, pipelineProgress,
     copyToClipboard, copiedIndex,
     generateVideoForScene, selectSceneTake, reviseScenePrompt,
-    shotBoard, buildShotBoard, removeBoardShot, addBoardShot, addBoardShotImages,
     goHome, projects, activeProjectId, projectLink, agentRunning, audioStage,
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
     aspectRatio,
-    isBoardFilm, shotBoardStage, shotBoardBusy,
+    isGatedFilm,
   } = useEditorFlow();
   const { profile, pricing } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
 
   const openAgent = () => router.push(projectLink("agent"));
-  const openBoard = () => router.push(projectLink("board"));
 
   const project = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -116,11 +112,11 @@ export default function StoryWorkspace() {
     storylining: "Writing your storyline…",
     casting: "Casting characters & locking consistency…",
     building: "Building your scenes…",
-    worldbuilding: "Planning the world this film is photographed in…",
+    locations: "Writing the location bible — every place, once, in full…",
   };
   const isCloudGenerating =
     generating ||
-    ["queued", "analyzing", "storylining", "casting", "building", "worldbuilding"].includes(pipelineStage || "");
+    ["queued", "analyzing", "storylining", "casting", "locations", "building"].includes(pipelineStage || "");
   const stageLabel = STAGE_LABELS[pipelineStage || ""] || "Optiq Skills are writing your story…";
 
   const resetDraft = () => {
@@ -170,17 +166,17 @@ export default function StoryWorkspace() {
   // The way into the storyline agent now lives in WorkspaceModeBar alongside
   // the other two faces, so this face-local button is gone.
 
-  // ── GATE 1 — THE BLUEPRINT (experimental original story only) ───────────
+  // ── THE GATE — THE BLUEPRINT (experimental original story only) ─────────
   //
   // This film type does not open into the script editor. It stops on a screen
-  // built for READING a five-minute film before paying to photograph it, and it
-  // stays there until the director presses Continue. Once the board exists the
-  // gate is behind them and the workspace behaves normally again.
+  // built for READING a five-minute film before paying to render it, and it
+  // stays there until the director presses Continue — which moves the stage to
+  // "ready", after which the workspace behaves normally.
   //
   // Checked before the !storyboard branch below on purpose: "blueprint-ready" is
   // a terminal stage with scenes attached, so falling through would show the
   // ordinary script editor and quietly skip the gate.
-  if (isBoardFilm && storyboard && pipelineStage === "blueprint-ready" && !shotBoardStage) {
+  if (isGatedFilm && storyboard && pipelineStage === "blueprint-ready") {
     return <BlueprintStage />;
   }
 
@@ -299,7 +295,6 @@ export default function StoryWorkspace() {
           onAgent={openAgent}
           onScript={() => setProductionMode("manual")}
           onTimeline={() => setProductionMode("auto-merge")}
-          onBoard={openBoard}
           onReset={resetDraft}
           agentRunning={agentRunning}
           done={renderTally.done}
@@ -444,12 +439,6 @@ export default function StoryWorkspace() {
           storyboard={storyboard}
           videoStatus={videoStatus}
           setVideoStatus={setVideoStatus}
-          shotBoard={shotBoard}
-          shotBoardBusy={shotBoardBusy}
-          onRetryBoard={(i) => void buildShotBoard([i], true)}
-          onRemoveBoardShot={(i, order) => void removeBoardShot(i, order)}
-          onAddBoardShot={(i, note) => void addBoardShot(i, note)}
-          onAddBoardImages={(i, files) => void addBoardShotImages(i, files)}
           reviseScenePrompt={reviseScenePrompt}
           copyToClipboard={copyToClipboard}
           copiedIndex={copiedIndex}
@@ -475,7 +464,6 @@ export default function StoryWorkspace() {
         onAgent={openAgent}
         onScript={() => setProductionMode("manual")}
         onTimeline={() => setProductionMode("auto-merge")}
-        onBoard={openBoard}
         onReset={resetDraft}
         agentRunning={agentRunning}
         done={renderTally.done}
@@ -549,22 +537,11 @@ export default function StoryWorkspace() {
                     onRevise={() => void reviseScenePrompt(idx)}
                   />
 
-                  {/* Not the reference tray. A photographed scene renders from
-                      its BOARD SHOTS and nothing else — there is nothing to
-                      upload and nothing to remove, because the set is derived
-                      rather than curated. What it offers instead is a proper
-                      look at them, and a way to re-shoot the ones that came out
-                      wrong before thirty seconds of video is bought from them. */}
-                  <SceneBoardShots
-                    sceneIndex={idx}
-                    stills={sceneStills(shotBoard, idx)}
-                    aspectRatio={aspectRatio}
-                    busy={shotBoardBusy}
-                    onRetry={(i) => void buildShotBoard([i], true)}
-                    onRemove={(i, order) => void removeBoardShot(i, order)}
-                    onAdd={(i, note) => void addBoardShot(i, note)}
-                    onAddImages={(i, files) => void addBoardShotImages(i, files)}
-                  />
+                  {/* NO IMAGE TRAY, deliberately. Nothing is attached to a
+                      render on this film type — not an upload, not a character
+                      sheet, not a board frame. The prompt above is the whole
+                      scene, which is why it is three thousand words long. See
+                      functions/optiqStoryX/pipeline.js. */}
                 </div>
 
                 {/* Render column */}

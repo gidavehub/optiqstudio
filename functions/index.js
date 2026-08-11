@@ -2793,7 +2793,14 @@ exports.storyXBlueprint = onDocumentCreated(
         aspectRatio: job.aspectRatio,
         castingSeed: job.projectId,
         previous: previous
-          ? { ...previous, scenes: project.scenes || [], world: project.shotBoard?.world || null }
+          ? {
+              ...previous,
+              scenes: project.scenes || [],
+              // Reused verbatim by a continuation, for the same reason the
+              // storyline and the registry are: a pass that re-designed the
+              // rooms would put scenes 16–30 somewhere other than scenes 1–15.
+              locations: project.locations || null,
+            }
           : null,
         onStage: (stage, meta) => setStage(stage, meta ? { pipelineProgress: meta } : {}),
       });
@@ -2817,20 +2824,39 @@ exports.storyXBlueprint = onDocumentCreated(
         isStory: true,
         videoType: blueprint.videoType ?? null,
         castingShape: blueprint.castingShape ?? null,
-        // The cast sheet PLAN. No pictures behind it yet — the shot board
-        // photographs each one when it first needs it, and writes the urls back
-        // onto these same entries.
-        characterRefs: blueprint.characterRefs ?? [],
+        // ALWAYS EMPTY on this film type. It renders text-to-video and attaches
+        // no picture to any clip — see the classifier note at the top of
+        // optiqStoryX/pipeline.js. Written rather than omitted so a project that
+        // was built under the old photographed pipeline is CLEARED of its cast
+        // sheets when it is rebuilt, instead of keeping stale references to
+        // images nothing will ever attach.
+        characterRefs: [],
         storyArc: blueprint.storyArc ?? null,
         whatIsAtStake: blueprint.whatIsAtStake ?? null,
         theEnding: blueprint.theEnding ?? null,
         musicSpec: blueprint.musicSpec ?? null,
         ambienceSpec: blueprint.ambienceSpec ?? null,
         videoStatus,
-        // NOTHING attaches to a render until the board exists. Seeded empty and
-        // deliberately never filled by this stage: on this film type the only
-        // thing the video model is ever shown is a photographed frame.
+        // NOTHING is ever attached to a render on this film type. Not a cast
+        // sheet, not a plate, not a frame: the prompt is the whole film. Seeded
+        // empty and never filled.
         sceneImages: {},
+        /**
+         * THE LOCATION BIBLE — every place in the film, written once at 500–700
+         * words for every scene set there to paste verbatim. This is what
+         * replaced the shot board's world plan, and it is the reason the rooms
+         * hold still without being photographed. Read by the blueprint screen so
+         * the director can see the rooms before approving the film.
+         */
+        locations: blueprint.locations ?? null,
+        // The shot board is GONE from this film type. Cleared rather than left
+        // alone so a project built under the old photographed pipeline stops
+        // advertising a board to the client, which would otherwise hold it at a
+        // gate that no longer exists and attach frames nothing will render from.
+        shotBoard: null,
+        shotBoardStage: null,
+        shotBoardProgress: null,
+        shotBoardError: null,
         /**
          * The film's spine, kept so a continuation reuses it rather than
          * re-deciding what film this is. Not read by the client.
@@ -2840,12 +2866,9 @@ exports.storyXBlueprint = onDocumentCreated(
           storyline: blueprint.storyline ?? null,
           registry: blueprint.registry ?? null,
         },
-        // The world plan rides on the board document, which is where
-        // functions/shotBoardRun.js looks for it (`reuseWorld`). Writing it here
-        // is what lets stage 2 skip its own world pass entirely.
-        ...(blueprint.world ? { shotBoard: { world: blueprint.world } } : {}),
         // The gate. "blueprint-ready" is a TERMINAL stage: nothing runs after it
-        // until the director presses Continue, which is what enqueues the board.
+        // until the director presses Continue, which now starts RENDERING rather
+        // than photographing — there is no board stage any more.
         pipelineStage: more ? "building" : "blueprint-ready",
         pipelineError: more
           ? null
@@ -2872,7 +2895,7 @@ exports.storyXBlueprint = onDocumentCreated(
       } else {
         console.log(
           `[blueprint ${job.projectId}] ready to read after ${pass} pass(es) — ` +
-            `${blueprint.scenes.length} scene(s), ${(blueprint.world?.environments || []).length} place(s) planned`
+            `${blueprint.scenes.length} scene(s), ${(blueprint.locations?.locations || []).length} location block(s)`
         );
       }
     } catch (err) {
@@ -3173,15 +3196,22 @@ exports.storylineAgent = onDocumentCreated(
           if (usedPrepaid) cost = 0;
           else await chargeCredits(job.uid, cost, `Video clip (${duration}s, from the agent)`);
 
-          // The same stills the editor's render button attaches. On a
-          // PHOTOGRAPHED film that is the scene's shot-board frames and nothing
-          // else; on every other kind it is the scene's reference images, exactly
-          // as before. renderAttachments owns that rule so this path and the
-          // client's cannot drift apart — they must attach the same thing or the
-          // same scene comes out differently depending on which button shot it.
-          const attachments = require("./shotBoardRun")
-            .renderAttachments(project, sceneIndex)
-            .filter((img) => img.path);
+          // The same stills the editor's render button attaches, so this path and
+          // the client's cannot drift apart — they must attach the same thing or
+          // the same scene comes out differently depending on which button shot
+          // it.
+          //
+          // AN EXPERIMENTAL STORY ATTACHES NOTHING, structurally rather than by
+          // happening to have an empty sceneImages. It renders text-to-video and
+          // nothing may ride along — and this branch is what makes that true for
+          // a project built during the photographed era as well, whose document
+          // still carries a `shotBoard` full of frames that renderAttachments
+          // would otherwise happily hand to the video model.
+          const attachments = isStoryXFilm(project.videoType)
+            ? []
+            : require("./shotBoardRun")
+                .renderAttachments(project, sceneIndex)
+                .filter((img) => img.path);
 
           const genRef = db.collection("generations").doc();
           await genRef.set({
@@ -3890,14 +3920,34 @@ exports.shotBoard = onDocumentCreated(
       const project = { id: job.projectId, ...psnap.data() };
       if (project.uid !== job.uid) throw new Error("Not your project");
       if (!project.scenes?.length) throw new Error("This film has no scenes yet");
-      // One sandbox owns the board, and only one film type routes to it. A board
-      // run on any other kind of film would photograph it and then attach nothing,
-      // because nothing else reads `shotBoard` at the render seam.
-      if (!isStoryXFilm(project.videoType)) {
-        throw new Error(
-          `Only an experimental original story is photographed before it is filmed; this project is "${project.videoType}".`
-        );
-      }
+
+      // ── THE BOARD IS RETIRED. NOTHING ROUTES HERE ANY MORE. ────────────────
+      //
+      // The experimental original story was the only film type that was ever
+      // photographed, and it is now rendered purely from text. See the header of
+      // functions/optiqStoryX/pipeline.js for the three reasons; the decisive one
+      // is that attaching a photorealistic face to a render of that person under
+      // arrest, in a cell or in handcuffs reads to the classifier as a real
+      // person defamed, and is refused silently while still being billed.
+      //
+      // The trigger and functions/shotBoardRun.js are LEFT IN PLACE rather than
+      // deleted: this sandbox has reversed itself on photography before, and the
+      // machinery plus the doctrine that argues for it is worth more on disk than
+      // in the history. But nothing may enqueue a job here, so anything that
+      // still does fails loudly and immediately — before it spends a hundred
+      // images photographing a film that will never attach them.
+      // Thrown rather than returned so the catch below does the usual thing:
+      // marks the project's board stage failed with a readable reason and closes
+      // the job. A silent return would leave a queued job "running" forever.
+      throw new Error(
+        "The shot board is retired. Films are rendered from their prompts now — nothing is photographed " +
+          "and nothing is attached to a render. See functions/optiqStoryX/pipeline.js."
+      );
+
+      /* eslint-disable no-unreachable */
+      // EVERYTHING BELOW THIS LINE IS UNREACHABLE, and kept deliberately — it is
+      // the working board runner, intact, one deleted `throw` away from running
+      // again. Read the note above before deleting it or reviving it.
 
       const brain = require("./optiqStoryX/shotBoard");
       const { runShotBoard } = require("./shotBoardRun");
@@ -4144,6 +4194,7 @@ exports.shotBoard = onDocumentCreated(
           createdAt: new Date().toISOString(),
         });
       }
+      /* eslint-enable no-unreachable */
     } catch (err) {
       console.error(`[shotboard ${job.projectId}] failed:`, err);
       await projectRef

@@ -106,6 +106,24 @@ Prompt length is a function of **how much of the frame is under our authorship.*
 
 **The rule that matters:** length is never the goal. **Density of authored specifics** is the goal. A 2,000-word prompt full of adjectives about mood is worse than a 600-word prompt full of nouns and verbs. But a crowd scene *cannot* be authored in 600 words, so it gets 2,000.
 
+### 2.3x SANDBOX OVERRIDE — THIS FILM TYPE IS 2,500â€“3,000 WORDS, ALWAYS
+
+**The table above does not apply in the experimental original story sandbox.** Read the last row of it as the floor rather than the ceiling.
+
+Every scene here is **2,500â€“3,000 words**, whatever kind of scene it is, because the variable the table is measuring â€” "how much of the frame is under our authorship" â€” is pinned at *all of it*. This is the only film type on the platform where **nothing is attached to a render**: no character sheet, no reference image, no still frame. There is no second channel carrying the look, so a sparse set does not buy a shorter prompt; it just means the sparse set has to be described completely too.
+
+The budget inside it, and none of these are optional:
+
+- **150â€“250 words per character** on face and body (the Locked Character Block â€” see the override at §3.0).
+- **~100 words per character** on wardrobe, in a **separate** block, because when the two share a budget it is always the clothes that lose and a swapped outfit is the most visible continuity failure there is.
+- **500â€“700 words on the place**, pasted verbatim from the film's location bible (Part XVII), including *where every person is standing or seated and what is within reach of their hands*. 700 for anywhere complicated â€” a bank, a hall, a courtroom, a ward, a crowd, or the inside of a car.
+- **250â€“300 words on sound**, the locked bed verbatim plus a named noise per event.
+- The remaining third: **dialogue** (the largest single block), the timestamped action beats, the camera, and the closing restatement.
+
+§2.2's closing restatement matters more here than anywhere, for a mechanical reason: at 3,000 words the middle of the prompt sags â€” the model weights the opening and the ending â€” so the last paragraph re-asserting identity, wardrobe, position, the key event, the light and the prohibitions is doing real work, not signing off.
+
+The rule that matters is unchanged and binds harder: **length is never the goal, density of authored specifics is.** Three thousand words of mood adjectives is a worse prompt than fifteen hundred of nouns and verbs. But a film with no pictures behind it *cannot* be authored in fifteen hundred, so it gets three thousand.
+
 ## 2.4 THE COPY-READY RULE
 
 > **The prompt is the deliverable. Not the discussion of the prompt.**

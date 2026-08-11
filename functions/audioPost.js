@@ -259,7 +259,59 @@ const SUITE_MOVEMENTS = [
   "MOVEMENT 5 of 5 — THE CLIMAX AND THE LANDING. The last fifth: the biggest moment in the film, and then its outcome. Bring the main idea back in full for the peak, then let it come to rest — a real ending, arriving in the last ten seconds, not a fade-out.",
 ];
 
-function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote, movement }) {
+/**
+ * The high-tension suite, for film types whose palette is "high-tension".
+ *
+ * Same five dramatic positions — they are the story law and they do not change —
+ * but written for a score with dread in it rather than warmth. The default suite
+ * asks movement 2 to be "warmer and more confident", which is exactly the
+ * instruction that produced the polite string-quartet cue this palette exists to
+ * replace.
+ */
+const SUITE_MOVEMENTS_TENSION = [
+  "MOVEMENT 1 of 5 — THE OPENING. It plays under the first fifth of the film, where something is already wrong and the audience does not yet know why. Do NOT establish a pleasant world and then spoil it: start with the wrongness already present. A single sustained low tone, a pulse that is slightly too slow, one unresolved interval held far longer than is comfortable. Sparse and quiet — this is the theme every later movement will distort, so leave it room to be distorted.",
+  "MOVEMENT 2 of 5 — THE WANT. The second fifth, where we learn what somebody is trying to get. Take movement 1's idea and put it in motion: a low ostinato that will not stop, a pulse with a hard edge on it. More insistent than the opening, NOT warmer and NOT more confident. Something should feel like it is being counted down.",
+  "MOVEMENT 3 of 5 — THE TURN. The middle, where the story stops being the story we thought it was. The score CHANGES ITS MIND, hard: reharmonise the main idea a semitone off, break the pulse mid-phrase, drop the floor out and leave one thin sustained line exposed over nothing. The listener should feel the ground move without being told.",
+  "MOVEMENT 4 of 5 — THE ESCALATION. The fourth fifth, where the pressure rises and options close. The tightest and most driven of the five and it should be genuinely hard to sit through: the ostinato accelerating, layers stacking, a low pulse hitting harder and closer together, dissonance tightening, almost no air left. Resolve NOTHING. This movement's job is to refuse to settle.",
+  "MOVEMENT 5 of 5 — THE CLIMAX AND THE LANDING. The last fifth: the biggest and loudest moment in the film, then its outcome. Bring everything in at full weight for the peak — this is where the score is allowed to be overwhelming — then cut it back hard and let the main idea come to rest, bleak and quiet. A real ending in the last ten seconds, arriving on purpose, not a fade-out.",
+];
+
+/**
+ * How a film type wants to be scored.
+ *
+ * "default" is the house palette, tuned for advertising: warm, West African,
+ * supportive, sitting politely under a voice. It is the right sound for a film
+ * that is selling something and the WRONG sound for a film with a crime in it —
+ * the same brief that gives a groundnut-paste ad its charm gives a thriller a
+ * string quartet under an arrest, which was the complaint that produced this map.
+ *
+ * The palette is chosen by the film kind (see each sandbox's STORY_KIND), so the
+ * ad swarm keeps exactly the score it has always had.
+ */
+const SCORE_PALETTES = {
+  default: {
+    movements: SUITE_MOVEMENTS,
+    instrumentation:
+      "West African instrumentation is welcome where it fits — kora, balafon, gentle hand percussion — alongside warm strings and soft keys.",
+    register:
+      "It sits UNDER dialogue and narration, so keep it supportive and uncluttered: no busy melodic lines fighting a voice, nothing shrill.",
+  },
+  "high-tension": {
+    movements: SUITE_MOVEMENTS_TENSION,
+    instrumentation:
+      "HIGH-TENSION DRAMATIC SCORING. This is a thriller's score, not a chamber piece — build it from low sustained strings and cellos played close to the bridge, deep bowed bass, a low pulsing synth or drone under everything, sparse struck percussion with real weight behind it (a low drum, a metallic hit, a taut skin), muted piano used as a percussive hit rather than a melody, and controlled dissonance. West African percussion belongs here where it drives rather than decorates — a hard, dry, insistent pulse, never a pleasant groove. NO warm strings, NO soft keys, NO gentle kora or balafon figures, NO lullaby, NO folk-pretty melody, NO uplifting or inspirational bed, NO classical string-quartet elegance, NO orchestral swell of the kind that plays over a triumphant montage. If it would sit comfortably under a bank advert, it is wrong for this film.",
+    register:
+      "It sits UNDER dialogue, so it must not fight a voice — but supportive does NOT mean pleasant. Hold the tension in the low end and in the pulse, where speech is not, and leave the midrange clear. Keep it restrained and let it accumulate: the score gets its power from patience and from what it refuses to resolve, not from volume. Nothing shrill, nothing busy across a line, no jump-scare stingers.",
+  },
+};
+
+/** The palette for a film kind, defaulting to the house one. */
+function scorePalette(filmKind) {
+  return SCORE_PALETTES[filmKind?.score] || SCORE_PALETTES.default;
+}
+
+function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, scoreNote, movement, palette }) {
+  const voice = palette || SCORE_PALETTES.default;
   const parts = [
     `Compose an instrumental score for a ${videoTypeNoun || "short advert"}.`,
     // One movement of a suite. It goes near the top so the composer reads WHICH
@@ -277,8 +329,8 @@ function scorePrompt({ concept, brandName, videoTypeNoun, toneHint, soundSpec, s
     soundSpec
       ? `The film's authored sound world (match its mood, do NOT reproduce its ambience — that is already in the footage): ${String(soundSpec).slice(0, 500)}.`
       : "",
-    "West African instrumentation is welcome where it fits — kora, balafon, gentle hand percussion — alongside warm strings and soft keys.",
-    "It sits UNDER dialogue and narration, so keep it supportive and uncluttered: no busy melodic lines fighting a voice, nothing shrill.",
+    voice.instrumentation,
+    voice.register,
     "Purely instrumental. No vocals, no lyrics, no singing, no spoken word, no sound effects.",
   ];
   return parts.filter(Boolean).join(" ");
@@ -563,7 +615,10 @@ async function runAudioPost({
   let musicUrl = null;
   let musicPlan = P.planMusic(0, 0);
   try {
-    const movements = wantsSuite ? SUITE_MOVEMENTS : [null];
+    // Which sound this film wants. Chosen by the film KIND, so the ad swarm keeps
+    // the warm house palette and the experimental story gets a thriller's score.
+    const palette = scorePalette(filmKind);
+    const movements = wantsSuite ? palette.movements : [null];
     const composed = [];
 
     for (let i = 0; i < movements.length; i++) {
@@ -582,6 +637,7 @@ async function runAudioPost({
             soundSpec: project.musicSpec,
             scoreNote,
             movement: movements[i],
+            palette,
           })
         );
       } catch (err) {
@@ -1072,6 +1128,8 @@ module.exports = {
   runAudioPost,
   probeDurationFromUrl,
   scorePrompt,
+  scorePalette,
+  SCORE_PALETTES,
   narratorVoice,
   narratorVoiceIdFor,
   scriptedNarration,

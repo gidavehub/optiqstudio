@@ -12,13 +12,13 @@
 // floor, the voice profiles verbatim, the sound spec repeated, the beat count.
 // The agent cannot write a scene prompt freehand — that is deliberate.
 //
-// WHAT IT DELIBERATELY DOES NOT CHECK, and this is the important part: appearance.
-// This film is photographed, so the stills carry every face, every outfit and
-// every room, and they are the only thing the video model is shown of them. A
-// gate that made the agent confirm the appearance description was present would
-// make the agent keep ADDING appearance description — which argues with the
-// photographs, and the model settles that argument by inventing a third version.
-// That is what swaps outfits between shots. See sceneViolations below.
+// WHAT IT CHECKS HARDEST, and this INVERTED when the shot board was removed:
+// appearance. Nothing is attached to a render on this film type any more — no
+// frame, no character sheet — so the Locked Character Block, the wardrobe lock
+// and the location block pasted verbatim are the only things making scene 4 and
+// scene 19 the same film. This file used to FORBID appearance description here,
+// for a reason that was correct while the photographs existed and is exactly
+// backwards without them. See sceneViolations below.
 //
 // One thing the agent deliberately CANNOT do: spend money. It never renders a
 // clip and never touches the wallet. Rendering stays behind the user's own
@@ -57,7 +57,7 @@ const {
   DOCTRINE_MODULES,
 } = require("./index");
 
-// A scene rewrite is a 1,500–2,000 word generation. Three in flight is what the
+// A scene rewrite is a 2,500–3,000 word generation. Three in flight is what the
 // storyboard swarm uses against the same Vertex per-minute buckets.
 const REWRITE_CONCURRENCY = 3;
 
@@ -111,21 +111,20 @@ function sceneViolations(scene, project) {
 
   if (words < WORD_BUDGETS.scenePromptHardFloor) {
     violations.push(
-      `Only ${words} words — under the ${WORD_BUDGETS.scenePromptMin}-word floor. Needs more authored specifics (environment items, background people, event sounds), never filler.`
+      `Only ${words} words — the target is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} and nothing under ` +
+        `${WORD_BUDGETS.scenePromptHardFloor} ships. Nothing is attached to this film, so a short prompt is a prompt ` +
+        `that has left the video model to invent the missing half. Expand whichever budget is short: ` +
+        `${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words of face and body per character, ` +
+        `~${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} on each outfit, ` +
+        `${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} on the place. Authored specifics, never filler.`
     );
   }
-  // NO Locked Character Block check, NO "Black" keyword check, NO "Gambian"
-  // check. All three live in the other sandboxes and all three are WRONG here.
-  //
-  // This film is PHOTOGRAPHED: still frames of every scene exist and are the only
-  // thing the video model is ever shown of how anything looks. A gate that asks
-  // the agent to make sure the appearance description is present is a gate that
-  // makes the agent ADD appearance description — which then argues with the
-  // photographs, and the model settles the argument by inventing a third version.
-  // That is what swaps outfits between shots and changes haircuts mid-scene.
-  //
-  // What the agent should be checking is everything the pictures CANNOT carry,
-  // which is what the three checks below are.
+  // THE APPEARANCE CHECKS, RESTORED. This block used to hold the opposite rule —
+  // no character-block check, and a gate that FAILED a prompt for naming a
+  // complexion — because the film was photographed and a written face argued with
+  // the picture of it. There are no pictures. These words are now the only
+  // description of these people that will ever exist, and the agent's job is to
+  // keep them intact rather than to strip them.
   const spokenLines = countSpokenLines(scene.dialogue) || countSpokenLines(prompt);
   if (spokenLines < MIN_LINES_PER_SCENE) {
     violations.push(
@@ -135,24 +134,37 @@ function sceneViolations(scene, project) {
     );
   }
   for (const c of project.blueprint?.registry?.characters || []) {
-    if (!c?.voice || !c?.name) continue;
-    // Only owed where they actually speak.
-    if (!speaksIn(prompt, c.name)) continue;
-    if (!containsVerbatim(prompt, c.voice)) {
+    if (!c?.name) continue;
+    // The locks are only owed by a scene this person is actually IN — and the
+    // only signal available here is whether they are named in it, since the
+    // agent does not carry the storyline's per-scene casting.
+    const present = new RegExp(
+      `\\b${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+      "i"
+    ).test(prompt);
+    if (present && c.lcb && !containsVerbatim(prompt, c.lcb)) {
       violations.push(
-        `${c.name} speaks here but their locked VOICE PROFILE is missing. A face survives thirty clips because ` +
-          `thirty photographs say what it looks like; a voice survives only because every prompt repeats the same ` +
-          `words about it. Paste it verbatim before their first line.`
+        `${c.name} is in this scene but their Locked Character Block is missing or paraphrased. Nothing is ` +
+          `attached to this film, so this block is the only description of this person the video model will ever ` +
+          `see, and it must be IDENTICAL in every scene they appear in or they come back as a different person. ` +
+          `Paste it verbatim near the top.`
       );
     }
-  }
-  const painted = LOOK_WORDS.exec(prompt);
-  if (painted) {
-    violations.push(
-      `This prompt describes how someone LOOKS ("${painted[1]}"). The attached frames already show it, exactly. ` +
-        `Describing it again gives the model two accounts of one thing and it reconciles them by inventing a ` +
-        `third — cut it, and spend the words on dialogue, action, sound and camera instead.`
-    );
+    if (present && c.wardrobe && !containsVerbatim(prompt, c.wardrobe)) {
+      violations.push(
+        `${c.name}'s wardrobe lock is missing or paraphrased. Clothes are the most visible continuity failure a ` +
+          `film can have. Paste it verbatim as its own block, after the character block.`
+      );
+    }
+    // The voice is only owed where they actually speak.
+    if (!c.voice || !speaksIn(prompt, c.name)) continue;
+    if (!containsVerbatim(prompt, c.voice)) {
+      violations.push(
+        `${c.name} speaks here but their locked VOICE PROFILE is missing. Same mechanism as the face: thirty ` +
+          `separately-generated clips share nothing but the words that are identical in all thirty. Paste it ` +
+          `verbatim before their first line.`
+      );
+    }
   }
   if (project.musicSpec && !containsVerbatim(prompt, project.musicSpec)) {
     violations.push(
@@ -255,18 +267,13 @@ async function commitScenes(ctx, updates) {
   const videoStatus = { ...(ctx.project.videoStatus || {}) };
 
   for (const { idx, scene } of updates) {
-    // THE SHOOTING BRIEF IS INVALIDATED BY ANY REWRITE, and this is the one place
-    // that can guarantee it — every tool that changes a scene comes through here.
-    //
-    // `framedPrompt` is the short brief the render actually uses, compressed from
-    // the script as it read BEFORE this edit. Leaving it in place means the agent
-    // rewrites the scene, tells the director it is done, and the render then
-    // ignores the change completely and shoots the old version — which looks like
-    // the agent lying rather than like a stale cache.
-    //
-    // Dropping it sends the render back to the (revised) long prompt: correct,
-    // just longer-winded, until the scene is re-photographed and a new brief is
-    // written from the new script.
+    // `framedPrompt` is cleared on every write, and it is now purely a cleanup of
+    // the photographed era. It was the short shooting brief a board film rendered
+    // from — compressed from the script, carrying no appearance because the frames
+    // carried it. Nothing writes one any more and renderPrompt no longer reads
+    // one, but a project built before the board was removed still HAS them on its
+    // scenes, and clearing them as they are touched stops a stale one lingering on
+    // a document forever.
     scenes[idx] = { ...scene, framedPrompt: "" };
     videoStatus[idx] = { ...(videoStatus[idx] || { status: "idle" }), customPrompt: scene.fullPrompt };
   }
@@ -381,7 +388,7 @@ const TOOLS = [
     name: "check_film",
     label: () => "Checking every scene against the house rules",
     description:
-      "Run the house quality gates over the film and report what fails, per scene: prompt word count against the 1,500–2,000 word budget, the Locked Character Block present verbatim, the locked sound spec present verbatim, the explicit 'Black' description of on-screen people, and the Gambian setting. Use it after a round of edits, or whenever the user asks whether the film is still sound.",
+      `Run the house quality gates over the film and report what fails, per scene: prompt word count against the ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} word budget, every present character's Locked Character Block and wardrobe lock present VERBATIM, every speaker's voice profile present verbatim, the locked sound spec present verbatim, the dialogue floor, and the safety gates. Use it after a round of edits, or whenever the user asks whether the film is still sound.`,
     parameters: {
       type: "OBJECT",
       properties: {
@@ -437,7 +444,7 @@ const TOOLS = [
     name: "rewrite_scene",
     label: (a) => `Rewriting scene ${a.sceneNumber}`,
     description:
-      "Rewrite one scene's compiled prompt to carry out an instruction, then save it. The rewrite runs through the house scene-reviser, so the Locked Character Block, wardrobe lock, style header and sound spec survive verbatim, continuity with the neighbouring scenes is preserved, and the prompt is recompiled to the canonical block order at 1,500–2,000 words. Give a rich, specific instruction — everything the reviser needs must be in it, because it cannot see this conversation.",
+      `Rewrite one scene's compiled prompt to carry out an instruction, then save it. The rewrite runs through the house scene-reviser, so the Locked Character Block, the wardrobe lock, the voice profiles, the LOCATION BLOCK, the style header and the sound spec all survive verbatim, continuity with the neighbouring scenes is preserved, and the prompt is recompiled to the canonical block order at ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. Give a rich, specific instruction — everything the reviser needs must be in it, because it cannot see this conversation.`,
     parameters: {
       type: "OBJECT",
       properties: {

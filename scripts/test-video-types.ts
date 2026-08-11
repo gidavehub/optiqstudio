@@ -462,18 +462,17 @@ test("only the experimental box has a shot board, and it is the long-form one", 
 });
 
 test("each film type is routed to its own workspace tree", () => {
-  // The board, blueprint and agent screens are shared by both trees, so a link
-  // that guesses wrong lands the director on a workspace built for a different
-  // kind of film — and because both trees render off the same project id, it
-  // fails confusingly rather than loudly. projectHref is the only thing that
-  // decides, so this is the only place it has to be right.
+  // The blueprint and agent screens are shared by both trees, so a link that
+  // guesses wrong lands the director on a workspace built for a different kind
+  // of film — and because both trees render off the same project id, it fails
+  // confusingly rather than loudly. projectHref is the only thing that decides,
+  // so this is the only place it has to be right.
+  //
+  // There used to be a third face here, the BOARD. It went with the shot board —
+  // see functions/optiqStoryX/pipeline.js.
   assert(
     projectHref("short-film-story-x", "abc") === "/dashboard/project/story/abc",
     `experimental story went to ${projectHref("short-film-story-x", "abc")}`
-  );
-  assert(
-    projectHref("short-film-story-x", "abc", "board") === "/dashboard/project/story/abc/board",
-    "the board must stay inside the story tree"
   );
   assert(
     projectHref("short-film-story-x", "abc", "agent") === "/dashboard/project/story/abc/agent",

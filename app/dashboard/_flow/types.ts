@@ -255,6 +255,59 @@ export interface ShotBoardPlate {
   error?: string;
 }
 
+// ── The location bible ──────────────────────────────────────────────────────
+//
+// WHAT REPLACED THE SHOT BOARD on the experimental original story. The board
+// held a room still by photographing it; this holds it still by giving every
+// scene set there the IDENTICAL 500–700-word paragraph, pasted verbatim into
+// each scene's prompt. See functions/optiqStoryX/locations.js for the machinery
+// and knowledge/17-location-bible.md for the doctrine.
+//
+// Server-owned, written once by the blueprint job and reused verbatim by every
+// continuation pass. The client reads it so the blueprint screen can show the
+// director the rooms their film will be shot in before they approve it.
+
+/** One place, at one time of day. The same kitchen at dawn and at night is two. */
+export interface LocationBlock {
+  id: string;
+  name: string;
+  /** Other names the storyline uses for this place, so its scenes match. */
+  aliases?: string[];
+  /** The scene numbers set here (1-based, as the storyline numbers them). */
+  scenes?: number[];
+  timeOfDay?: string;
+  /** "complex" buys the full 700 words — banks, halls, car interiors, crowds. */
+  complexity?: "simple" | "complex";
+
+  // The eight sections, in the fixed order the block is always composed in.
+  shell?: string;
+  surfaces?: string;
+  light?: string;
+  fixtures?: string;
+  dressing?: string;
+  /** Every position a person can occupy here. The field that stops teleporting. */
+  geography?: string;
+  backgroundLife?: string;
+  sound?: string;
+
+  /** Which place in this film this one is NOT, and how it differs. */
+  distinctFrom?: string;
+}
+
+export interface LocationBible {
+  locations?: LocationBlock[];
+}
+
+// ── The shot board (RETIRED) ────────────────────────────────────────────────
+//
+// Nothing writes these any more and no film type is photographed. Kept because
+// projects built during the photographed era still carry the shapes on their
+// documents, and because this sandbox has reversed itself on photography once
+// before. See functions/optiqStoryX/pipeline.js for why it went — the decisive
+// reason being that attaching a photorealistic face to a render of that person
+// under arrest reads to the classifier as a real person defamed, and is refused
+// silently while still being billed.
+
 export interface ShotBoard {
   /** The film's world: its places, the arrangements in them, its objects, their states. */
   world?: {
@@ -637,23 +690,31 @@ export const VIDEO_TYPES: VideoType[] = [
   {
     // ── THE EXPERIMENTAL ORIGINAL STORY ──────────────────────────────────────
     //
-    // The only type built by functions/optiqStoryX, and the only one that
-    // PHOTOGRAPHS ITS WORLD before rendering: a hierarchy of stills (place →
-    // arrangement → object → state → frame) where each tier is generated from the
-    // picture of the tier above, so a room cannot drift between clips.
+    // The only type built by functions/optiqStoryX, and the only long-form one.
+    // 300s is what it was built for; the ladder runs to 600s because a story
+    // occasionally needs the room.
     //
-    // It is also the only long-form type. 300s is what it was built for; the
-    // ladder runs to 600s because a story occasionally needs the room.
+    // It USED TO BE the type that photographed its world first — a hierarchy of
+    // stills that its clips rendered from. It does not any more. It is now the
+    // most purely TEXT-TO-VIDEO type on the platform, and deliberately so:
+    // nothing is attached to a render, and a photorealistic face attached to a
+    // render of that person under arrest or in a cell is refused by the
+    // classifier without saying so, which made every story with teeth in it
+    // unshootable. See functions/optiqStoryX/pipeline.js.
     //
-    // Three things about it are unlike every other type:
+    // Four things about it are unlike every other type:
     //   • It does not run start-to-finish. It stops at a BLUEPRINT the director
-    //     reads and can chat with an agent about, then again at a BOARD of stills
-    //     they approve, and only then renders. Nothing spends until they say so.
-    //   • The video model sees ONLY the board stills — no character reference
-    //     sheets ride along, because the stills already contain the people.
+    //     reads and can chat with an agent about, and only then renders. Nothing
+    //     spends until they say so.
+    //   • Its scene prompts are the longest on the platform — 2,500–3,000 words,
+    //     of which 150–250 describe each character's face, ~100 their clothes,
+    //     and 500–700 the place — because the words are the only thing holding
+    //     the film still.
+    //   • It has a LOCATION BIBLE: every place written once and pasted verbatim
+    //     into every scene set there, which is what stops rooms drifting.
     //   • Its score is a SUITE of separate composed tracks laid end to end, not
-    //     one track looped, because five minutes of the same 60s loop is five
-    //     minutes of the same 60s loop.
+    //     one track looped, and it is scored HIGH-TENSION rather than with the
+    //     house's warm ad palette.
     id: "short-film-story-x",
     title: "Original story — experimental",
     lengths: ["60s", "120s", "180s", "240s", "300s", "360s", "420s", "480s", "540s", "600s"],
@@ -699,19 +760,19 @@ export function isShortFilm(id?: VideoTypeId | string | null): boolean {
 }
 
 /**
- * The experimental original story — the photographed, gated, long-form one.
+ * The experimental original story — the gated, long-form, pure-text one.
  *
  * Its own predicate because a LOT of code has to branch on it: the wizard's
- * length ladder, the three-stage flow, the board route, the render attachments
- * and the score suite. Comparing the literal in a dozen places is how one of them
- * ends up comparing the wrong literal.
+ * length ladder, the gated two-stage flow, its own route tree, the location
+ * bible and the score palette. Comparing the literal in a dozen places is how one
+ * of them ends up comparing the wrong literal.
  */
 export function isExperimentalStory(id?: VideoTypeId | string | null): boolean {
   return id === "short-film-story-x";
 }
 
 /** The faces a project can be opened on. "" is the workspace itself. */
-export type ProjectFace = "" | "agent" | "board";
+export type ProjectFace = "" | "agent";
 
 /**
  * Where a project lives.

@@ -1,30 +1,45 @@
 /**
  * Optiq STORY X sandbox test. Run: node scripts/test-story-x.mjs
  *
- * The experimental long-form story: the film type that is PHOTOGRAPHED before it
- * is filmed, that stops twice for the director's approval, and that runs to five
- * or ten minutes rather than three.
+ * The experimental long-form story: the film type rendered PURELY FROM TEXT, that
+ * stops once for the director's approval, and that runs to five or ten minutes
+ * rather than three.
  *
- * Three things are worth proving here and are hard to prove any other way.
+ * IT USED TO BE PHOTOGRAPHED, and half of this file used to assert that. A shot
+ * board of a hundred-plus stills was built first and the clips rendered from the
+ * frames; the scene prompt was deliberately written NOT to describe how anything
+ * looked, because the pictures did it better. That is all gone — see the header of
+ * functions/optiqStoryX/pipeline.js, and note that the deciding reason was the
+ * classifier: a photorealistic face attached to a render of that person in a cell
+ * or in handcuffs reads as a real person defamed, and is refused silently while
+ * still being billed.
  *
- * 1. THE BLUEPRINT SPENDS NOTHING BUT TOKENS. It is the screen where the director
- *    decides whether to buy the film at all, so a stage that quietly renders eight
- *    character sheets first has charged them for a decision they have not made.
- *    The test asserts that no image function is even reachable from it.
+ * Four things are worth proving here and are hard to prove any other way.
  *
- * 2. IT SURVIVES ITS OWN LENGTH. Thirty scenes of 2,000 words do not fit in one
+ * 1. NOTHING IS ATTACHED, AND THE WORDS CARRY EVERYTHING. No image function is
+ *    reachable from the blueprint, no builder is told a reference is coming, and
+ *    the prompt rules DEMAND the appearance description they used to forbid. This
+ *    inverted, so it is the assertion most worth pinning down.
+ *
+ * 2. THE LOCATION BIBLE HOLDS THE ROOMS. Every place is written once and pasted
+ *    verbatim into every scene set there — the text replacement for what the
+ *    board's plates used to do. The designer must run BEFORE the builders (they
+ *    paste what it writes), and a continuation must reuse it rather than
+ *    re-designing, or scenes 16–30 end up in different rooms from scenes 1–15.
+ *
+ * 3. IT SURVIVES ITS OWN LENGTH. Thirty scenes of 3,000 words do not fit in one
  *    540s invocation. So the pass has to stop cleanly, report what is missing,
- *    and — on the continuation — REUSE the storyline and registry verbatim rather
- *    than re-deciding what film this is. A continuation that re-rolls the story
- *    would change the film under a director who has already read fifteen scenes
- *    of it, and every scene built against the old registry would then fail its
- *    lock gate. This is the failure mode with no cheap symptom, so it is tested
- *    directly.
+ *    and — on the continuation — REUSE the storyline, the registry and the bible
+ *    verbatim rather than re-deciding what film this is. A continuation that
+ *    re-rolls the story would change the film under a director who has already
+ *    read fifteen scenes of it, and every scene built against the old registry
+ *    would then fail its lock gate. This is the failure mode with no cheap
+ *    symptom, so it is tested directly.
  *
- * 3. THE VOICES ARE LOCKED. Every other consistency axis in this film type is
- *    held by a photograph. A voice is not: it survives thirty separate clips only
- *    because the same words are pasted into every prompt. The registry has to
- *    author one per character and the gate has to catch a scene that drops it.
+ * 4. THE LOCKS ARE PASTED VERBATIM. The character block, the wardrobe and the
+ *    voice all survive thirty separately-generated clips by exactly one
+ *    mechanism: identical words in all thirty. The gate has to catch a scene that
+ *    drops any of them.
  *
  * Vertex is stubbed throughout — this proves the WIRING, not the writing.
  */
@@ -438,73 +453,254 @@ test("the gates do not fire on a legitimate short two-hander", () => {
 // many other times."
 
 const { MANDATORY_PROMPT_RULES } = require_("../functions/optiqStoryX/pipeline.js");
+const { WORD_BUDGETS } = require_("../functions/optiqStoryX/index.js");
 const { sceneViolations } = require_("../functions/optiqStoryX/agentTools.js");
 
-test("the prompt rules spend the budget on talk and action, not on faces", () => {
+test("the prompt rules demand a full description, because nothing is attached", () => {
   const r = MANDATORY_PROMPT_RULES;
-  assert(/IDENTIFY PEOPLE, DO NOT DESCRIBE THEM/.test(r), "rule 2 must forbid describing people");
-  assert(/NO face\. NO complexion\. NO build\. NO hair\./.test(r), "it must be explicit about what is banned");
-  assert(/THE SETTING IS ONE LINE/.test(r), "the room must not be inventoried");
-  assert(/DIALOGUE IS THE BIGGEST BLOCK ON THE PAGE/.test(r), "dialogue must be the priority");
-  assert(/THE FRAMES ARE RIGHT/.test(r), "the pictures must win a disagreement");
-  // And the old rules that caused it are gone.
-  assert(!/the word "Gambian" and specific Gambian setting details/i.test(r), "the Gambian-ladder rule must be gone");
-  assert(
-    !/Locked Character Block \(\d+–\d+ words per character/.test(r),
-    "the 150-200 word character block requirement must be gone"
-  );
+  // THE INVERSION. Every one of these assertions is the opposite of what this
+  // test asserted while the film was photographed, and that is the point: a
+  // prompt written to the old rules and rendered under the new system produces a
+  // film with a different cast in every scene.
+  assert(/THIS PROMPT IS THE ENTIRE FILM\. NOTHING IS ATTACHED TO IT\./.test(r), "rule 0 must say nothing is attached");
+  assert(/DESCRIBE EVERY PERSON COMPLETELY/.test(r), "rule 2 must demand the full description");
+  assert(/THEN THE WARDROBE, SEPARATELY/.test(r), "wardrobe must have its own budget, or it gets cut first");
+  assert(/PASTE IT VERBATIM/.test(r), "the location block must be pasted, not re-worded");
+  assert(/DIALOGUE IS THE BIGGEST BLOCK ON THE PAGE/.test(r), "dialogue is still the priority");
+  assert(new RegExp(`${WORD_BUDGETS.perCharacterMin}.${WORD_BUDGETS.perCharacterMax} WORDS EACH`).test(r), "the per-character budget must be stated");
+  assert(new RegExp(`${WORD_BUDGETS.backgroundMax} FOR ANYWHERE COMPLICATED`).test(r), "complex places must get the top of the range");
+
+  // And the photographed-era rules that would now break the film are GONE.
+  assert(!/IDENTIFY PEOPLE, DO NOT DESCRIBE THEM/.test(r), "the do-not-describe rule must be gone");
+  assert(!/NO face\. NO complexion\. NO build\. NO hair\./.test(r), "the banned-appearance list must be gone");
+  assert(!/THE SETTING IS ONE LINE/.test(r), "the one-line setting rule must be gone");
+  assert(!/THE FRAMES ARE RIGHT/.test(r), "there are no frames to be right");
 });
 
-test("the agent no longer polices appearance, and does police what matters", () => {
+test("the word budgets are the ones the director asked for", () => {
+  // These numbers ARE the consistency mechanism on a film type with no pictures,
+  // so they are pinned rather than left to drift with an edit to index.js.
+  assert(WORD_BUDGETS.scenePromptMin === 2500 && WORD_BUDGETS.scenePromptMax === 3000, "scene prompts are 2,500–3,000");
+  assert(WORD_BUDGETS.perCharacterMin === 150 && WORD_BUDGETS.perCharacterMax === 250, "150–250 words per character");
+  assert(WORD_BUDGETS.wardrobeMin >= 90 && WORD_BUDGETS.wardrobeMax <= 120, "~100 words of wardrobe, budgeted apart");
+  assert(WORD_BUDGETS.backgroundMax === 700, "700 words on a complicated place");
+  // A hard floor above the OLD target, so nothing written for the photographed
+  // pipeline can pass this gate by accident.
+  assert(WORD_BUDGETS.scenePromptHardFloor > 2000, "the floor must sit above the old 2,000-word ceiling");
+});
+
+test("the agent polices the locks, and no longer polices them away", () => {
+  const LCB = "AWA — a Black Gambian woman in her late thirties with golden-brown skin, a square jaw and short natural hair.";
+  const WARDROBE = "A TEAL wax-print wrapper, knotted at the left hip, over a plain white cotton vest.";
+  const VOICE = "Smoky, unhurried, mocking hum at the end of sentences.";
   const project = {
     musicSpec: "",
-    blueprint: { registry: { characters: [{ name: "Kaddy", voice: "Smoky, unhurried, mocking hum at the end of sentences." }] } },
+    blueprint: { registry: { characters: [{ name: "Awa", lcb: LCB, wardrobe: WARDROBE, voice: VOICE }] } },
   };
-  // A prompt that does it RIGHT: identification only, packed with talk.
+
+  // A prompt that does it RIGHT: every lock pasted verbatim, packed with talk.
   const good = {
     sceneNumber: 4,
     dialogue: [
-      "KADDY: You went in.",
+      "AWA: You went in.",
       "MODOU: I went nowhere.",
-      "KADDY: The box is empty.",
+      "AWA: The box is empty.",
       "MODOU: Then it was empty.",
-      "KADDY: Do not lie to me twice.",
+      "AWA: Do not lie to me twice.",
     ].join("\n"),
     fullPrompt:
-      "CAST KEY. Kaddy, seated left, green wrapper. Modou, standing in the doorway, grey shirt. " +
-      "DIALOGUE. Kaddy — Smoky, unhurried, mocking hum at the end of sentences. KADDY: You went in. " +
-      "MODOU: I went nowhere. KADDY: The box is empty. MODOU: Then it was empty. KADDY: Do not lie to me twice. " +
+      `${LCB} ${WARDROBE} ` +
+      `DIALOGUE. Awa — ${VOICE} AWA: You went in. ` +
+      "MODOU: I went nowhere. AWA: The box is empty. MODOU: Then it was empty. AWA: Do not lie to me twice. " +
       "ACTION. 0.0s she lifts the lid. 3.0s he steps back. 6.0s she stands. " +
-      "SOUND. Room tone, the lid on wood. NO MUSIC of any kind. CAMERA. Locked wide. " +
-      "authored specific detail about what happens next and how it sounds ".repeat(200),
+      "ABSOLUTE RULES: NO MUSIC of any kind. " +
+      "SOUND. NO MUSIC. Room tone, the lid on wood. CAMERA. Locked wide. " +
+      "authored specific detail about what happens next and how it sounds ".repeat(320) +
+      " CLOSING RESTATEMENT: unscored and musically silent, no music of any kind.",
   };
   const clean = sceneViolations(good, project).violations;
-  assert(
-    !clean.some((v) => /Black|Gambian|Locked Character Block is missing/.test(v)),
-    `the agent must not demand appearance: ${clean.join(" | ")}`
-  );
+  assert(clean.length === 0, `a complete prompt must pass: ${clean.join(" | ")}`);
 
-  // A prompt that PAINTS A PORTRAIT is now the thing that gets flagged.
-  const painted = { ...good, fullPrompt: `${good.fullPrompt} Kaddy has a warm dark-brown complexion and high cheekbones.` };
+  // THE INVERSION. A prompt that names a complexion used to be the thing that
+  // got FLAGGED here. Now it is a prompt that has DROPPED the block.
+  const stripped = { ...good, fullPrompt: good.fullPrompt.replace(LCB, "Awa is in the doorway.") };
   assert(
-    sceneViolations(painted, project).violations.some((v) => /describes how someone LOOKS/.test(v)),
-    "a prompt describing a complexion must be caught"
+    sceneViolations(stripped, project).violations.some((v) => /Locked Character Block is missing/.test(v)),
+    "a prompt that dropped the character block must be caught"
+  );
+  const undressed = { ...good, fullPrompt: good.fullPrompt.replace(WARDROBE, "in her usual clothes.") };
+  assert(
+    sceneViolations(undressed, project).violations.some((v) => /wardrobe lock is missing/.test(v)),
+    "a prompt that paraphrased the wardrobe must be caught — clothes are the first thing a rewrite drops"
+  );
+  assert(
+    !sceneViolations(good, project).violations.some((v) => /describes how someone LOOKS/i.test(v)),
+    "the agent must NOT flag appearance any more — that check belonged to the photographed era"
   );
 
   // And a scene that has gone quiet, or dropped a voice profile.
-  const quiet = { ...good, dialogue: "KADDY: You went in.", fullPrompt: good.fullPrompt };
+  const quiet = { ...good, dialogue: "AWA: You went in." };
   assert(
     sceneViolations(quiet, project).violations.some((v) => /spoken line/.test(v)),
     "a thin scene must be caught"
   );
-  const voiceless = {
-    ...good,
-    fullPrompt: good.fullPrompt.replace("Kaddy — Smoky, unhurried, mocking hum at the end of sentences. ", ""),
-  };
+  const voiceless = { ...good, fullPrompt: good.fullPrompt.replace(VOICE, "") };
   assert(
     sceneViolations(voiceless, project).violations.some((v) => /VOICE PROFILE is missing/.test(v)),
     "a dropped voice profile must be caught"
   );
+
+  // A short prompt is a prompt that left half the world to the model.
+  const thin = { ...good, fullPrompt: `${LCB} ${WARDROBE} ${VOICE} short.` };
+  assert(
+    sceneViolations(thin, project).violations.some((v) => new RegExp(`${WORD_BUDGETS.scenePromptHardFloor}`).test(v)),
+    "a prompt under the hard floor must be caught"
+  );
+});
+
+// ── THE LOCATION BIBLE ──────────────────────────────────────────────────────
+//
+// The module that replaced the shot board. Its whole job is that two clips
+// generated from the same 600 words come back as the same room — so the things
+// worth testing are the ones that silently break that: a thin block, a block that
+// was paraphrased instead of pasted, and two rooms of the same kind that were
+// never told apart.
+
+const {
+  locationBlockText,
+  locationForBeat,
+  locationViolations,
+  blockWordCount,
+  verbatimCoverage,
+  MIN_BLOCK_COVERAGE,
+} = require_("../functions/optiqStoryX/locations.js");
+
+/**
+ * A block that JUST clears the 500-word floor, with all eight sections filled.
+ *
+ * Sized deliberately close to the line: a fixture that clears it by a thousand
+ * words would pass the gate whatever the gate did, and the thin case below —
+ * which is the one worth catching — would never fall under it.
+ */
+function fatLocation(over) {
+  const filler = (label) => `${label} ${"specific authored detail about this room and what is in it ".repeat(6)}`;
+  return {
+    id: "kitchen-day",
+    name: "The kitchen",
+    aliases: ["kitchen"],
+    scenes: [1, 2, 30],
+    timeOfDay: "day",
+    complexity: "simple",
+    shell: filler("Six paces by four, one door to the yard and one window over the sink."),
+    surfaces: filler("Bare cement floor, blue-washed walls scuffed at chair height."),
+    light: filler("Hard daylight through the yard door, the far corner in shadow."),
+    fixtures: filler("A wooden table centre, two stools, a gas ring on a shelf."),
+    dressing: filler("A dented rice tin on the shelf, a plastic kettle, a torn calendar."),
+    geography: filler("The near stool faces the door; the far stool has its back to the window."),
+    backgroundLife: filler("Nobody else; a neighbour crosses the yard beyond the door."),
+    sound: filler("The fridge hum, the yard beyond, distant traffic."),
+    distinctFrom: "Nothing else in this film resembles this place.",
+    ...over,
+  };
+}
+
+test("a location block is composed in the fixed order, every time", () => {
+  const text = locationBlockText(fatLocation());
+  const order = ["THE SHELL", "THE SURFACES", "THE LIGHT", "THE FIXED FURNITURE", "THE DRESSING", "THE SEATING", "THE BACKGROUND LIFE", "THE SOUND OF THE PLACE"];
+  let at = -1;
+  for (const label of order) {
+    const found = text.indexOf(label);
+    assert(found > at, `${label} is out of order or missing in the composed block`);
+    at = found;
+  }
+  assert(/WHICH PLACE THIS IS NOT/.test(text), "the separation clause must ride in the block");
+  assert(blockWordCount(fatLocation()) >= 500, "a composed block must clear the budget");
+});
+
+test("the bible gate catches a thin block, an orphan scene and an unfilled section", () => {
+  const storyline = { sceneBeats: [{ sceneNumber: 1, location: "the kitchen", charactersPresent: ["Awa"] }] };
+
+  assert(locationViolations({ locations: [fatLocation()] }, storyline).length === 0, "a complete bible must pass");
+
+  const thin = locationViolations(
+    { locations: [fatLocation({ shell: "A kitchen.", surfaces: "Cement.", light: "Daylight." })] },
+    storyline
+  );
+  assert(thin.some((v) => /words — a simple place owes/.test(v)), "a short block must be caught");
+  assert(thin.some((v) => /empty or one-line section/.test(v)), "a one-line section must be caught");
+
+  // A COMPLEX place owes 700 even when the same block would have cleared a
+  // simple one. This is the whole point of the distinction — a bank has dozens
+  // of independently-invented details and a bedroom does not.
+  const bank = locationViolations(
+    { locations: [fatLocation({ id: "bank", name: "The bank", aliases: ["the bank"], scenes: [1] })] },
+    { sceneBeats: [{ sceneNumber: 1, location: "the bank" }] }
+  );
+  assert(bank.some((v) => /a COMPLEX place owes 700/.test(v)), "a bank on the simple budget must be caught");
+
+  const orphan = locationViolations(
+    { locations: [fatLocation({ name: "The yard", aliases: [], scenes: [9] })] },
+    storyline
+  );
+  assert(orphan.some((v) => /have no location block/.test(v)), "a scene with no room must be caught");
+
+  const geoThin = locationViolations({ locations: [fatLocation({ geography: "Two stools and a table." })] }, storyline);
+  assert(geoThin.some((v) => /SEATING AND STANDING GEOGRAPHY/.test(v)), "a thin geography must be caught by name");
+});
+
+test("two rooms of the same kind must be told apart, or the film loses its geography", () => {
+  // THE failure this module exists for, after drift itself: a bible that calls
+  // both offices "a small office" has written ONE office.
+  const storyline = {
+    sceneBeats: [
+      { sceneNumber: 1, location: "the branch office" },
+      { sceneNumber: 2, location: "the head office" },
+    ],
+  };
+  const blurred = {
+    locations: [
+      fatLocation({ id: "branch-office", name: "The branch office", aliases: ["branch office"], scenes: [1], distinctFrom: "Nothing else resembles it." }),
+      fatLocation({ id: "head-office", name: "The head office", aliases: ["head office"], scenes: [2], distinctFrom: "Nothing else resembles it." }),
+    ],
+  };
+  const faults = locationViolations(blurred, storyline);
+  assert(faults.some((v) => /places of the same kind/.test(v)), "two offices that never name each other must be caught");
+
+  const separated = {
+    locations: [
+      fatLocation({ id: "branch-office", name: "The branch office", aliases: ["branch office"], scenes: [1], distinctFrom: "This is NOT the head office in scene 2 — that one is square and sunlit; this one is narrow and fluorescent-lit." }),
+      fatLocation({ id: "head-office", name: "The head office", aliases: ["head office"], scenes: [2], distinctFrom: "This is NOT the branch office in scene 1 — that one is narrow and fluorescent-lit; this one is square, sunlit and dominated by a dark wooden cabinet." }),
+    ],
+  };
+  assert(
+    !locationViolations(separated, storyline).some((v) => /places of the same kind/.test(v)),
+    "naming the sibling must satisfy the separation rule"
+  );
+});
+
+test("a location block that names the cast would walk them into scenes they are not in", () => {
+  const storyline = { sceneBeats: [{ sceneNumber: 1, location: "the kitchen", charactersPresent: ["Awa", "Ndey"] }] };
+  const contaminated = { locations: [fatLocation({ backgroundLife: `Awa is usually at the far stool. ${"and other people cross the yard beyond the door ".repeat(14)}` })] };
+  assert(
+    locationViolations(contaminated, storyline).some((v) => /from the cast/.test(v)),
+    "a character named in a location block must be caught"
+  );
+});
+
+test("a scene is matched to its block by scene list first, then by name", () => {
+  const bible = { locations: [fatLocation({ scenes: [1, 2] })] };
+  assert(locationForBeat(bible, { sceneNumber: 2 })?.id === "kitchen-day", "the designer's own scene list is the authority");
+  // A scene the designer's list missed still finds its room by name or alias.
+  assert(locationForBeat(bible, { sceneNumber: 9, location: "kitchen" })?.id === "kitchen-day", "an alias must match");
+  assert(!locationForBeat(bible, { sceneNumber: 9, location: "the police station" }), "an unrelated place must not match");
+});
+
+test("paraphrasing a block fails the coverage check; pasting it with staging on top does not", () => {
+  const block = locationBlockText(fatLocation());
+  const pasted = `PEOPLE. Awa is on the near stool.\n${block}\nSTAGING. The stool is pulled out and the shutter is closed today.`;
+  assert(verbatimCoverage(pasted, block) === 1, "a verbatim paste with staging around it must score 1");
+  const reworded = block.replace(/room/g, "space").replace(/detail/g, "particular");
+  assert(verbatimCoverage(reworded, block) < MIN_BLOCK_COVERAGE, "a re-worded block must fall under the floor");
 });
 
 // ── THE WIRING ──────────────────────────────────────────────────────────────
@@ -546,20 +742,38 @@ const REGISTRY = {
   styleHeader: "Documentary-real, handheld, honest daylight. Nobody looks at the lens. Dialogue in ENGLISH.",
 };
 
-const WORLD = {
-  environments: [
-    { key: "kitchen", name: "The kitchen", scenes: [1, 2, 30], lock: "A narrow kitchen with a blue-washed wall.", geometry: "Door left, stove right, table centre." },
+/**
+ * The stub's LOCATION BIBLE — what the shot board's WORLD plan used to be.
+ *
+ * Two entries rather than one, and deliberately: the kitchen and the yard exist
+ * so the scene-builder wiring can be checked against a scene that resolves to a
+ * block AND one that resolves to a different block. A single-location bible would
+ * pass the same assertions while proving nothing about the matching.
+ */
+function bibleSection(text) {
+  return `${text} ${"specific authored detail about this place and what is in it ".repeat(14)}`;
+}
+
+const BIBLE = {
+  locations: [
+    {
+      id: "kitchen-day",
+      name: "the kitchen",
+      aliases: ["kitchen", "the compound kitchen"],
+      scenes: Array.from({ length: SCENE_COUNT }, (_, i) => i + 1),
+      timeOfDay: "day",
+      complexity: "simple",
+      shell: bibleSection("Six paces by four, one door to the yard and one window over the sink."),
+      surfaces: bibleSection("Bare cement floor, blue-washed walls scuffed at chair height."),
+      light: bibleSection("Hard daylight through the yard door; the far corner stays in shadow."),
+      fixtures: bibleSection("A wooden table centre, two stools, a gas ring on a shelf."),
+      dressing: bibleSection("A dented rice tin on the shelf, a plastic kettle, a torn calendar."),
+      geography: bibleSection("The near stool faces the door; the far stool has its back to the window."),
+      backgroundLife: bibleSection("Nobody else inside; a neighbour crosses the yard beyond the door."),
+      sound: bibleSection("The fridge hum, the yard beyond, distant traffic."),
+      distinctFrom: "Nothing else in this film resembles this place.",
+    },
   ],
-  settings: [
-    { key: "table-laid", name: "The table, laid", environmentKey: "kitchen", scenes: [1, 2], layout: "Two bowls, the tin behind the pot." },
-  ],
-  objects: [{ key: "tin", name: "The rice tin", scenes: [1, 15, 30], anchor: "A dented aluminium rice tin." }],
-  sceneWorld: Array.from({ length: SCENE_COUNT }, (_, i) => ({
-    sceneNumber: i + 1,
-    environmentKey: "kitchen",
-    settingKeys: ["table-laid"],
-    objectKeys: ["tin"],
-  })),
 };
 
 function skillReply(obj) {
@@ -617,7 +831,7 @@ function stubVertex(captured, { slowScenes = false } = {}) {
     if (/You are the STORY DOCTOR/.test(system)) return skillReply(STORYLINE);
     if (/You are STORYLINE/.test(system)) return skillReply(STORYLINE);
     if (/You are CASTING-REGISTRY/.test(system)) return skillReply(REGISTRY);
-    if (/You are the CONTINUITY SUPERVISOR/.test(system)) return skillReply(WORLD);
+    if (/You are the LOCATION DESIGNER/.test(system)) return skillReply(BIBLE);
     if (/You are a SCENE BUILDER/.test(system)) {
       // Simulates a pass that runs out of clock partway through a long film: each
       // scene "takes" long enough that the budget lapses after a handful.
@@ -666,45 +880,64 @@ await testAsync("wiring: a 300s blueprint is 30 scenes and reports itself done",
   assert(STORY_KIND.dialogueInVideo === true, "the characters speak on camera");
 });
 
-await testAsync("wiring: the blueprint spends NO image quota", async () => {
-  // The gate's whole promise. Every part of every call is text; an inlineData
-  // part would mean a picture was made or attached before the director approved
-  // anything.
+await testAsync("wiring: NO image is made, planned, or attached, anywhere", async () => {
+  // Every part of every call is text; an inlineData part would mean a picture was
+  // made or attached at some point in this pipeline.
   for (const { parts } of captured) {
     assert(
       parts.every((p) => p.text !== undefined && p.inlineData === undefined),
       "an image rode along with a blueprint skill call"
     );
   }
-  // And the cast sheets are PLANNED, not photographed: named, scened, no url.
-  assert(film.characterRefs.length >= 2, `${film.characterRefs.length} sheets planned`);
-  for (const ref of film.characterRefs) {
-    assert(!!ref.name, "a planned sheet has no name");
-    assert(!ref.url && !ref.path, `${ref.name}'s sheet was photographed during the blueprint`);
-  }
+  // And the cast sheets are not merely un-photographed, they are not PLANNED.
+  // This used to assert the opposite — that two sheets were planned with no
+  // bytes behind them, ready for the board to photograph in stage 2. There is no
+  // stage 2, so a planned sheet is a promise nothing will keep.
+  assert(
+    Array.isArray(film.characterRefs) && film.characterRefs.length === 0,
+    `characterRefs must be empty, got ${JSON.stringify(film.characterRefs)}`
+  );
 });
 
-await testAsync("wiring: no scene builder is handed a reference image or a reference clause", async () => {
+await testAsync("wiring: every builder is told nothing is attached, and handed its room", async () => {
   const builders = captured.filter(({ system }) => /You are a SCENE BUILDER/.test(system));
   assert(builders.length === SCENE_COUNT, `${builders.length} scene builders ran`);
+  const block = locationBlockText(BIBLE.locations[0]);
   for (const b of builders) {
     assert(!/ATTACHED CHARACTER REFERENCE/.test(b.all), "a builder was told a reference was attached when none is");
     assert(
-      /NO REFERENCE IMAGE IS ATTACHED TO YOU/.test(b.system),
-      "a builder must be told it is writing the source the pictures come FROM"
+      /NOTHING IS ATTACHED TO THIS PROMPT/.test(b.system),
+      "a builder must be told the words are the whole film"
     );
+    // THE LOCATION BLOCK RIDES WITH THE INSTRUCTION TO PASTE IT. One without the
+    // other is how a scene ends up re-inventing a room the bible already wrote.
+    assert(/PASTE IT VERBATIM/.test(b.system), "a builder must be told to paste its location block");
+    assert(b.system.includes(block), "a builder was not handed its actual location block");
+    assert(/DO NOT RE-DESCRIBE THE WALLS/.test(b.system), "a builder must be told to stage, not re-describe");
   }
 });
 
-await testAsync("wiring: the world is designed, and it is what stage 2 photographs", async () => {
-  assert(film.world, "the blueprint must carry a world plan");
-  assert((film.world.environments || []).length > 0, "the world has no places");
-  assert((film.world.sceneWorld || []).length === SCENE_COUNT, "every scene must be mapped to a place");
-  const designer = captured.find(({ system }) => /You are the CONTINUITY SUPERVISOR/.test(system));
-  assert(designer, "the world designer never ran");
-  // It designs from the FINISHED scenes, which is why it runs at the end of the
-  // blueprint rather than at the start of the board.
-  assert(/SCENE 30/.test(designer.userText), "the world designer did not see the whole film");
+await testAsync("wiring: the location bible is written BEFORE the builders that paste it", async () => {
+  assert(film.locations, "the blueprint must carry a location bible");
+  assert((film.locations.locations || []).length > 0, "the bible has no places");
+  assert(!film.world, "the shot board's world plan must be gone");
+
+  const designerAt = captured.findIndex(({ system }) => /You are the LOCATION DESIGNER/.test(system));
+  const firstBuilderAt = captured.findIndex(({ system }) => /You are a SCENE BUILDER/.test(system));
+  assert(designerAt >= 0, "the location designer never ran");
+  // ORDER IS LOAD-BEARING, and it is the one thing that changed structurally when
+  // this replaced the world pass: the world plan ran at the END of the blueprint
+  // because the board consumed it in a later stage. The bible must run BEFORE the
+  // builders, because the builders paste what it writes.
+  assert(
+    designerAt < firstBuilderAt,
+    `the location designer ran at ${designerAt}, after the first builder at ${firstBuilderAt}`
+  );
+
+  // It designs from the STORYLINE's places, so it must have seen them all.
+  const designer = captured[designerAt];
+  assert(/scene\(s\)/.test(designer.userText), "the designer was not shown which scenes are where");
+  assert(/two places of the same kind/.test(designer.userText), "the designer was not reminded of the separation rule");
 });
 
 await testAsync("wiring: every character gets a locked VOICE, and the scenes paste it", async () => {
@@ -716,8 +949,8 @@ await testAsync("wiring: every character gets a locked VOICE, and the scenes pas
     "a builder was not told to paste the voice profile"
   );
   assert(
-    /NOTHING will hold the voices still/.test(builder.system),
-    "a builder was not told WHY the voice lock is the one that matters here"
+    /nothing is attached to this film/i.test(builder.system),
+    "a builder was not told WHY every lock has to be pasted verbatim"
   );
   // The gate ran and did not fire: every scene with dialogue pasted the voice.
   for (const scene of film.scenes) {
@@ -852,12 +1085,16 @@ const finished = await runOptiqStoryXBlueprint({
   length: "300s",
   aspectRatio: "16:9",
   castingSeed: "storyx-test-1",
+  // Exactly the shape functions/index.js hands a continuation — see the
+  // storyXBlueprint trigger. FOUR things are carried, not three: the bible joined
+  // the spine when it replaced the world plan, because a pass that re-designs the
+  // rooms puts scenes 16–30 somewhere other than scenes 1–15.
   previous: {
     brief: partial.brief,
     storyline: partial.storyline,
     registry: partial.registry,
     scenes: partial.scenes,
-    world: partial.world,
+    locations: partial.locations,
   },
 });
 
@@ -869,9 +1106,24 @@ await testAsync("the continuation finishes the film without re-deciding what it 
   // film from the one pass 1 wrote fifteen scenes of — and every reused scene
   // would then fail its lock gate against a registry it was not built from.
   const rerolled = continueCaptured.filter(({ system }) =>
-    /You are STORYLINE|You are CASTING-REGISTRY|You are the PREMISE ANALYST|THE CONCEPT ROOM/.test(system)
+    /You are STORYLINE|You are CASTING-REGISTRY|You are the PREMISE ANALYST|THE CONCEPT ROOM|You are the LOCATION DESIGNER/.test(system)
   );
   assert(rerolled.length === 0, `the continuation re-ran ${rerolled.length} spine skill(s)`);
+
+  // THE BIBLE IS PART OF THE SPINE NOW. Same failure, one layer down: a second
+  // pass that re-designed the locations would build scenes 12–30 in different
+  // rooms from the eleven already written, and nothing downstream would notice
+  // until the clips came back.
+  assert(
+    finished.locations === partial.locations,
+    "the continuation did not reuse the location bible verbatim"
+  );
+  const block = locationBlockText(BIBLE.locations[0]);
+  const lateBuilders = continueCaptured.filter(({ system }) => /You are a SCENE BUILDER/.test(system));
+  assert(lateBuilders.length > 0, "the continuation built no scenes");
+  for (const b of lateBuilders) {
+    assert(b.system.includes(block), "a continuation builder was handed a different room");
+  }
 
   // And it only built what was missing.
   const rebuilt = continueCaptured

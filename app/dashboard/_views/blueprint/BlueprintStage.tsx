@@ -1,17 +1,19 @@
 "use client";
 
-// BlueprintStage — gate 1 of the experimental original story.
+// BlueprintStage — THE gate of the experimental original story.
 //
 // This is the screen the whole film type exists around. Every other kind of film
 // on this platform runs from brief to finished cut without stopping; this one
-// writes its script, its cast, its voices and its world as TEXT ONLY, and then
-// waits here until the director says go.
+// writes its script, its cast, its voices and its locations as TEXT ONLY, and
+// then waits here until the director says go.
 //
-// Which makes this the last free moment. Everything after it costs: the board is
-// a hundred-odd pictures, the render is thirty clips. So the screen's whole job
-// is to make a five-minute film READABLE before it is bought — the shape of the
-// story at a glance, every scene's full script when you want it, the cast with
-// their locked voices, and the world it will be photographed in.
+// Which makes this the last free moment — and now the ONLY one. There used to be
+// a second gate after it, where the director approved a board of photographs
+// before the clips were bought; nothing is photographed any more, so the clips
+// are the whole spend and this screen is what stands in front of them. Its job is
+// to make a five-minute film READABLE before it is bought: the shape of the story
+// at a glance, every scene's full script when you want it, the cast with their
+// locked voices, and the location bible every scene is written from.
 //
 // The agent lives on the same screen rather than behind a link, because a
 // director who has just read scene 19 and does not like it should be able to say
@@ -21,29 +23,36 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Box,
-  Camera,
   ChevronDown,
   ChevronRight,
+  Clapperboard,
   MapPin,
   MessageSquare,
   Users,
 } from "lucide-react";
 import { useEditorFlow } from "../../_flow/EditorFlowProvider";
-import { Scene, ShotBoardEnvironment, ShotBoardObject, ShotBoardSetting } from "../../_flow/types";
-
-/** Roughly how long the board takes, so "Continue" is an honest promise. */
-function boardEstimate(sceneCount: number): string {
-  // ~3 setups a scene plus the world's own plates, against an 8/minute image cap.
-  const pictures = Math.round(sceneCount * 3.2 + 24);
-  const minutes = Math.max(5, Math.round(pictures / 8));
-  return `about ${pictures} pictures, roughly ${minutes} minutes`;
-}
+import { LocationBlock, Scene } from "../../_flow/types";
 
 function words(text?: string): number {
   const t = String(text || "").trim();
   return t ? t.split(/\s+/).length : 0;
 }
+
+/**
+ * The eight sections of a location block, in the fixed order the server composes
+ * them in — see BLOCK_SECTIONS in functions/optiqStoryX/locations.js. Same order
+ * here so the director reads the block the way the video model receives it.
+ */
+const LOCATION_SECTIONS: [keyof LocationBlock & string, string][] = [
+  ["shell", "The shell"],
+  ["surfaces", "Surfaces"],
+  ["light", "Light"],
+  ["fixtures", "Fixed furniture"],
+  ["dressing", "Dressing"],
+  ["geography", "Where people sit and stand"],
+  ["backgroundLife", "Background life"],
+  ["sound", "Sound of the place"],
+];
 
 /** The obligation a scene serves, as a short chip. */
 const ACT_LABELS: Record<string, string> = {
@@ -64,9 +73,8 @@ export default function BlueprintStage() {
     projectLink,
     aspectRatio,
     length,
-    continueToBoard,
-    shotBoardStage,
-    shotBoardBusy,
+    locations,
+    approveBlueprint,
     copyToClipboard,
     copiedIndex,
   } = useEditorFlow();
@@ -77,19 +85,15 @@ export default function BlueprintStage() {
   const scenes: Scene[] = useMemo(() => storyboard?.scenes ?? [], [storyboard]);
 
   const [openScene, setOpenScene] = useState<number | null>(null);
+  const [openLocation, setOpenLocation] = useState<string | null>(null);
   const [showWorld, setShowWorld] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  const world = (project?.shotBoard?.world ?? null) as {
-    environments?: ShotBoardEnvironment[];
-    settings?: ShotBoardSetting[];
-    objects?: ShotBoardObject[];
-  } | null;
-
-  // The registry's own characters, not `project.characterRefs` — the refs are
-  // only the sheet PLAN (name + which scenes), and what is worth reading at this
-  // gate is the locked VOICE. A face is a picture problem and the board solves
-  // it; a voice only survives thirty clips because these words repeat in each.
+  // The registry's cast. Every lock on them is worth reading here, because this
+  // is the last moment they are free to change: nothing is attached to a render
+  // on this film type, so these words ARE the people, and a voice that reads like
+  // another character's voice is two characters who will sound the same in
+  // thirty separately-generated clips.
   const registryCast = (project?.blueprint?.registry?.characters ?? []) as {
     name?: string;
     role?: string;
@@ -104,19 +108,22 @@ export default function BlueprintStage() {
     [scenes]
   );
 
+  // Approving moves the pipeline stage to "ready", which is what lets the
+  // workspace past this screen — see approveBlueprint in EditorFlowProvider. No
+  // navigation needed: the same route re-renders as the script/timeline once the
+  // stage lands.
   const onContinue = async () => {
     setStarting(true);
     try {
-      await continueToBoard();
-      router.push(projectLink("board"));
+      await approveBlueprint();
     } finally {
       setStarting(false);
     }
   };
 
-  // Already photographed (or photographing): the gate has been passed and this
-  // screen becomes a way back to the board rather than a way forward to it.
-  const boardStarted = !!shotBoardStage;
+  /** What a scene render costs × how many, so "Continue" is an honest promise. */
+  const renderEstimate = (sceneCount: number) =>
+    `${sceneCount} clip${sceneCount === 1 ? "" : "s"} of ${10}s`;
 
   return (
     <div className="h-dvh overflow-y-auto bg-background text-foreground">
@@ -158,11 +165,11 @@ export default function BlueprintStage() {
         )}
 
         {/* ── THE CAST, AND THEIR VOICES ──
-            Voices get their own section because they are the one consistency the
-            photographs cannot hold: a face survives thirty clips because thirty
-            stills say what it looks like, a voice only because every prompt
-            repeats the same words about it. If two of these read alike, that is
-            worth catching HERE. */}
+            Nothing is attached to a render on this film type, so every one of
+            these locks — the face, the clothes, the voice — survives thirty
+            separate clips only because the identical words are pasted into all
+            thirty. If two of these read alike, that is two characters who will
+            come out alike, and HERE is where it is free to fix. */}
         {registryCast.length > 0 && (
           <section className="mt-4 rounded-[28px] border border-line bg-surface p-4">
             <div className="flex items-center gap-1.5">
@@ -191,10 +198,15 @@ export default function BlueprintStage() {
           </section>
         )}
 
-        {/* ── THE WORLD ──
-            What the board will photograph. Collapsed by default: it is the plan
-            rather than the film, and it matters most when something is wrong. */}
-        {world && (world.environments?.length || world.settings?.length || world.objects?.length) ? (
+        {/* ── THE LOCATION BIBLE ──
+            Every place in the film, written once and pasted verbatim into every
+            scene set there — the thing that stops a room drifting between clips
+            now that nothing is photographed. Collapsed by default because it is
+            hundreds of words per place, and expandable because when a room DOES
+            come out wrong, this paragraph is the reason and this is where it is
+            read. Two rooms of the same kind reading alike is the failure worth
+            catching here. */}
+        {locations.length > 0 && (
           <section className="mt-4 rounded-[28px] border border-line bg-surface">
             <button
               onClick={() => setShowWorld((v) => !v)}
@@ -203,52 +215,71 @@ export default function BlueprintStage() {
               <span className="flex items-center gap-1.5">
                 <MapPin size={12} className="text-muted" />
                 <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
-                  The world to be photographed
+                  The location bible
                 </span>
               </span>
               <span className="flex items-center gap-2 text-[11px] tabular-nums text-muted">
-                {world.environments?.length ?? 0} places · {world.settings?.length ?? 0} arrangements ·{" "}
-                {world.objects?.length ?? 0} objects
+                {locations.length} place{locations.length === 1 ? "" : "s"}
                 {showWorld ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </span>
             </button>
             {showWorld && (
-              <div className="space-y-4 border-t border-line p-4">
-                {[
-                  { icon: MapPin, label: "Places", items: world.environments ?? [] },
-                  { icon: Camera, label: "Arrangements", items: world.settings ?? [] },
-                  { icon: Box, label: "Objects", items: world.objects ?? [] },
-                ].map(({ icon: Icon, label, items }) =>
-                  items.length === 0 ? null : (
-                    <div key={label}>
-                      <div className="flex items-center gap-1.5">
-                        <Icon size={11} className="text-muted" />
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-muted">{label}</span>
-                      </div>
-                      <ul className="mt-1.5 space-y-1">
-                        {items.map((item) => (
-                          <li key={item.key} className="text-[11px] leading-relaxed text-ink-2">
-                            <span className="font-bold">{item.name}</span>
-                            {(item.scenes?.length ?? 0) > 0 && (
-                              <span className="ml-1.5 tabular-nums text-faint">
-                                sc. {item.scenes!.join(", ")}
+              <div className="border-t border-line">
+                {locations.map((loc) => {
+                  const open = openLocation === loc.id;
+                  return (
+                    <div key={loc.id} className="border-b border-line last:border-0">
+                      <button
+                        onClick={() => setOpenLocation(open ? null : loc.id)}
+                        className="flex w-full items-start justify-between gap-3 p-4 text-left"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="text-xs font-bold">{loc.name}</span>
+                            {loc.timeOfDay && <span className="text-[11px] text-muted">{loc.timeOfDay}</span>}
+                            {loc.complexity === "complex" && (
+                              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink-2">
+                                Complex
                               </span>
                             )}
-                            {(item.states?.length ?? 0) > 1 && (
-                              <span className="ml-1.5 text-faint">
-                                · {item.states!.length} states
+                          </span>
+                          {(loc.scenes?.length ?? 0) > 0 && (
+                            <span className="mt-1 block text-[10px] tabular-nums text-faint">
+                              sc. {loc.scenes!.join(", ")}
+                            </span>
+                          )}
+                        </span>
+                        {open ? <ChevronDown size={12} className="mt-0.5 shrink-0 text-muted" /> : <ChevronRight size={12} className="mt-0.5 shrink-0 text-muted" />}
+                      </button>
+                      {open && (
+                        <div className="space-y-3 px-4 pb-4">
+                          {LOCATION_SECTIONS.map(([field, label]) =>
+                            loc[field] ? (
+                              <div key={field}>
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
+                                  {label}
+                                </span>
+                                <p className="mt-1 text-[11px] leading-relaxed text-ink-2">{loc[field]}</p>
+                              </div>
+                            ) : null
+                          )}
+                          {loc.distinctFrom && (
+                            <div>
+                              <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
+                                Which place this is not
                               </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                              <p className="mt-1 text-[11px] leading-relaxed text-muted">{loc.distinctFrom}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )
-                )}
+                  );
+                })}
               </div>
             )}
           </section>
-        ) : null}
+        )}
 
         {/* ── EVERY SCENE ──
             One row each, expanding to the full script. Collapsed by default
@@ -347,18 +378,17 @@ export default function BlueprintStage() {
           </button>
 
           <div className="min-w-0 flex-1 text-[11px] leading-snug text-muted">
-            {boardStarted
-              ? "This film has already been photographed."
-              : `Next: photograph every scene — ${boardEstimate(scenes.length)}. Nothing renders until you approve the board.`}
+            Next: render the film — {renderEstimate(scenes.length)}. This is the
+            step that spends.
           </div>
 
           <button
-            onClick={boardStarted ? () => router.push(projectLink("board")) : onContinue}
-            disabled={starting || shotBoardBusy || scenes.length === 0}
+            onClick={onContinue}
+            disabled={starting || scenes.length === 0}
             className="flex items-center gap-1.5 rounded-2xl bg-foreground px-5 py-2.5 text-xs font-bold text-background transition-all hover:bg-ink-2 disabled:opacity-40"
           >
-            <Camera size={12} />
-            {boardStarted ? "Open the board" : starting || shotBoardBusy ? "Starting…" : "Photograph the film"}
+            <Clapperboard size={12} />
+            {starting ? "Starting…" : "Render the film"}
             <ArrowRight size={12} />
           </button>
         </div>

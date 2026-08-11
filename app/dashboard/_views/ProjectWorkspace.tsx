@@ -49,7 +49,7 @@ export default function ProjectWorkspace() {
     // The ad's shape. Every preview box below is cut to it, so a vertical ad
     // previews vertical instead of sitting letterboxed in a 16:9 frame.
     aspectRatio,
-    isBoardFilm, shotBoardStage,
+    isGatedFilm,
   } = useEditorFlow();
   const { profile, pricing } = useAuth();
   const isMobile = useIsMobile();
@@ -96,11 +96,11 @@ export default function ProjectWorkspace() {
     storylining: "Writing your storyline…",
     casting: "Casting characters & locking consistency…",
     building: "Building your scenes…",
-    worldbuilding: "Planning the world this film is photographed in…",
+    locations: "Writing the location bible — every place, once, in full…",
   };
   const isCloudGenerating =
     generating ||
-    ["queued", "analyzing", "storylining", "casting", "building", "worldbuilding"].includes(pipelineStage || "");
+    ["queued", "analyzing", "storylining", "casting", "locations", "building"].includes(pipelineStage || "");
   const stageLabel = STAGE_LABELS[pipelineStage || ""] || "Optiq Skills are writing your story…";
 
   const resetDraft = () => {
@@ -146,17 +146,17 @@ export default function ProjectWorkspace() {
   // The way into the storyline agent now lives in WorkspaceModeBar alongside
   // the other two faces, so this face-local button is gone.
 
-  // ── GATE 1 — THE BLUEPRINT (experimental original story only) ───────────
+  // ── THE GATE — THE BLUEPRINT (experimental original story only) ─────────
   //
   // This film type does not open into the script editor. It stops on a screen
-  // built for READING a five-minute film before paying to photograph it, and it
-  // stays there until the director presses Continue. Once the board exists the
-  // gate is behind them and the workspace behaves normally again.
+  // built for READING a five-minute film before paying to render it, and it
+  // stays there until the director presses Continue — which moves the stage to
+  // "ready", after which the workspace behaves normally.
   //
   // Checked before the !storyboard branch below on purpose: "blueprint-ready" is
   // a terminal stage with scenes attached, so falling through would show the
   // ordinary script editor and quietly skip the gate.
-  if (isBoardFilm && storyboard && pipelineStage === "blueprint-ready" && !shotBoardStage) {
+  if (isGatedFilm && storyboard && pipelineStage === "blueprint-ready") {
     return <BlueprintStage />;
   }
 

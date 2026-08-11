@@ -1,29 +1,66 @@
 // ─── OPTIQ STORY X — THE AGENTIC LONG-FORM SWARM ────────────────────────────
 //
 // THE EXPERIMENTAL STORY SANDBOX'S PIPELINE. A complete, independent twin of
-// functions/optiqStory/pipeline.js, for long-form films that are PHOTOGRAPHED
-// before they are filmed.
+// functions/optiqStory/pipeline.js, for long-form films rendered PURELY FROM
+// TEXT.
 //
 // It shares no code with the other three boxes on purpose. The ad pipeline is the
 // one that earns, it works, and nothing in this file may ever be able to change
 // how it behaves. Where they look alike, that is a deliberate copy, not a shared
 // dependency — they are free to diverge and they will.
 //
+// ════════════════════════════════════════════════════════════════════════════
+// THIS FILM TYPE USED TO BE PHOTOGRAPHED. IT IS NOT ANY MORE.
+// ════════════════════════════════════════════════════════════════════════════
+//
+// It built a hundred-plus stills first — place, arrangement, object, frame, each
+// tier generated from the picture of the tier above — plus a character reference
+// sheet per lead, and those frames were the only thing the video model was shown.
+// ./shotBoard.js, ./characterRefs.js and functions/shotBoardRun.js still contain
+// all of that and NOTHING IN THIS FILE CALLS ANY OF IT. Do not wire them back in
+// without reading this note.
+//
+// Three failures ended it, and the third is the one that made it unarguable:
+//
+//   COST. A thirty-scene film is 100+ images against an 8-per-minute quota:
+//   twenty-odd minutes and several resumable passes before a second of video.
+//
+//   RIGIDITY. "Move the desk" was not a prompt edit; it was a re-photograph of a
+//   tier and everything generated beneath it.
+//
+//   THE CLASSIFIER, WHICH IS THE REAL ONE. Attach a photorealistic picture of a
+//   specific person to a render, then ask for that person in a cell, in
+//   handcuffs, under arrest, cornered or accused — and the request reads as a
+//   real, identifiable human being placed in a defamatory situation. It reads
+//   that way because that is what it would be if the face were real, and the
+//   model has no way to know the face was itself generated. So it refuses, and it
+//   refuses SILENTLY: the clip comes back empty or bland and the money is gone.
+//   Described in words instead, the identical scene renders — there is no
+//   identifiable person in the request, only a character. Every story with teeth
+//   in it was unfilmable image-to-video and is filmable text-to-video.
+//
+// WHAT REPLACED THEM: DENSITY, AND ONE NEW SKILL.
+//
+// Nothing but the prompt holds the look still now, so the prompt got much longer
+// — 2,500–3,000 words, of which 150–250 describe each character's face and body,
+// ~100 lock their clothes, and 500–700 describe the place. See WORD_BUDGETS in
+// ./index.js; those ratios ARE the consistency mechanism, not a style preference.
+//
+// And the one thing a plate did genuinely well — holding a room still across
+// twelve separately-generated clips — is done by the LOCATION BIBLE
+// (./locations.js): every place written once at full density and pasted VERBATIM
+// into every scene set there. Identical words, identical rooms.
+//
 // WHAT THIS PIPELINE PRODUCES, AND WHAT IT DELIBERATELY DOES NOT
 //
-// It produces THE BLUEPRINT: the storyline, the cast registry, the world plan and
-// every scene's full 1,500–2,000-word script. Then it STOPS. It renders no
+// It produces THE BLUEPRINT: the storyline, the cast registry, the location bible
+// and every scene's full 2,500–3,000-word prompt. Then it STOPS. It renders no
 // pictures and no video, and the film sits at `blueprint-ready` until the
 // director reads it and presses Continue.
 //
-// That is the point of this film type. At 30 scenes the board is 100+ images and
-// the clips are the whole budget, so the two expensive stages are gated behind a
-// human who has read what they are about to buy. The board is stage 2
-// (functions/shotBoardRun.js) and the render is stage 3.
-//
-// It also renders NO character reference sheets on its own. The sheets exist here
-// only as inputs to the board's frames, so they are spent in stage 2 where the
-// frames are, not in a stage the director might never continue past.
+// One gate now, not two. The board gate went with the board; the clips are the
+// whole budget and they are what the director is approving. Everything before
+// Continue costs tokens and nothing else.
 //
 // The swarm, and how it differs from the ad swarm at each stage:
 //
@@ -40,13 +77,20 @@
 //                         obligation it serves so the structure is checkable.
 //                         (Ad version: hook → the offering enters → proof →
 //                         payoff → brand.)
-//   4. casting-registry — the consistency registry: Locked Character Blocks,
-//                         wardrobe locks, story ELEMENTS (never products),
-//                         recurring set blocks, the locked unscored sound spec,
-//                         the style header.
-//   5. scene-builder ×N — every scene's 1,500–2,000 word copy-ready prompt, in
-//                         parallel, with the registry embedded verbatim.
-//   6. quality gates    — JS-enforced: word count, verbatim locks, sound spec,
+//   4. casting-registry — the consistency registry: Locked Character Blocks at
+//                         150–250 words of face and body, a SEPARATE ~100-word
+//                         wardrobe lock, story ELEMENTS (never products),
+//                         the locked unscored sound spec, the style header.
+//   5. location-designer— NEW, AND THIS SANDBOX ONLY. The film's whole location
+//                         bible: every place written once at 500–700 words in a
+//                         fixed eight-section order, for every scene set there to
+//                         paste verbatim. Runs BEFORE the builders, because they
+//                         paste what it writes. See ./locations.js.
+//   6. scene-builder ×N — every scene's 2,500–3,000 word copy-ready prompt, in
+//                         parallel, with the registry and the location block
+//                         embedded verbatim.
+//   7. quality gates    — JS-enforced: word count, verbatim character blocks,
+//                         verbatim wardrobe, verbatim location block, sound spec,
 //                         density, story structure, and AD PURITY. Failures go
 //                         through one scene-verifier repair pass.
 
@@ -55,6 +99,7 @@ const {
   knowledgeFor,
   exemplarScenePrompt,
   countWords,
+  isComplexPlace,
 } = require("./index");
 const {
   castingDirective,
@@ -90,10 +135,26 @@ const {
   MIN_LINES_PER_MINUTE,
   SPEAKING_SECONDS,
 } = require("./creative");
-// Only the PLAN is needed here. `characterRefPrompt` is used by the shot-board
-// job when it photographs the sheets, and `refsForScene` / `refClause` exist to
-// attach a sheet to a render — which this film type never does.
-const { planCharacterRefs } = require("./characterRefs");
+// ./characterRefs.js is DELIBERATELY NOT IMPORTED. This film type attaches no
+// pictures to anything — see the classifier note in the header — so there is no
+// sheet to plan, none to photograph, and none to ride along with a render. The
+// module is left on disk unreferenced rather than deleted, because this sandbox
+// has reversed itself on reference images before and the argument is preserved
+// there in full.
+//
+// The LOCATION BIBLE is what took over the job the pictures were doing.
+const {
+  LOCATION_SCHEMA,
+  locationDirective,
+  locationBrief,
+  locationBlockText,
+  locationBlockDirective,
+  locationForBeat,
+  locationViolations,
+  blockWordCount,
+  verbatimCoverage,
+  MIN_BLOCK_COVERAGE,
+} = require("./locations");
 const {
   noMusicMandate,
   NO_MUSIC_RESTATEMENT,
@@ -160,54 +221,79 @@ const STORY_KIND = {
   dialogueInVideo: true,
   ttsVoiceover: false,
   branded: false,
+  /**
+   * WHICH SCORE THIS FILM TYPE GETS. Read by functions/audioPost.js — see
+   * SCORE_PALETTES there.
+   *
+   * The house default is the ad palette: warm strings, soft keys, kora and
+   * balafon, supportive and pleasant. It is the right sound for a film that is
+   * selling something and completely the wrong one here. These are thrillers and
+   * dramas — an arrest, a betrayal, a debt coming due — and the default gave them
+   * a chamber-music cue that flatly contradicted the picture.
+   *
+   * "high-tension" swaps the instrumentation for low sustained strings, bowed
+   * bass, drone, weighted percussion and controlled dissonance, and rewrites the
+   * five-movement suite so movement 2 gets more insistent instead of "warmer and
+   * more confident". Scoped to this film kind, so the ad swarm is untouched.
+   */
+  score: "high-tension",
 };
 
 /**
  * The rules every scene's long prompt must satisfy.
  *
- * READ THIS BEFORE CHANGING ANY OF THEM. In the other three sandboxes this block
- * governs the text that is SENT TO THE VIDEO MODEL, and every rule in it exists
- * to stop that model inventing a different-looking world.
+ * READ THIS BEFORE CHANGING ANY OF THEM. This block governs the text that is SENT
+ * TO THE VIDEO MODEL — the whole of it, on its own, with nothing attached — and
+ * every rule exists to stop that model inventing a different-looking world in
+ * every clip.
  *
- * Here it governs the BLUEPRINT — the script the director reads and approves, and
- * the source the shot board photographs the world from. The rules therefore still
- * bind, and bind hard: a place cannot be photographed from a paragraph that never
- * said what is in it, and a complexion the registry never named is a complexion
- * the plates will each invent differently.
+ * THESE RULES WERE INVERTED WHEN THE SHOT BOARD WAS REMOVED. Rules 2 and 3 used
+ * to say the OPPOSITE of what they now say: identify people but never describe
+ * them, and give the setting one line — because photographs carried the look and
+ * a second written account of a face only argued with the picture. That was
+ * correct while the pictures existed. They do not. A prompt written to the old
+ * rules and rendered under the new system produces a film with a different cast
+ * in every scene, which is exactly what happened before this was fixed.
  *
- * What the video model actually receives is the FRAMED PROMPT, compiled from this
- * one after the pictures exist, and it obeys the OPPOSITE rule — it carries no
- * appearance at all, because the frames carry it better. See
- * `framedPromptDirective` in ./shotBoard.js. Do not "simplify" the rules below on
- * the grounds that the render no longer needs them; the render does not, and the
- * photography does.
+ * If you ever reinstate the board, invert them back — but read the classifier
+ * note in this file's header first, because that is why it went.
  */
 const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene's fullPrompt MUST satisfy ALL of these — no exceptions):
 
-0. READ THIS FIRST — THIS FILM IS PHOTOGRAPHED, AND THAT CHANGES WHAT A PROMPT IS FOR.
-   Every scene of this film gets STILL PHOTOGRAPHS taken of it before any video is rendered: the place, the arrangement inside it, the objects, and one frame per camera setup. Those photographs are attached to the render and they are the ONLY thing the video model is shown of how anything looks.
-   So how things LOOK is already settled, in pictures, far more exactly than any sentence can settle it. Your job is EVERYTHING THE PICTURES CANNOT CARRY: what happens, who says what, in what voice, what it sounds like, and where the camera goes.
-   DESCRIBING APPEARANCE HERE ACTIVELY HARMS THE FILM. It gives the model two accounts of one thing — the photograph and your paragraph — and it reconciles them by inventing a third. That is what swaps outfits between shots, changes haircuts mid-scene and puts one character's clothes on another. This is not a theory; it is the failure this rule exists to stop.
+0. READ THIS FIRST — THIS PROMPT IS THE ENTIRE FILM. NOTHING IS ATTACHED TO IT.
+   No photograph, no reference image, no character sheet, no still frame, no plate. The video model receives THESE WORDS AND NOTHING ELSE, and it has NO MEMORY of any other scene in this film. Every clip is generated by a model that has never seen this story before and will never see it again.
+   So every single thing you do not write down is a thing the model invents — and it invents a DIFFERENT one for scene 4 than for scene 19. That is how a film ends up with four versions of one woman's face and three versions of one kitchen.
+   YOU ARE WRITING THE ONLY DESCRIPTION OF THIS WORLD THAT WILL EVER EXIST. Write it like that. A detail you leave out is not "left to the model's judgement", it is a continuity error you have scheduled.
 
-1. THE BUDGET, AND WHERE IT GOES. ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words, spent roughly like this:
-   • ~45% DIALOGUE — the lines themselves, every one, attributed, with each speaker's voice profile.
-   • ~30% ACTION — timestamped beats, physical verbs, one change of state each.
-   • ~15% SOUND — the ambience and a named noise for every physical event.
-   • ~10% CAMERA and the identification block below.
-   If your prompt is mostly description, you have written the wrong prompt. Count it.
+1. THE BUDGET, AND WHERE IT GOES. ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. This is the longest prompt on this platform and every part of it is load-bearing:
+   • ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words PER CHARACTER on face and body (rule 2).
+   • ~${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} words PER CHARACTER on wardrobe, separately (rule 2b).
+   • ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} words on THE PLACE (rule 3).
+   • ${WORD_BUDGETS.soundMin}–${WORD_BUDGETS.soundMax} words on SOUND — the locked bed verbatim, plus a named noise for every physical event.
+   • Everything left — roughly a third — is DIALOGUE (the biggest single block), the timestamped ACTION beats, the CAMERA, and the closing restatement.
+   Description is the scaffolding that holds the film still. The talk and the events are still the film. If you have written 3,000 words and nobody speaks, you have written the wrong prompt.
 
-2. IDENTIFY PEOPLE, DO NOT DESCRIBE THEM. Each character present gets ONE SHORT LINE: their NAME, WHERE THEY ARE in the frame ("seated left of the table", "standing in the doorway"), and — in a few words only — WHAT THEY ARE WEARING IN THIS SCENE, purely so two people can be told apart and their clothes cannot swap.
-   That is the whole appearance budget. NO face. NO complexion. NO build. NO hair. NO height. NO age. NO distinguishing marks. The photographs carry all of it, exactly, and every word you add about it is a word arguing with them.
-   Then state plainly: every person visible is one of the people in the attached frames; nobody else appears; each keeps the exact face and clothing they have there; and where the words and the frames disagree, THE FRAMES ARE RIGHT.
+2. DESCRIBE EVERY PERSON COMPLETELY. ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} WORDS EACH, ON FACE AND BODY ALONE.
+   Paste each present character's Locked Character Block VERBATIM from the registry, at the TOP of the prompt — models weight early tokens, and identity is what must survive.
+   That block is not a sketch and must not be summarised. It carries: the keyword "Black" plus Gambian/West African; the exact complexion and its finish; the shape of the skull and the face; the forehead and hairline; the brow; the set, colour and spacing of the eyes; the lashes and lids; the bridge, the length and the wings of the nose; the mouth at rest and the shape of the lips; the teeth if they show; the cheekbones; the jaw and the chin; the ears; the neck; facial hair; the hair — its texture, its length, its cut, and exactly how it is worn today; the hands; the height in real terms; the build; the posture; the way they carry themselves and how they move; the age; and every distinguishing mark, scar, mole or line on them.
+   EVERY SINGLE PART OF THEM. A trait you leave out is a trait the next clip decides for itself.
 
-3. THE SETTING IS ONE LINE. Name the place and the time of day so the reader knows where they are. That is all. Do not inventory the walls, the floor, the furniture, the light, the clutter or the background people — all of that is in the plates, and re-describing it is the single fastest way to make the room drift between shots.
-   The ONE exception: something that CHANGES during these ten seconds — a lamp switched on, a table overturned, rain starting — because a still cannot show a change. Say what changes, in a clause.
+2b. THEN THE WARDROBE, SEPARATELY, ~${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} WORDS PER CHARACTER.
+   Its own block, pasted verbatim after the face, never folded into it — because when the two share a budget it is always the clothes that get cut, and swapped outfits are the most visible continuity failure there is.
+   Garment by garment, head to toe: what it is, its cut, its cloth and the weight of that cloth, its COLOUR IN CAPITALS, its pattern, how it fastens and whether it is fastened now, how it sits on this particular body, its sleeves and its hem, the state it is in — pressed, faded, patched, sweat-marked, tucked, untucked, rolled. Then the footwear, then everything on them: what is on their wrists, their ears, their neck, their head, their fingers, their waist. And the ONE CONSTANT OBJECT that stays with them through any change of clothes.
+
+3. THE PLACE — ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} WORDS, AND ${WORD_BUDGETS.backgroundMax} FOR ANYWHERE COMPLICATED.
+   Where a location block is supplied to you, PASTE IT VERBATIM and do not re-word one sentence of it: every other scene set there is pasting those same words, and that identity is the only thing making it the same room in every clip.
+   Banks, halls, courtrooms, police stations, wards, classrooms, restaurants, shops, markets, offices, weddings, funerals AND THE INSIDE OF A CAR get the full ${WORD_BUDGETS.backgroundMax}. Write: the shell and its real size; every door and every window, on which wall, and what is beyond them; the floor and what is on it; the walls, their finish and their MARKS — the scuff, the damp bloom, the paint that stops where a shelf used to be; the ceiling; where the light comes from, what it lands on and what it leaves dark; every piece of fixed furniture placed relative to the doors and to each other; the loose local dressing and the mess; the specific continuous sound of the place.
+   AND THE GEOGRAPHY OF PEOPLE, WHICH IS THE PART THAT IS ALWAYS SKIPPED AND ALWAYS COSTS: exactly where each person is, seated or standing, on which side of what, facing which way, what is within reach of their hands, and what is on the wall behind them. In a car: who is driving, who is in the front passenger seat, who is in which rear seat, which way each is turned, and what each can see out of which window.
+   And every background person: how many, their ages, what they are wearing, and what each of them is DOING. They are all explicitly Black Gambian and they vary from one another.
+   The ONE thing to add on top of a pasted block: what is DIFFERENT today, and what CHANGES during these ten seconds — a lamp switched on, a table overturned, rain starting. Nothing else. Do not re-describe a wall the block already described; two accounts of one wall are reconciled by inventing a third.
 
 4. DIALOGUE IS THE BIGGEST BLOCK ON THE PAGE. See the dialogue law below. Every line, in order, attributed by name, with the speaker's locked VOICE PROFILE pasted verbatim before their first line. This is the film. Nothing here is optional and nothing may be summarised — "they argue about the money" is a stage direction, not dialogue, and the clip comes back with nobody speaking.
 
 5. ACTION — TIMESTAMPED, PHYSICAL, AND UNDERNEATH THE TALKING. At least ${MIN_BEATS_PER_SCENE} beats (aim ${TARGET_BEATS_PER_SCENE}), each a CHANGE OF STATE with its own timestamp and its own physical verb. Hands do things while mouths move. A camera move is not a beat; a mood is not a beat; somebody continuing what they were already doing is not a beat.
 
-6. CAMERA — where it sits and where it travels across each setup, and where the cuts fall. Short: the frames already show where the camera IS, so this is only where it GOES.
+6. CAMERA — where it sits, what it frames, where it travels, and where the cuts fall. Nothing shows the model where the camera IS any more, so say it: the height, the distance, the lens feel, what is in shot and what is out of it, then the move and the cut.
 
 7. SOUND — the continuous ambience under the whole clip and how loud it sits under the voices, plus a specific named noise for every physical event in the beats. Something that touches, opens, closes, lands, tears, spills, starts or stops MAKES A NOISE, and an unnamed one comes back silent. The locked sound spec appears verbatim.
 
@@ -223,7 +309,9 @@ const MANDATORY_PROMPT_RULES = `NON-NEGOTIABLE PROMPT RULES (every single scene'
 
 13. THE CAMERA NEVER WATCHES THE VIOLENCE — the story keeps its teeth; the frame does not show the act. No weapon anywhere in shot (not held, not on a surface, not in the background), no blow/tackle/pin/grab/drag as it lands, nobody restrained or handcuffed, nobody cowering or with hands raised, no blood or wounds, and no crime performed on camera. Photograph the instant BEFORE, the aftermath, the face of somebody watching, or hold the frame while it happens just outside it — and NAME THE SOUND of it exactly, which is where the violence belongs and is completely unrestricted. Threats and menace in DIALOGUE are unrestricted too. This exists because the video model silently refuses to photograph violence and the scene comes back empty: a robbery filmed on the merchant's face renders, and the same robbery filmed on the raised club does not.
 
-14. VOICE PROFILES — every character who SPEAKS has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block before their first line: pitch, register, texture, pace, accent and their one habit of speech. This is the one consistency a picture CANNOT hold. A face survives thirty clips because thirty photographs say what it looks like; a voice survives them only because every prompt repeats the same words about it. A film whose lead sounds like four different people has failed as completely as one whose lead looks like four different people.`;
+14. VOICE PROFILES — every character who SPEAKS has their locked VOICE PROFILE pasted VERBATIM in the DIALOGUE block before their first line: pitch, register, texture, pace, accent and their one habit of speech. Exactly the same mechanism as the face and the wardrobe, and for exactly the same reason — thirty separate clips share nothing but the words that are identical in all thirty. A film whose lead sounds like four different people has failed as completely as one whose lead looks like four different people.
+
+15. THE CLOSING RESTATEMENT IS NOT OPTIONAL AND IT IS NOT A SUMMARY. A ${WORD_BUDGETS.scenePromptMax}-word prompt loses its opening to the middle: the model weights the first tokens and the last, and sags between them. So the final paragraph re-asserts, compactly, the things that must not drift — who these people are and the two or three most distinctive things about each face, what each of them is wearing, where they are in the room, the key event of the ten seconds, the light, the motion policy, and the prohibitions including the no-music law. This is the second-cheapest consistency device in the file after pasting the blocks verbatim, and skipping it is why long prompts drift at the end.`;
 
 /** "180s" → 18 scenes. The one place the scene count is decided. */
 function scenesForLength(length) {
@@ -325,10 +413,9 @@ function containsVerbatim(haystack, needle) {
 /**
  * Is this character NAMED in the text?
  *
- * The identification check that replaced the Locked Character Block check. On a
- * photographed film the face comes from the stills, so what a prompt owes is not
- * a description but a POINTER — and a pointer that never says the name points at
- * nothing.
+ * Cheap and separate from the Locked Character Block check on purpose: a prompt
+ * can paste a full block and still never attribute a line to the person it
+ * describes, and the two failures read very differently to whoever repairs them.
  */
 function namedIn(text, name) {
   const clean = String(name || "").trim();
@@ -478,10 +565,10 @@ const REGISTRY_SCHEMA = {
           lcb: { type: "STRING" },
           wardrobe: { type: "STRING" },
           /**
-           * The locked VOICE PROFILE — the one consistency the photographs cannot
-           * carry, and therefore the most load-bearing string in this registry.
-           * Pasted verbatim into every scene this character speaks in, and it
-           * survives into the framed prompt when every other description is cut.
+           * The locked VOICE PROFILE. Pasted verbatim into every scene this
+           * character speaks in, and held still by exactly the mechanism the face
+           * and the wardrobe are held still by: identical words in every one of
+           * thirty separately-generated clips, which share nothing else.
            */
           voice: { type: "STRING" },
           /** One physical habit the audience learns to read. See §15.8. */
@@ -563,9 +650,13 @@ async function runOptiqStoryXBlueprint({
    * people rather than silently swapping a face mid-way. */
   castingSeed,
   /**
-   * What a previous pass already finished, straight off the project doc. The
-   * expensive halves are the storyline+registry (which decide the film) and the
-   * per-scene prompts (which are 2,000 words each); both are reused verbatim.
+   * What a previous pass already finished, straight off the project doc.
+   *
+   * FOUR things are reused verbatim, and each for the same reason: re-deciding it
+   * on pass 2 would give scenes 16–30 a different film from scenes 1–15. The
+   * storyline and the registry decide who this is about and what they look like;
+   * the LOCATION BIBLE decides what the rooms are; and the per-scene prompts are
+   * 3,000 words each and cost real time to write.
    */
   previous = null,
   /** Wall-clock budget for THIS pass. Defaults to one function invocation. */
@@ -871,7 +962,7 @@ ${knowledgeFor("storyline")}`;
     ...minorViolations(JSON.stringify(storyline.sceneBeats || []), "The outline"),
     // The earliest place a beat that cannot be photographed can be caught. A
     // storyline that plans "he beats the merchant with a club" sends that staging
-    // down through the scene builder, the world bible and the shot board, and by
+    // down through the scene builder and the location bible, and by
     // the time the video model refuses it, four passes have agreed on it.
     ...graphicViolations(JSON.stringify(storyline.sceneBeats || []), "The outline"),
   ];
@@ -1040,15 +1131,31 @@ The named cast of this film, from the recurring scenes: ${
       : ""
   }
 
+═══ WHY YOUR BLOCKS ARE LONGER THAN THEY USED TO BE ═══
+This film renders TEXT-TO-VIDEO. Nothing is attached to any clip: no character
+sheet, no reference photograph, no still frame. Every scene is generated by a
+model with no memory of any other scene, and your Locked Character Block, pasted
+verbatim, is the ONLY thing in the entire film that makes this the same person in
+scene 4 and in scene 19.
+
+So a block that lists six traits and trusts the model with the rest produces six
+consistent traits and a different person underneath them. Write EVERY part of
+them. This is the job a casting photograph used to do, done in prose, and it is
+the single most important thing you write.
+
 Author, with these EXACT word budgets:
-1. CHARACTERS — for every character named above, however many that is: a Locked Character Block of ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words. Do NOT collapse an ensemble into one lead plus extras — if the storyline names four people across its recurring scenes, author four blocks. Do NOT invent characters the storyline did not name. Physical properties only: the keyword "Black" plus Gambian/West African, the SPECIFIC complexion and finish assigned to that character by the casting palette above, face shape, nose, lips, cheekbones, eyes, brows, hair (cut/length/texture/how worn), facial hair, age, height, build, the one distinguishing marker from the palette, and one temperament line at the end. Plus a separate wardrobe lock (colours in CAPS, garment types named precisely, the closure stated, one constant object). Single-scene characters still get full blocks.
+1. CHARACTERS — for every character named above, however many that is: a Locked Character Block of ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words ON FACE AND BODY ALONE. Do NOT collapse an ensemble into one lead plus extras — if the storyline names four people across its recurring scenes, author four blocks. Do NOT invent characters the storyline did not name. Single-scene characters still get full blocks.
+   Physical properties only, and ALL of them: the keyword "Black" plus Gambian/West African; the SPECIFIC complexion and finish assigned to that character by the casting palette above; the shape of the skull and of the face; the forehead and the hairline; the brow; the eyes — their set, their spacing, their colour, the lids and lashes; the nose — its bridge, its length, its wings; the mouth at rest and the shape of the lips; the teeth if they show; the cheekbones; the jaw; the chin; the ears; the neck; facial hair; the hair — texture, length, cut, and exactly how it is worn; the hands; height in real terms; build; posture and how they carry themselves; how they move; age; the one distinguishing marker from the palette plus any other scar, mole or line; and one temperament line at the end.
+   Any trait you omit is a trait the video model decides for itself, differently, in every scene.
+1a. THE WARDROBE LOCK — a SEPARATE field of ${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} words. Its own budget on purpose: when clothes and face share one, it is always the clothes that get cut, and a swapped outfit is the most visible continuity failure a film can have.
+   Garment by garment, head to toe: what it is, its cut, its cloth and that cloth's weight, its COLOUR IN CAPITALS, its pattern, how it fastens and whether it is fastened, how it sits on this particular body, the sleeves, the hem, and the state it is in — pressed, faded, patched, sweat-marked, tucked, untucked, rolled. Then footwear. Then everything worn on the body: wrists, ears, neck, head, fingers, waist. Then the ONE CONSTANT OBJECT that survives a change of clothes.
 1b. THE TELL — this is a STORY, so every character also gets ONE behavioural tell: a specific physical habit that repeats and that the audience learns to read (what her hands do when she is lying; the way he checks a pocket he has already checked). One short line. It costs nothing in the word budget and it is the difference between a person and a model. A story has characters, not demographics.
-1c. THE VOICE PROFILE — 30–50 words per character, and THE MOST IMPORTANT THING YOU WRITE. Every other lock in this registry is backed up by a photograph downstream; this one is not. This film is photographed before it is filmed, so a face survives thirty separate clips because thirty stills say what it looks like — but a VOICE survives them only because every prompt repeats the same words about it. Get this wrong and the lead sounds like four different people across one film.
+1c. THE VOICE PROFILE — 30–50 words per character. Nothing in this film is backed by a picture, so this lock works exactly the way the face lock and the wardrobe lock work: it survives thirty separate clips because every one of them repeats the same words about it. Get it wrong and the lead sounds like four different people across one film — the same failure as looking like four different people, and just as fatal.
    Write, for each character: PITCH (low / mid / high, and where it sits for their age and build), TEXTURE (smoky, clear, reedy, gravelly, breathy, nasal), PACE (fast and clipped, unhurried, halting), VOLUME AT REST (soft-spoken, carries across a room), ACCENT AND LANGUAGE (Gambian English, Wolof-inflected, mission-school precise, coastal), and ONE SPEECH HABIT that is theirs alone — trailing the ends of sentences, answering before you finish, a laugh that arrives before the joke does, going quiet when angry instead of loud.
    Be concrete and be DIFFERENT for each of them. Two characters with "warm, measured, mid-range" voices are one character. Spread them the way the casting palette spreads complexions: contrast is what makes two people on a soundtrack legible as two people.
    Physical voice only. This is not a temperament note and not an acting direction — those belong in the scenes.
 2. ELEMENTS — the objects the STORY turns on, with the scenes they appear in and their exact state per scene if the story changes them. These are not products: nothing here is being sold, hero-shot, or presented to the audience. A tin, a letter, a dress, a knife, a phone — described once, exactly, and identical in every scene it appears in.
-3. RECURRING SETS — every location used by 2+ scenes gets a full locked set block (walls, floor, furniture, every visible item).
+3. RECURRING SETS — every location used by 2+ scenes gets an ANCHOR: two or three sentences committing to what kind of place it is and the one or two things that make it unmistakably itself. Keep these SHORT. A separate specialist — the LOCATION DESIGNER — expands each of them into a 500–700 word location block afterwards, and your anchor is the brief it works from. What you commit to here it must honour, so commit only to what actually matters: do not write the walls and the furniture, write what the place IS and what could never be mistaken about it.
 4. ${silenceSpecDirective(WORD_BUDGETS.soundMin, WORD_BUDGETS.soundMax)}
 5. AMBIENCE SPEC — one line locking the ambient bed. This is not music and is required: with neither a score nor an authored ambient bed, the model invents something to fill the gap, and what it invents is usually music.
 6. STYLE HEADER — the film's visual contract (~60–100 words): register, optics, motion policy, prohibitions (no lens-staring, no slow motion on people), language tag, text policy. There is no brand colour and no on-screen text in this film.
@@ -1138,39 +1245,118 @@ ${JSON.stringify(registry, null, 2)}`,
     );
   }
 
-  // ── STAGE 4b: THE CAST SHEET PLAN (planned here, PHOTOGRAPHED IN STAGE 2) ──
+  // ── SKILL 5: THE LOCATION DESIGNER ────────────────────────────────────────
   //
-  // The other three sandboxes render their character sheets right here, on the
-  // storyboard's critical path. This one deliberately does not, and it is the
-  // difference that keeps the blueprint free.
+  // THE MODULE THAT REPLACED THE SHOT BOARD, and the reason this pipeline can
+  // hold a room still without photographing it.
   //
-  // Two reasons, and the second is the real one:
+  // Every place in the film is written ONCE here, at 500–700 words in a fixed
+  // eight-section order, and every scene set there pastes that exact text
+  // verbatim. Identical words are what identical rooms are made of; a place
+  // summarised freshly per scene is a place the model invents freshly per scene.
   //
-  //   1. Nothing in THIS film ever attaches a character sheet to a render. The
-  //      sheets exist only as inputs to the board's frames, and the frames are
-  //      stage 2. Spending them here would spend them in a stage the director may
-  //      look at once and abandon.
+  // IT RUNS BEFORE THE BUILDERS, and it has to — they paste what it writes. That
+  // makes it the one blocking step added by this rewrite, which is why it is a
+  // single call for the whole film rather than one per place: thirty scenes across
+  // six locations is one text call, not six, and the designer seeing all six at
+  // once is also what makes §17.5's separation rule possible. It cannot tell two
+  // offices apart if it only ever sees one of them.
   //
-  //   2. The blueprint must cost nothing but text. It is the screen where the
-  //      director decides whether to buy the film at all, and a stage that quietly
-  //      renders eight images before they have read a word is a stage that has
-  //      already charged them for a decision they have not made.
-  //
-  // So this writes the PLAN — who needs a sheet, and which scenes each belongs to.
-  // functions/shotBoardRun.js takes it from `project.characterRefs`, finds no
-  // bytes behind it, and photographs each one through its `regenerateCharacterRef`
-  // callback at the moment it is first needed. The same path that heals a sheet
-  // that went missing also creates the ones that never existed, so there is no
-  // second code path to keep in step.
-  const characterRefs = planCharacterRefs(registry, storyline.sceneBeats);
-  if (characterRefs.length > 0) {
-    console.log(
-      `[storyX cast plan] ${characterRefs.length} sheet(s) planned, none photographed yet: ` +
-        characterRefs.map((p) => p.name).join(", ")
-    );
+  // REUSED VERBATIM ON A CONTINUATION, like the storyline and the registry. A
+  // second pass that re-designed the locations would hand scenes 16–30 different
+  // rooms from the ones scenes 1–15 were built in, which is the exact failure the
+  // bible exists to prevent — committed by the machinery meant to prevent it.
+  const reusedBible = (previous?.locations?.locations || []).length ? previous.locations : null;
+  let bible = reusedBible;
+
+  if (!bible && !outOfTime()) {
+    await reportStage("locations");
+    try {
+      bible = await runStorySkill(
+        "location-designer",
+        `${locationDirective({ numScenes })}
+
+HOUSE DOCTRINE:
+${knowledgeFor("location-designer")}`,
+        [{ text: locationBrief({ storyline, registry, brief }) }],
+        LOCATION_SCHEMA
+      );
+
+      // ── GATE: THE BIBLE ───────────────────────────────────────────────────
+      // The cheapest repair in this pipeline by a wide margin. A thin block
+      // caught here is ONE call; the same block caught after thirty scene
+      // prompts have pasted it verbatim is thirty rebuilds of 3,000 words.
+      const bibleFaults = locationViolations(bible, storyline);
+      if (bibleFaults.length > 0) {
+        console.warn(
+          `[storyX locations] ${bibleFaults.length} violation(s); repairing:`,
+          bibleFaults.map((v) => v.slice(0, 140))
+        );
+        try {
+          const repaired = await runStorySkill(
+            "location-repair",
+            `${locationDirective({ numScenes })}
+
+═══ THIS IS A REPAIR PASS ═══
+Your location bible failed the house gates. Fix EVERY violation below. Keep every
+location you already wrote, keep its id, its name and its scene list, and keep
+everything that was not complained about — you are expanding and separating, not
+redesigning the film's world. Return the COMPLETE bible with every location in
+it, not only the ones you changed.
+
+HOUSE DOCTRINE:
+${knowledgeFor("location-designer")}`,
+            [
+              {
+                text: `VIOLATIONS TO FIX:
+${bibleFaults.map((v, i) => `${i + 1}. ${v}`).join("\n")}
+
+THE BIBLE TO REPAIR:
+${JSON.stringify(bible, null, 2)}`,
+              },
+            ],
+            LOCATION_SCHEMA
+          );
+          // Adopt only a repair that kept the world. A pass that returns two of
+          // seven locations has not repaired the bible, it has deleted it.
+          if ((repaired?.locations || []).length >= (bible.locations || []).length) {
+            const remaining = locationViolations(repaired, storyline);
+            console.log(
+              `[storyX locations] ${bibleFaults.length} → ${remaining.length} violation(s) after repair`
+            );
+            bible = repaired;
+          } else {
+            console.warn(
+              `[storyX locations] repair returned ${(repaired?.locations || []).length} of ` +
+                `${(bible.locations || []).length} place(s); keeping the original`
+            );
+          }
+        } catch (err) {
+          console.error("[storyX locations] repair failed; keeping the original bible", err);
+        }
+      }
+
+      console.log(
+        `[storyX locations] ${(bible.locations || []).length} place(s): ` +
+          (bible.locations || [])
+            .map((l) => `${l.name} (${blockWordCount(l)}w${l.complexity === "complex" ? ", complex" : ""})`)
+            .join(" · ")
+      );
+    } catch (err) {
+      // BEST-EFFORT, deliberately. A blueprint with no bible is still a complete,
+      // readable film — each scene-builder is told to write its own place at full
+      // density instead (see locationBlockDirective's null branch). Rooms will
+      // drift more than they should, and that is a far better outcome than
+      // throwing away a finished storyline and registry over one failed call.
+      console.error(
+        "[storyX locations] the location pass failed; scenes will each write their own place:",
+        String(err?.message || err).slice(0, 200)
+      );
+      bible = null;
+    }
   }
 
-  // ── SKILL 5: SCENE BUILDERS (parallel) ────────────────────────────────────
+  // ── SKILL 6: SCENE BUILDERS (parallel) ────────────────────────────────────
   const builderKnowledge = knowledgeFor("scene-builder");
   const exemplar = exemplarScenePrompt();
   const lastScene = storyline.sceneBeats.length
@@ -1183,13 +1369,16 @@ ${JSON.stringify(registry, null, 2)}`,
     const casting = sceneCasting(beat);
     const charactersForScene = charactersForBeat(registry, beat);
 
-    // No reference images ride with a scene-builder call in this sandbox. The
-    // sheets have not been photographed yet — they are stage 2's, along with the
-    // frames they feed — so there is nothing to attach and nothing to write a
-    // reference clause about. The builder works from the registry's words, which
-    // is what it did before reference images existed and what the plate prompts
-    // downstream will work from too.
+    // No reference images ride with a scene-builder call in this sandbox, and
+    // none ever will — nothing is attached to a render here either. The builder
+    // works from the registry's words and the location bible's, and those words
+    // are the entire film. See the classifier note in this file's header.
     const isFinal = Number(beat.sceneNumber) === lastScene;
+
+    // The place, written once and pasted verbatim. Null when the bible pass
+    // failed or never ran, in which case the directive tells the builder to write
+    // the room itself at full density rather than leaving it to a sentence.
+    const location = locationForBeat(bible, beat);
 
     return runStorySkill(
       `scene-builder-${beat.sceneNumber}`,
@@ -1244,21 +1433,23 @@ lifted by something out of frame. Write the events, and let the absence of peopl
 be the composition rather than the content.`
           : casting === "fresh-faces"
             ? freshFaceDirective(castingSeed, beat.sceneNumber)
-            : `- Paste each present character's Locked Character Block and wardrobe lock VERBATIM at the top (identity first — models weight early tokens). Their behavioural tell belongs in the ACTION block, performed, not described.`
+            : `- Paste each present character's Locked Character Block VERBATIM at the top (identity first — models weight early tokens), then their wardrobe lock VERBATIM as its own separate block underneath it. Both in full, neither summarised. Their behavioural tell belongs in the ACTION block, performed, not described.`
       }
 
+${locationBlockDirective(location)}
+
 Scene-specific contract:
-- fullPrompt is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. Describe every single visible thing: in a room, the walls, the marks on the walls, the floor, every item in frame; in a market, every stall and its wares.
+- fullPrompt is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words. That is the longest prompt on this platform and it is not padding — it is ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words of face per person, ~${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} of their clothes, ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} of the place, ${WORD_BUDGETS.soundMin}–${WORD_BUDGETS.soundMax} of sound, and the rest on the talk and the events.
+- NOTHING IS ATTACHED TO THIS PROMPT. No reference image, no character sheet, no still frame, no plate — not now and not later. The video model gets these words and nothing else, and it has no memory of any other scene in this film. Every visible thing you do not write down is a thing it invents, and it invents a different one next scene. That is why the density rules above cannot be traded away: a wall you did not describe is a wall that comes back different in the next clip, and a jaw you did not describe is a different woman.
+- Describe every single visible thing: in a room, the walls, the marks on the walls, the floor, every item in frame; in a market, every stall and its wares. Then say exactly where each person is standing or sitting in it, which way they face, and what is within reach of their hands.
 - Paste any story ELEMENT anchor VERBATIM wherever that object appears, and honour its state for this scene. An element is never presented to camera.
-- Paste the recurring set block VERBATIM if this scene uses a recurring set.
 - The ABSOLUTE RULES block states the no-music law explicitly — "NO MUSIC of any kind" — alongside the other prohibitions.
-- NO REFERENCE IMAGE IS ATTACHED TO YOU, and none will be. This film is photographed AFTER this prompt is written, and FROM it: every place, every arrangement, every object and every camera setup is generated out of the words you are writing now. That is why the density rules above are not negotiable here. A wall you did not describe is a wall that two separate photographs will each guess at differently, and then the room changes between shots — which is the entire failure this film type exists to remove.
 - The SOUND block opens by restating that the clip carries NO MUSIC, then the locked sound spec VERBATIM, then this scene's diegetic event sounds (every physical event has a sound). Never name an instrument, a tempo, a BPM or a musical mood: there is no score in this clip.
 - The ACTION block is timestamped beats implementing the storyline's planned cuts exactly, spread across the whole ten seconds. At least ${MIN_BEATS_PER_SCENE} separate timestamped beats, aiming for ${TARGET_BEATS_PER_SCENE}, each a change of state with its own physical verb. Five verbs minimum. Ten seconds narrating one continuous activity is a failed scene.
 - The DIALOGUE block is THE BIGGEST BLOCK IN THIS PROMPT and the reason the scene exists. It carries every one of the scene's ${MIN_LINES_PER_SCENE}–${MAX_LINES_PER_SCENE} lines (aim ${TARGET_LINES_PER_SCENE}) with the language tag, in the order spoken, each attributed by name — roughly ${SPEAKING_SECONDS} of the ten seconds with somebody talking. People interrupt, talk over each other, answer a different question, repeat themselves because they were ignored, and start the true sentence and stop. Nobody states the theme, nobody explains the plot, no line is exposition. A SILENT SCENE IS A FAILED SCENE here — the doctrine chapter that says otherwise was written for thirty-second adverts and does not apply.
 - Also return those lines in the scene's short "dialogue" field, one per line as "NAME: the line". The gate counts them there, and the shooting brief that actually renders this scene is compiled from them.
-- EVERY LINE IS ATTRIBUTED, AND EVERY SPEAKER'S VOICE PROFILE IS PASTED VERBATIM before their first line in this block. The registry below carries a "voice" for each character; reproduce it word for word, exactly as you reproduce the Locked Character Block. This is not optional and it is not padding: this film is photographed, so the pictures will hold every face still and NOTHING will hold the voices still except these words repeated identically in every scene. A line with no name attached comes back spoken by the wrong person.
-- End with the CLOSING RESTATEMENT paragraph re-asserting identity, wardrobe, the key event, light, motion policy, and prohibitions — and re-asserting the no-music law a third and final time. Use wording to this effect: "${NO_MUSIC_RESTATEMENT}"
+- EVERY LINE IS ATTRIBUTED, AND EVERY SPEAKER'S VOICE PROFILE IS PASTED VERBATIM before their first line in this block. The registry below carries a "voice" for each character; reproduce it word for word, exactly as you reproduce the Locked Character Block. This is not optional and it is not padding: nothing is attached to this film, so the only thing holding a voice still across thirty separately-generated clips is these same words repeated identically in all thirty — the same mechanism as the face. A line with no name attached comes back spoken by the wrong person.
+- End with the CLOSING RESTATEMENT paragraph, and treat it as load-bearing rather than as a sign-off. At ${WORD_BUDGETS.scenePromptMax} words the middle of the prompt sags — the model weights the first tokens and the last — so this paragraph re-asserts what must not drift: who these people are and the two or three most distinctive things about each face, what each is wearing, where they are in the room, the key event, the light, the motion policy, the prohibitions, and the no-music law a third and final time. Use wording to this effect: "${NO_MUSIC_RESTATEMENT}"
 - Also return the scene's setting/action/dialogue/sound summaries as separate short fields for the UI (the fullPrompt stays complete on its own).
 
 GOLD-STANDARD EXEMPLAR — READ THIS CAREFULLY: copy its DENSITY, its STRUCTURE and its block order. Do NOT copy its cast, its wardrobe or its complexions. The person in the exemplar is not in your film. Your characters are the ones in the consistency registry below, exactly as the registry describes them — including their specific complexions, which vary from character to character by design. If you find yourself writing "box braids", "deep warm dark-brown skin" or a rust camp-collar shirt, you are copying the exemplar's cast instead of building your own scene:
@@ -1311,7 +1502,6 @@ ${
           }
 
 Story elements in this scene: ${JSON.stringify((registry.elements || []).filter((e) => (e.scenes || []).includes(beat.sceneNumber)), null, 2)}
-Recurring sets: ${JSON.stringify((registry.recurringSets || []).filter((s) => (s.scenes || []).includes(beat.sceneNumber)), null, 2)}
 Locked sound spec (verbatim in the sound block): ${registry.soundSpec}
 Ambience spec: ${registry.ambienceSpec}
 Style header: ${registry.styleHeader}
@@ -1378,7 +1568,12 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     const wc = countWords(scene.fullPrompt);
     if (wc < WORD_BUDGETS.scenePromptHardFloor) {
       violations.push(
-        `fullPrompt is ${wc} words — below the ${WORD_BUDGETS.scenePromptMin}-word floor. Expand with authored specifics (environment items, background people, event sounds), never filler.`
+        `fullPrompt is ${wc} words — the target is ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} and nothing under ` +
+          `${WORD_BUDGETS.scenePromptHardFloor} ships. Nothing is attached to this film, so a short prompt is not a tidy prompt, it is ` +
+          `a prompt that has left the video model to invent the missing half. Check each budget in turn and expand ` +
+          `whichever is short: ${WORD_BUDGETS.perCharacterMin}–${WORD_BUDGETS.perCharacterMax} words of face and body per character, ` +
+          `~${WORD_BUDGETS.wardrobeMin}–${WORD_BUDGETS.wardrobeMax} on each of their outfits, ${WORD_BUDGETS.backgroundMin}–${WORD_BUDGETS.backgroundMax} on the place ` +
+          `including where every person is positioned in it, ${WORD_BUDGETS.soundMin}–${WORD_BUDGETS.soundMax} on sound. Authored specifics only, never filler.`
       );
     }
     // Locks are only owed by scenes that carry the recurring cast. A fresh-faces
@@ -1388,18 +1583,31 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     const casting = sceneCasting(beat);
     if (casting === "recurring") {
       for (const c of charactersForBeat(registry, beat)) {
-        // NO Locked Character Block check. This film is photographed, so the
-        // face is carried by the stills and rule 2 forbids describing it here —
-        // a gate demanding 200 words of face in a prompt told not to describe
-        // faces would fight its own pipeline, and the gate always wins.
-        //
-        // What IS owed is identification: the character has to be NAMED, so the
-        // model can tell which person in the attached frame is speaking.
+        // THE LOCKED CHARACTER BLOCK CHECK, RESTORED. It was removed while this
+        // film type was photographed — the stills carried the face and a prompt
+        // that also described it was arguing with them. There are no stills now,
+        // so this check is the whole consistency mechanism: the block pasted
+        // identically into every scene is the only reason scene 4 and scene 19
+        // contain the same woman.
         if (!namedIn(scene.fullPrompt, c.name)) {
           violations.push(
-            `${c.name} is in this scene but is never named in the prompt. With no character sheets attached, ` +
-              `the frames are the only statement of who is who — name them, say where they are in the frame, ` +
-              `and give their wardrobe in a few words. Do NOT describe their face or build.`
+            `${c.name} is in this scene but is never named in the prompt. Name them, paste their Locked ` +
+              `Character Block and their wardrobe lock verbatim, and say where they are in the room.`
+          );
+        }
+        if (c.lcb && !containsVerbatim(scene.fullPrompt, c.lcb)) {
+          violations.push(
+            `${c.name}'s Locked Character Block is missing or paraphrased. Nothing is attached to this film — ` +
+              `no reference sheet, no still — so this block is the ONLY description of this person the video ` +
+              `model will ever see, and it must be IDENTICAL in every scene they appear in or they come back ` +
+              `as a different person. Paste it VERBATIM, in full, near the top: "${c.lcb}"`
+          );
+        }
+        if (c.wardrobe && !containsVerbatim(scene.fullPrompt, c.wardrobe)) {
+          violations.push(
+            `${c.name}'s wardrobe lock is missing or paraphrased. Clothes are the most visible continuity ` +
+              `failure a film can have and they are the first thing a builder trims. Paste it VERBATIM as its ` +
+              `own block, after the character block: "${c.wardrobe}"`
           );
         }
         // The voice profile is only owed by a scene where this character SPEAKS —
@@ -1415,8 +1623,8 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
         if (speaks && !containsVerbatim(scene.fullPrompt, c.voice)) {
           violations.push(
             `${c.name} speaks in this scene but their locked VOICE PROFILE is missing or paraphrased from the DIALOGUE block. ` +
-              `This film is photographed, so the pictures hold every face still and these words are the ONLY thing holding the voices still. ` +
-              `Paste it VERBATIM: "${c.voice}"`
+              `Same mechanism as the face: thirty separately-generated clips share nothing but the words that are identical ` +
+              `in all thirty. Paste it VERBATIM: "${c.voice}"`
           );
         }
       }
@@ -1424,9 +1632,10 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
       // …and the reverse: a lock that leaked into a scene it does not belong to
       // is how the film collapses back to the same two faces everywhere.
       for (const c of registry.characters || []) {
-        // Still worth catching: a builder that pasted a whole locked block into a
-        // scene those people are not in has both described a face it was told not
-        // to AND put the wrong person in the shot.
+        // The other half of the lock rule. A block pasted into a scene those
+        // people are not in puts the wrong person on camera — and because the
+        // block is now the whole description of that person, it puts them there
+        // completely rather than as a stray adjective.
         if (c.lcb && containsVerbatim(scene.fullPrompt, c.lcb)) {
           violations.push(
             `Scene ${scene.sceneNumber} is cast "${casting}" but pastes ${c.name}'s Locked Character Block. ` +
@@ -1441,6 +1650,48 @@ Build scene ${beat.sceneNumber} of ${numScenes}.`,
     }
     if (registry.soundSpec && !containsVerbatim(scene.fullPrompt, registry.soundSpec)) {
       violations.push(`The locked sound spec is missing or paraphrased in the SOUND block. Paste it VERBATIM: "${registry.soundSpec}"`);
+    }
+
+    // ── THE PLACE ───────────────────────────────────────────────────────────
+    // Two different failures, so two checks.
+    const location = locationForBeat(bible, beat);
+    if (location) {
+      // 1. The block was PARAPHRASED rather than pasted. Measured per sentence
+      //    rather than as whole-block containment: at 700 words one interleaved
+      //    staging sentence would fail an otherwise perfect paste, while a
+      //    genuine re-write loses almost every sentence and is caught cleanly.
+      const coverage = verbatimCoverage(scene.fullPrompt, locationBlockText(location));
+      if (coverage < MIN_BLOCK_COVERAGE) {
+        violations.push(
+          `The location block for "${location.name}" was re-worded rather than pasted — only ` +
+            `${Math.round(coverage * 100)}% of its sentences survive verbatim. Every other scene set there is ` +
+            `pasting these exact ${blockWordCount(location)} words, and that identity is the ONLY thing making it ` +
+            `the same room in every clip. Reproduce it WORD FOR WORD, then add your staging paragraph after it.`
+        );
+      }
+    } else if (casting !== "no-people" || beat?.location) {
+      // 2. No block exists for this place, so the builder owed the full
+      //    description itself. Checked by weight, because the failure here is
+      //    always the same one: a scene that names its location in a sentence and
+      //    moves on to the dialogue.
+      const complex = isComplexPlace(beat?.location);
+      const floor = complex ? WORD_BUDGETS.backgroundMax : WORD_BUDGETS.backgroundMin;
+      // No way to measure "words spent on the room" directly, so this measures
+      // the only thing that is measurable and is genuinely implied by it: a
+      // prompt that owes a whole room ON TOP of its locks cannot also be sitting
+      // at the hard floor. Held to the real target rather than the floor, which
+      // is the floor's whole purpose — it exists for scenes that got their room
+      // handed to them, and this one did not.
+      if (wc < WORD_BUDGETS.scenePromptMin) {
+        violations.push(
+          `No location block exists for "${beat?.location || "this scene's place"}", so this prompt owes the ` +
+            `full ${floor}-word description of it and does not have room for one. Write the place properly: the ` +
+            `shell and every door and window, the floor and the walls and their marks, where the light falls and ` +
+            `what it leaves dark, the fixed furniture placed relative to the doors, the local dressing and the ` +
+            `mess, exactly where each person is and what is within reach of their hands, every background person ` +
+            `and what they are doing, and the specific continuous sound of the place.`
+        );
+      }
     }
     if (casting !== "no-people" && !/black/i.test(scene.fullPrompt)) {
       violations.push(`The keyword "Black" never appears — every on-screen person must be explicitly described as Black Gambian / Black West African.`);
@@ -1532,67 +1783,12 @@ ${JSON.stringify(scene, null, 2)}`,
 
   scenes.sort((a, b) => a.sceneNumber - b.sceneNumber);
 
-  // ── THE WORLD ─────────────────────────────────────────────────────────────
-  //
-  // What the film agrees on: its places, the dressed arrangements inside them,
-  // the objects whose look must survive every cut, and the states each of those
-  // passes through. One text call, and it is the plan the whole board is
-  // photographed from.
-  //
-  // It runs HERE, at the end of the blueprint, rather than at the start of the
-  // board — for two reasons. It needs the finished scene prompts to design from
-  // (a place cannot be planned out of a beat that has not been written yet), and
-  // the director should be able to read what their film's world will be before
-  // they pay to photograph it.
-  //
-  // functions/shotBoardRun.js reads this straight off `shotBoard.world` and skips
-  // its own world pass when it is there — see `reuseWorld` in that file. So this
-  // does not duplicate work, it moves it in front of the gate.
-  //
-  // BEST-EFFORT. A blueprint with no world is still a complete, readable script,
-  // and the board will design one for itself on the next stage. Failing the whole
-  // blueprint over it would throw away thirty scene prompts.
-  let world = previous?.world || null;
-  if (!world && scenes.length > 0 && !outOfTime()) {
-    try {
-      await reportStage("worldbuilding");
-      const brain = require("./shotBoard");
-      world = await runStorySkill(
-        "world-designer",
-        `${brain.worldDirective({ numScenes, branded: false })}
-
-HOUSE DOCTRINE:
-${knowledgeFor("world-designer")}`,
-        [
-          {
-            text: brain.worldBrief({
-              scenes,
-              registry,
-              characterNames: (registry.characters || []).map((c) => c.name).filter(Boolean),
-            }),
-          },
-        ],
-        brain.WORLD_SCHEMA
-      );
-      const worldFaults = brain.worldViolations(world, scenes);
-      if (worldFaults.length > 0) {
-        console.warn(
-          `[storyX world] ${worldFaults.length} violation(s) in the world plan; the board will repair them:`,
-          worldFaults.map((v) => v.slice(0, 140))
-        );
-      }
-      console.log(
-        `[storyX world] ${(world.environments || []).length} place(s), ` +
-          `${(world.settings || []).length} arrangement(s), ${(world.objects || []).length} object(s)`
-      );
-    } catch (err) {
-      console.error(
-        "[storyX world] the world pass failed; the shot board will design one itself:",
-        String(err?.message || err).slice(0, 200)
-      );
-      world = null;
-    }
-  }
+  // NO WORLD PASS. This is where the shot board's world plan used to be designed
+  // — the places, the dressed arrangements, the objects, the states each passed
+  // through — so that stage 2 could photograph them. There is no stage 2 and
+  // nothing is photographed. The LOCATION BIBLE above does the part of that job
+  // that mattered, and it runs before the scene builders rather than after them,
+  // because the builders paste what it writes.
 
   const done = missing.length === 0 && scenes.length >= beatsWanted.length;
   if (!done) {
@@ -1620,8 +1816,16 @@ ${knowledgeFor("world-designer")}`,
     brief,
     storyline,
     registry,
-    /** The world plan, read by functions/shotBoardRun.js in stage 2. */
-    world,
+    /**
+     * THE LOCATION BIBLE. Persisted on the project as `locations` and reused
+     * verbatim by every continuation pass — a second pass that re-designed the
+     * places would put scenes 16–30 in different rooms from scenes 1–15, which is
+     * precisely the drift this module exists to stop.
+     *
+     * Also read by the blueprint screen, because a director approving a film
+     * should be able to read the rooms it will be shot in.
+     */
+    locations: bible,
     title: storyline.title,
     concept: storyline.storyPitch || storyline.concept,
     characterLock: {
@@ -1635,11 +1839,13 @@ ${knowledgeFor("world-designer")}`,
     videoType: STORYX_VIDEO_TYPE,
     castingShape: brief.castingShape || null,
     /**
-     * The cast sheet PLAN — names, prompts and the scenes each belongs to, with
-     * no pictures behind them yet. The shot board photographs them in stage 2 and
-     * writes the urls back onto these same entries.
+     * ALWAYS EMPTY, and that is the whole point of this rewrite. This film type
+     * renders no character reference sheets and attaches no picture to any clip.
+     * The field survives because the project doc, the client Storyboard type and
+     * the agent all read it for every film type — an absent key would be a
+     * different bug from an empty one.
      */
-    characterRefs,
+    characterRefs: [],
     /**
      * Always empty here. A story project never collects brand materials — the
      * wizard skips that step entirely — but the caller reads this field for both
@@ -1688,9 +1894,9 @@ You MUST:
 - NEVER reintroduce music. If the request asks for music ("make it feel triumphant with strings"), do NOT put it in the prompt: the score is composed separately afterwards. Deliver the feeling through the diegetic sound and the action instead.
 - Keep moments, not mood. Physical verbs. Banned vocabulary stays banned.
 - NEVER come back with fewer events than you started with. A revision that turns four timestamped beats into one continuous activity has made the scene worse whatever else it fixed. If the request genuinely calls for a calmer scene, make it calmer WITHOUT making it emptier.
-- THIS SCENE IS PHOTOGRAPHED. Still frames of it already exist and are attached to its render — they carry how every person, every object and the whole room LOOKS, and they carry it better than any sentence can. So do NOT add description of appearance, and do NOT restore any that is missing: no faces, no complexions, no builds, no hair, no wardrobe beyond the few words that tell two people apart, no inventory of the room. If the director's request is about how something LOOKS, the honest answer is that it is settled in the pictures and the scene needs re-photographing, not re-describing — say so rather than writing it in.
-- KEEP AND STRENGTHEN what the pictures cannot carry: every line of DIALOGUE (never drop one, never shorten one), each speaker's VOICE PROFILE verbatim, the timestamped ACTION beats, the SOUND, and the CAMERA. These are what the prompt is for and they are where the words should go.
-- If the prompt carries a SHOT BOARD block naming its attached frames, leave it exactly as it is. It is what tells the render which pictures it has.
+- NOTHING IS ATTACHED TO THIS SCENE. No reference image, no character sheet, no still frame. The prompt in front of you is the ONLY thing the video model will ever see of this world, and it has no memory of any other scene in this film. Everything in it is load-bearing, and anything you delete is a detail the model will invent — differently, in every clip.
+- THE VERBATIM BLOCKS ARE UNTOUCHABLE. Every Locked Character Block, every wardrobe lock, every VOICE PROFILE, the locked sound spec, and the LOCATION BLOCK describing the room all appear WORD FOR WORD in the other scenes that share them. Reproduce them exactly as you found them. Re-wording one sentence of a location block puts this scene in a different room from the eleven others set there; trimming a character block makes this the one scene where that person looks different. If the director's request genuinely requires changing a lock, change it identically everywhere it appears or say plainly that it needs propagating across the film.
+- KEEP AND STRENGTHEN the rest: every line of DIALOGUE (never drop one, never shorten one), the timestamped ACTION beats, the SOUND, and the CAMERA. These are the film; the locked description is what holds it still.
 - Re-compile at ${WORD_BUDGETS.scenePromptMin}–${WORD_BUDGETS.scenePromptMax} words, weighted the way rule 1 says: dialogue biggest, then action, then sound, then camera.
 - CONTINUITY: the revised scene continues seamlessly from the previous scene prompt and hands off cleanly to the next — same characters, same element states, same recurring elements, same sound spec verbatim.
 - When something broke in generation, reach for the STRUCTURAL fix (lock the camera, relocate, strip a face description, split cuts) before adjusting adjectives — diagnose against the failure catalog.

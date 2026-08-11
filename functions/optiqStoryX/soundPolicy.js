@@ -179,9 +179,10 @@ function sceneSoundViolations(fullPrompt, { allowDialogue = true } = {}) {
     );
   } else if (asserted < 3) {
     violations.push(
-      `The no-music rule is asserted only ${asserted} time(s). In a 1,500–2,000 word prompt one mention does not ` +
-        `survive — the model weights early tokens and drifts by the sound block. Restate it in the ABSOLUTE RULES, ` +
-        `again at the top of the SOUND block, and again in the CLOSING RESTATEMENT.`
+      `The no-music rule is asserted only ${asserted} time(s). In a prompt this long one mention does not survive — ` +
+        `the model weights early tokens and drifts by the sound block, and this sandbox's prompts are the longest on ` +
+        `the platform. Restate it in the ABSOLUTE RULES, again at the top of the SOUND block, and again in the ` +
+        `CLOSING RESTATEMENT.`
     );
   }
   const affirmed = affirmativeMusic(fullPrompt);

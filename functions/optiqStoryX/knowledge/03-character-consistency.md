@@ -5,6 +5,24 @@
 
 > This is the most valuable single system in this document. It is what lets us generate nine separate clips, in nine separate context windows, weeks apart, and have them cut together as one film starring one person.
 
+---
+
+## 3.0 SANDBOX OVERRIDE — THE BLOCK IS 150–250 WORDS HERE, NOT 50–100
+
+**This copy of Part III is the experimental original story's, and one number in it is overridden. Read this before §3.2.**
+
+§3.1 is not only still right in this sandbox, it is the sandbox's founding decision: **nothing is attached to a render here at all.** No character sheet, no plate, no still frame. This film type was briefly photographed before it was filmed, and §3.1's first reason is exactly why that ended — a photorealistic face attached to a render of that person *in a cell, in handcuffs, under arrest, cornered* reads to the classifier as a real, identifiable human being placed in a defamatory situation, and it is refused **silently** while still being billed. Every story with teeth in it was unshootable that way. See the header of `functions/optiqStoryX/pipeline.js`.
+
+But §3.2's **50–100 words** is the ad swarm's number, and it is written for a **nine-clip, sixty-second** film. This one runs to **sixty clips over ten minutes**, and it is the only film type on the platform where the words are carrying the entire load with nothing whatsoever behind them.
+
+**So in this sandbox the Locked Character Block is 150–250 words, on face and body alone**, plus a **separate ~100-word wardrobe lock**. The five anchors of §3.3 are the floor, not the target — go past them: the skull and the shape of the face, the forehead and hairline, the brow, the set and spacing of the eyes, the lids and lashes, the bridge and length and wings of the nose, the mouth at rest, the teeth if they show, the cheekbones, the jaw, the chin, the ears, the neck, facial hair, the hair's texture and length and cut and how it is worn today, the hands, the height in real terms, the build, the posture, how they move, the age, and every scar, mole and line.
+
+§3.2's warning that "over 100 words the block starts competing with the action" was measured against a 1,500-word prompt where the block was a fifth of the page. Here the prompt is **2,500–3,000 words** and the block is a tenth of it, sitting in a document with a 700-word location block and a dialogue section larger than both. The proportion is the same; the absolute number is not, and the absolute number is what holds a face still.
+
+Everything else in Part III — verbatim every time, physical properties only, one temperament line, the wardrobe lock, §3.8's rule that the words are the specification — binds exactly as written.
+
+---
+
 ## 3.1 WHY WE DON'T ATTACH CHARACTER IMAGES
 
 Attaching a character reference image seems obvious and is usually wrong:

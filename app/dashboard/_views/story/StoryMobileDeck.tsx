@@ -16,12 +16,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Tv } from "lucide-react";
 import OptiqMark from "../../../../components/OptiqMark";
 import {
-  Scene, ShotBoard, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
+  Scene, Storyboard, VideoStatusMap, activeTakeIndex, sceneTakes,
 } from "../../_flow/types";
-import { renderPrompt, sceneStills } from "../../_flow/shotBoard";
+import { renderPrompt } from "../../_flow/shotBoard";
 import StorySceneDialogue from "./StorySceneDialogue";
 import StoryPromptBlock from "./StoryPromptBlock";
-import SceneBoardShots from "./SceneBoardShots";
 import StoryRenderPanel, { SceneRenderStatus } from "./StoryRenderPanel";
 import StoryRewriteBar from "./StoryRewriteBar";
 
@@ -29,16 +28,6 @@ interface StoryMobileDeckProps {
   storyboard: Storyboard;
   videoStatus: VideoStatusMap;
   setVideoStatus: React.Dispatch<React.SetStateAction<VideoStatusMap>>;
-  /** The film's photographs. A scene renders from these and nothing else. */
-  shotBoard: ShotBoard | null;
-  shotBoardBusy: boolean;
-  onRetryBoard: (sceneIndex: number) => void;
-  /** Drop a setup. Same affordances as the desktop strip — see SceneBoardShots. */
-  onRemoveBoardShot?: (sceneIndex: number, order: number) => void;
-  /** Ask for one more angle, in the director's own words. */
-  onAddBoardShot?: (sceneIndex: number, note: string) => void;
-  /** The director's own pictures, straight onto the board. */
-  onAddBoardImages?: (sceneIndex: number, files: File[]) => void;
   reviseScenePrompt: (sceneIndex: number) => Promise<void>;
   copyToClipboard: (text: string, index: number) => void;
   copiedIndex: number | null;
@@ -61,12 +50,6 @@ export default function StoryMobileDeck({
   storyboard,
   videoStatus,
   setVideoStatus,
-  shotBoard,
-  shotBoardBusy,
-  onRetryBoard,
-  onRemoveBoardShot,
-  onAddBoardShot,
-  onAddBoardImages,
   reviseScenePrompt,
   copyToClipboard,
   copiedIndex,
@@ -207,16 +190,8 @@ export default function StoryMobileDeck({
                 onRevise={() => void reviseScenePrompt(sceneIndex)}
               />
 
-              <SceneBoardShots
-                sceneIndex={sceneIndex}
-                stills={sceneStills(shotBoard, sceneIndex)}
-                aspectRatio={aspect || "16:9"}
-                busy={shotBoardBusy}
-                onRetry={onRetryBoard}
-                onRemove={onRemoveBoardShot}
-                onAdd={onAddBoardShot}
-                onAddImages={onAddBoardImages}
-              />
+              {/* No image strip: nothing is attached to a render on this film
+                  type. The prompt above is the entire scene. */}
             </div>
           ) : null}
         </div>

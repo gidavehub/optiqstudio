@@ -108,21 +108,25 @@ export function renderAttachments(
 /**
  * The prompt a scene actually renders from.
  *
- * Three layers, most specific first. The director's own edit always wins. Then
- * the short shooting brief, which exists only for a scene that has been
- * photographed — at that point the frames carry every word the long prompt spent
- * on how things look, and repeating it only invites the model to re-interpret
- * something it can already see. The long prompt is the floor, and it is what a
- * scene with no frames has always rendered from.
+ * Two layers now: the director's own edit if they made one, otherwise the long
+ * prompt. Every render path and every prompt box goes through here, so what the
+ * director reads in the editor is exactly what gets sent.
  *
- * Every render path and every prompt box goes through here, so what the director
- * reads in the editor is exactly what gets sent.
+ * `framedPrompt` IS DELIBERATELY NOT CONSULTED, and it used to be — it sat ahead
+ * of `fullPrompt` here. It is the short shooting brief written for a PHOTOGRAPHED
+ * scene: a cast key, the beats, the dialogue and the camera, carrying no
+ * description of how anything looks, because the attached frames carried that
+ * instead. Nothing is attached to a render any more (see the header of
+ * functions/optiqStoryX/pipeline.js), so a scene that still has a framedPrompt
+ * from the photographed era would render an appearance-free brief with no
+ * pictures behind it — a clip of nobody in particular, in a room the model made
+ * up. The long prompt is the film now, always.
  */
 export function renderPrompt(
   scene: Pick<Scene, "fullPrompt" | "framedPrompt">,
   customPrompt?: string | null
 ): string {
-  return customPrompt || scene.framedPrompt || scene.fullPrompt;
+  return customPrompt || scene.fullPrompt;
 }
 
 /** Every photograph on one tier of the hierarchy, newest state last. */

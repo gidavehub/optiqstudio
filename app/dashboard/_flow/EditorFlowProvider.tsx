@@ -36,19 +36,15 @@ import {
   ProductionMode,
   ProjectLength,
   SceneImage,
-  CharacterRef,
   SceneImagesMap,
-  SceneShotBoard,
-  ShotBoard,
-  ShotBoardProgress,
-  ShotBoardStage,
+  LocationBible,
+  LocationBlock,
   Storyboard,
   VideoStatusMap,
   VideoTypeId,
   WizardStepId,
   FIRST_WIZARD_STEP,
   DEFAULT_VIDEO_TYPE,
-  SHOT_BOARD_WORKING_STAGES,
   ProjectFace,
   defaultLengthFor,
   isExperimentalStory,
@@ -58,7 +54,7 @@ import {
   sceneTakes,
   videoType,
 } from "./types";
-import { renderAttachments, renderPrompt, sceneStills } from "./shotBoard";
+import { renderPrompt } from "./shotBoard";
 
 interface EditorFlowValue {
   // Auth passthrough (handy for views that only need these two)
@@ -147,41 +143,21 @@ interface EditorFlowValue {
   attachMaterialToScene: (sceneIndex: number, material: SceneImage) => void;
   removeSceneImage: (sceneIndex: number, imageIndex: number) => void;
 
-  /** The shot board: the film photographed before it is filmed. Server-owned and
-   * read straight off the project doc, exactly like audioStage. Only the
-   * experimental original story ever has one. */
-  shotBoard: ShotBoard | null;
-  shotBoardStage: ShotBoardStage;
-  /** True while a pass is genuinely running — the stage alone is not enough,
-   * see the note on the implementation. One definition, used everywhere. */
-  shotBoardBusy: boolean;
-  shotBoardProgress: ShotBoardProgress | null;
-  shotBoardError: string | null;
-  /** Photograph the film, or re-photograph part of it. No scenes = everything
-   * that isn't photographed yet. `keepDesign` re-shoots the existing setups
-   * instead of re-deciding how the scene is covered. */
-  buildShotBoard: (sceneIndexes?: number[], keepDesign?: boolean) => Promise<void>;
   /**
-   * The film's cast sheets — one portrait per recurring character.
+   * THE LOCATION BIBLE — every place in the film, written once at 500–700 words
+   * and pasted verbatim into every scene set there. Server-owned, written by the
+   * blueprint job, read here and never written by the client.
    *
-   * Photographed by the shot board on its first pass (the blueprint writes only
-   * the PLAN), and the thing every frame containing that person is generated
-   * from. Server-owned, read here, never written by the client.
+   * This is what replaced the shot board on the experimental story: the board
+   * held a room still by photographing it, and this holds it still by giving
+   * every scene set there the identical paragraph. Empty on every other type.
    */
-  characterRefs: CharacterRef[];
-  /** Drop one setup from a scene's board. The picture stays in Storage. */
-  removeBoardShot: (sceneIndex: number, order: number) => Promise<void>;
-  /** Ask for one more angle, described in the director's own words. */
-  addBoardShot: (sceneIndex: number, note: string) => Promise<void>;
-  /** Put the director's own pictures on the board — already photographed. */
-  addBoardShotImages: (sceneIndex: number, files: File[]) => Promise<void>;
-  /** True when this project is an experimental story, i.e. one that is
-   * photographed, gated and rendered only from its board. */
-  isBoardFilm: boolean;
-  /** Gate 1 → stage 2: the blueprint is approved, photograph the film. */
-  continueToBoard: () => Promise<void>;
-  /** Gate 2 → stage 3: the board is approved, shoot every scene. */
-  continueToFilm: () => Promise<void>;
+  locations: LocationBlock[];
+  /** True when this project is an experimental story: long-form, and gated on
+   * the director reading its blueprint before anything is rendered. */
+  isGatedFilm: boolean;
+  /** The gate: the blueprint is approved, shoot every scene. */
+  approveBlueprint: () => Promise<void>;
   /**
    * A link to one of the ACTIVE project's faces, in whichever route tree it
    * belongs to.
@@ -222,20 +198,17 @@ interface EditorFlowValue {
 
 // Stages the server-side storyboard job (functions/storyboardGenerate) streams
 // into the project doc while it works. "ready" / "failed" are terminal.
-const PIPELINE_WORKING_STAGES = ["queued", "analyzing", "storylining", "casting", "building"];
+// "locations" is the experimental story's own stage — the location bible, written
+// between the registry and the scene builders. Absent from this list it would
+// read as a terminal stage and the workspace would stop showing progress in the
+// middle of a run.
+const PIPELINE_WORKING_STAGES = ["queued", "analyzing", "storylining", "casting", "locations", "building"];
 
 // The storyline-agent function can't run longer than its own 540s ceiling, so a
 // project still flagged "running" past this lost its turn to a crash or a
 // timeout. Treating that as finished is what stops one dead turn from disabling
 // the editor's autosave for good.
 const AGENT_TURN_CEILING_MS = 10 * 60 * 1000;
-
-// The same guard for the shot board. One pass is bounded by the function's own
-// 540s ceiling; a long film takes several, and each one re-stamps
-// shotBoardStartedAt, so this only has to cover a single invocation. Without it a
-// pass that died before writing a terminal stage would leave the board screen
-// spinning forever with no error on it and no way to retry.
-const SHOT_BOARD_PASS_CEILING_MS = 12 * 60 * 1000;
 
 // Firestore rejects `undefined` anywhere in a written value, and scene statuses
 // collect optional fields (`error`, `customPrompt`, `id`) as they go.
@@ -384,10 +357,10 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const [sceneImages, setSceneImages] = useState<SceneImagesMap>({});
   const [projectMaterials, setProjectMaterials] = useState<SceneImage[]>([]);
   const sceneImagesRef = useRef<SceneImagesMap>({});
-  // Same trick for the board: a render fired from a stale closure must attach
-  // the frames that exist NOW, not the ones that existed when it was created.
-  const shotBoardRef = useRef<ShotBoard | null>(null);
-  const isBoardFilmRef = useRef(false);
+  // Same trick, for the one branch that must never read stale: a render fired
+  // from a closure created before the project loaded must still know whether
+  // this film attaches pictures at all.
+  const isGatedFilmRef = useRef(false);
   useEffect(() => {
     sceneImagesRef.current = sceneImages;
   }, [sceneImages]);
@@ -846,23 +819,23 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       });
 
       try {
-        // What rides along with the render.
+        // What rides along with the render: this scene's reference images, read
+        // straight from Storage, exactly as every film type has always done.
         //
-        // A BOARD FILM attaches its photographed FRAMES and nothing else — no
-        // character sheets, no uploads, no fallback. The frames were generated
-        // FROM the sheets and the plates, so they already contain all of it, and a
-        // studio portrait on a grey backdrop handed to the video model is the
-        // contamination the board replaced. The rule lives in ./shotBoard.ts
-        // beside its server-side twin, because the agent renders through that one
-        // and must attach exactly the same thing.
+        // THE EXPERIMENTAL STORY ATTACHES NOTHING, and it is a branch rather
+        // than an empty map because it has to hold for projects built during the
+        // PHOTOGRAPHED era too. Those documents still carry board frames mirrored
+        // into `sceneImages`, and handing them to the video model alongside a
+        // 3,000-word prompt is the exact contradiction this rewrite removed —
+        // two accounts of one face, reconciled by inventing a third. See
+        // functions/optiqStoryX/pipeline.js; the reason the pictures went is that
+        // a photorealistic face attached to a render of that person under arrest
+        // is refused by the classifier, silently, and billed for anyway.
         //
-        // Every OTHER kind of film keeps the behaviour it has always had: this
-        // scene's reference images, read straight from Storage. Making the board
-        // the only source for all films is precisely what broke unphotographed
-        // scenes last time — they attached nothing at all, silently.
-        const refs = isBoardFilmRef.current
-          ? renderAttachments(shotBoardRef.current, sceneIndex)
-          : sceneImagesRef.current[sceneIndex] || [];
+        // Mirrored in the agent's render path in functions/index.js. They must
+        // attach the same thing or a scene comes out differently depending on
+        // which button shot it.
+        const refs = isGatedFilmRef.current ? [] : sceneImagesRef.current[sceneIndex] || [];
         const res = await apiFetch<{ id: string }>("/api/video/generate", {
           method: "POST",
           body: JSON.stringify({
@@ -1233,322 +1206,73 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
   const audioStage: string | null = activeProjectDoc?.audioStage ?? null;
   const audioReport = (activeProjectDoc?.audioReport as Record<string, unknown> | undefined) ?? null;
 
-  // ─── THE SHOT BOARD ───────────────────────────────────────────────────────
+  // ─── THE EXPERIMENTAL STORY ───────────────────────────────────────────────
   //
-  // The film photographed before it is filmed — see functions/shotBoardRun.js.
-  // Read straight off the project doc for the same reason audioStage is.
+  // The one film type that stops for approval before it spends money. It used to
+  // be the one that was PHOTOGRAPHED as well — a shot board of a hundred-plus
+  // stills that its scenes rendered from — and everything in this block that used
+  // to serve the board has gone with it. See functions/optiqStoryX/pipeline.js.
   //
-  // Only an experimental original story has one, and for that type the board is
-  // load-bearing rather than an enhancement: its scenes render from their frames
-  // and have no usable long prompt to fall back to.
-  const isBoardFilm = isExperimentalStory(
+  // What is left is the gate.
+  const isGatedFilm = isExperimentalStory(
     (activeProjectDoc?.videoType as VideoTypeId | undefined) ?? videoTypeId
   );
-  const shotBoard = (activeProjectDoc?.shotBoard as ShotBoard | undefined) ?? null;
-  // Read off the project doc for the same reason shotBoard and audioStage are:
-  // the sheets are written by the board job, and mirroring server state into
-  // client state is how an autosave echoes a stale copy back over it.
-  const characterRefs = (activeProjectDoc?.characterRefs as CharacterRef[] | undefined) ?? [];
-  const shotBoardStage = (activeProjectDoc?.shotBoardStage as ShotBoardStage) ?? null;
-  const shotBoardProgress = (activeProjectDoc?.shotBoardProgress as ShotBoardProgress | undefined) ?? null;
-  const shotBoardError = (activeProjectDoc?.shotBoardError as string | undefined) ?? null;
 
   /**
-   * True while a pass is genuinely running.
+   * THE LOCATION BIBLE — every place in the film, written once at 500–700 words
+   * and pasted verbatim into every scene set there. Server-owned, written by the
+   * blueprint job, and read straight off the project doc for the same reason
+   * audioStage is: mirroring server state into client state is how an autosave
+   * echoes a stale copy back over it.
    *
-   * Derived, never stored, and bounded by the ceiling — because a board film
-   * HOLDS ITS RENDERS until the board is done, and a stage that never reaches a
-   * terminal value (a job that was never delivered, a function that died before
-   * its catch) would strand the film at the door with no error on screen. Past
-   * the ceiling we treat the pass as gone, and the board screen offers a retry.
-   * Same reasoning as agentRunning.
+   * This is what replaced the board's world plan, and the blueprint screen shows
+   * it — a director approving a film should be able to read the rooms it will be
+   * shot in.
    */
-  const shotBoardBusy =
-    SHOT_BOARD_WORKING_STAGES.includes(shotBoardStage || "") &&
-    Date.now() - Date.parse(activeProjectDoc?.shotBoardStartedAt || "") < SHOT_BOARD_PASS_CEILING_MS;
+  const locations =
+    ((activeProjectDoc?.locations as LocationBible | undefined)?.locations as
+      | LocationBlock[]
+      | undefined) ?? [];
 
   useEffect(() => {
-    shotBoardRef.current = shotBoard;
-  }, [shotBoard]);
-  useEffect(() => {
-    isBoardFilmRef.current = isBoardFilm;
-  }, [isBoardFilm]);
+    isGatedFilmRef.current = isGatedFilm;
+  }, [isGatedFilm]);
 
-  const buildShotBoard = useCallback(
-    async (sceneIndexes?: number[], keepDesign?: boolean) => {
-      if (!user || !activeProjectId) return;
-      try {
-        await updateDoc(doc(db, "projects", activeProjectId), {
-          shotBoardStage: "queued",
-          // Stamped on every enqueue: a board film waits for its board before it
-          // renders, and a job that never fires must not hold it there forever.
-          // See shotBoardBusy.
-          shotBoardStartedAt: new Date().toISOString(),
-          shotBoardError: null,
-          updatedAt: new Date().toISOString(),
-        });
-        await addDoc(collection(db, "shotBoardJobs"), {
-          uid: user.uid,
-          projectId: activeProjectId,
-          scope: sceneIndexes?.length ? { scenes: sceneIndexes, keepDesign: !!keepDesign } : null,
-          status: "queued",
-          createdAt: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error("Failed to enqueue the shot board:", err);
-        setError(err instanceof Error ? err.message : "Could not start photographing this film");
-      }
-    },
-    [user, activeProjectId]
-  );
-
-  // ─── EDITING THE BOARD BY HAND ────────────────────────────────────────────
+  // ─── THE GATE ─────────────────────────────────────────────────────────────
   //
-  // The board is derived — the swarm decides how many setups a scene takes and
-  // what each one sees — and for the most part that is the right default. But
-  // the director is the one looking at the result, and two judgements are theirs
-  // alone: "this angle is wrong, lose it" and "this scene needs one more".
+  // ONE gate now, where there were two. What still makes this film type
+  // different: it does not run start to finish. It stops at the blueprint — the
+  // story, the cast, the location bible and every scene's script — and waits for
+  // the director to read it.
   //
-  // Both edit `shotBoard.scenes[i].shots`, which is server-owned everywhere else
-  // in this file. That is safe here for a specific reason: the board job only
-  // ever writes while it is running, `shotBoardBusy` is false when these are
-  // reachable, and the runner treats the stored shot list as the design under
-  // keepDesign — so a hand-edited list is honoured rather than overwritten.
-
-  /** The scene's board entry, or null. Firestore returns index keys as strings. */
-  const boardEntryFor = useCallback(
-    (sceneIndex: number) => {
-      const scenes = (activeProjectDoc?.shotBoard as ShotBoard | undefined)?.scenes as
-        | Record<string, SceneShotBoard>
-        | undefined;
-      return scenes?.[sceneIndex] ?? scenes?.[String(sceneIndex)] ?? null;
-    },
-    [activeProjectDoc]
-  );
+  // The second gate went with the shot board. It existed because photographing a
+  // film was a large spend of its own, sitting between the blueprint and the
+  // clips; nothing is photographed any more, so the clips are the only thing the
+  // director is deciding to buy and one gate in front of them is the honest
+  // shape. See functions/optiqStoryX/pipeline.js.
 
   /**
-   * Drop one setup from a scene.
+   * THE GATE → PRODUCTION. The director has read the blueprint and wants the
+   * film. This is the first action on this film type that spends anything but
+   * tokens.
    *
-   * The picture itself is left in Storage. It is small, the project still owns
-   * it, and a director who deletes an angle and immediately wants it back is a
-   * likelier event than the few kilobytes mattering — see functions/orphanSweep.js
-   * for what does eventually collect it, once the project itself goes.
+   * Two writes, and both are load-bearing:
+   *
+   *   `pipelineStage: "ready"` is what RELEASES the gate. The workspace shows
+   *   BlueprintStage for as long as the stage is "blueprint-ready", so moving it
+   *   to the same terminal stage every other film type uses is what lets the
+   *   director through to the script editor. It used to fall through on the
+   *   board's existence instead, which no longer exists to check.
+   *
+   *   `productionMode: "auto-merge"` is what starts the renders — the auto-render
+   *   effect further down then walks every idle scene and shoots it.
    */
-  const removeBoardShot = useCallback(
-    async (sceneIndex: number, order: number) => {
-      if (!activeProjectId) return;
-      const entry = boardEntryFor(sceneIndex);
-      if (!entry) return;
-      const remaining = (entry.shots || [])
-        .filter((shot) => (shot.order ?? 0) !== order)
-        // Re-numbered so the setups stay a contiguous 0..n. The shot-board
-        // clause numbers the attached images from this order and tells the video
-        // model "ATTACHED IMAGE 2 is where this setup ends" — a gap in it points
-        // the model at the wrong picture.
-        .map((shot, i) => ({ ...shot, order: i }));
-      const updated: SceneShotBoard = { ...entry, shots: remaining };
-
-      try {
-        await updateDoc(doc(db, "projects", activeProjectId), {
-          [`shotBoard.scenes.${sceneIndex}`]: updated,
-          // The mirror the render path reads. Kept in step here, or the scene
-          // would still attach the still that was just removed. Same helper the
-          // render uses, so the two cannot disagree about what a setup flattens
-          // to.
-          [`sceneImages.${sceneIndex}`]: sceneStills({ scenes: { [sceneIndex]: updated } }, sceneIndex),
-          updatedAt: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error("Could not remove the board shot:", err);
-        setError(err instanceof Error ? err.message : "Could not remove that board shot");
-      }
-    },
-    [activeProjectId, boardEntryFor]
-  );
-
-  /**
-   * Ask for one more angle on a scene, in the director's own words.
-   *
-   * Appended to the stored shot list as an un-photographed setup and then handed
-   * to the board with keepDesign, which is what makes this cheap: the runner
-   * takes the stored list as the design and — since the frame-reuse added
-   * alongside this — photographs only the setup that has no picture yet. One
-   * image, not a whole scene's worth.
-   */
-  const addBoardShot = useCallback(
-    async (sceneIndex: number, note: string) => {
-      if (!activeProjectId || !note.trim()) return;
-      const entry = boardEntryFor(sceneIndex);
-      if (!entry) return;
-      const shots = entry.shots || [];
-      const order = shots.length;
-
-      // Written into the fields the frame prompt is actually built from. The
-      // director's sentence is the shot; there is no second pass that "designs"
-      // it, because the whole point is that they already said what they want.
-      const addition = {
-        order,
-        time: "",
-        label: note.trim().slice(0, 60),
-        camera: note.trim(),
-        blocking: "",
-        firstFrame: note.trim(),
-        motion: "",
-        endFrame: "",
-        cameraMove: "locked",
-        entry: "straight-into-action",
-        settingKey: shots[0]?.settingKey || "",
-        characters: shots[0]?.characters || [],
-        objectKeys: [],
-      };
-
-      try {
-        await updateDoc(doc(db, "projects", activeProjectId), {
-          [`shotBoard.scenes.${sceneIndex}`]: { ...entry, shots: [...shots, addition] },
-          updatedAt: new Date().toISOString(),
-        });
-        await buildShotBoard([sceneIndex], true);
-      } catch (err) {
-        console.error("Could not add the board shot:", err);
-        setError(err instanceof Error ? err.message : "Could not add that board shot");
-      }
-    },
-    [activeProjectId, boardEntryFor, buildShotBoard]
-  );
-
-  /**
-   * Put the director's OWN pictures on the board.
-   *
-   * The board is derived, and for the look of a film that is right — a frame the
-   * system photographed is built from the place plate, the arrangement inside it
-   * and the cast sheets, and it agrees with every other frame because of it. But
-   * a director with a reference in their hand — a location photo, a still from
-   * something they are quoting, a frame they made elsewhere — had no way to put
-   * it in front of the video model at all.
-   *
-   * A dropped image is ALREADY a photograph, which is what makes this cheap and
-   * why it does not touch the shot-board job: there is nothing to design and
-   * nothing to generate. It is appended as a setup that is already shot, and the
-   * next render attaches it exactly like any other frame.
-   *
-   * Read as data URLs and uploaded with `uploadString`, the same path
-   * uploadBrandMaterials takes — and into the film's own shotboard folder, so
-   * deleting the project takes these with it (see cleanupDeletedProject).
-   */
-  const addBoardShotImages = useCallback(
-    async (sceneIndex: number, files: File[]) => {
-      if (!user || !activeProjectId || files.length === 0) return;
-      const entry = boardEntryFor(sceneIndex);
-      if (!entry) {
-        setError("This scene has no board yet — photograph it first, then add your own stills.");
-        return;
-      }
-
-      // Anything that is not an image would upload happily and then be attached
-      // to a video render as an unreadable blob.
-      const images = files.filter((file) => file.type.startsWith("image/"));
-      const rejected = files.length - images.length;
-      if (images.length === 0) {
-        setError("Those aren't images. A board shot has to be a picture.");
-        return;
-      }
-
-      try {
-        const shots = entry.shots || [];
-        const added = await Promise.all(
-          images.map(async (file, i) => {
-            const data = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result || ""));
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(file);
-            });
-            const safeName = file.name.replace(/[^\w.-]/g, "_");
-            // A fresh path every time: Storage serves generated media immutably,
-            // so re-using a name would serve the previous picture.
-            const path = `users/${user.uid}/projects/${activeProjectId}/shotboard/upload-s${
-              sceneIndex + 1
-            }-${Date.now().toString(36)}-${i}-${safeName}`;
-            const fileRef = storageRef(storage, path);
-            await uploadString(fileRef, data, "data_url");
-            const url = await getDownloadURL(fileRef);
-            return {
-              order: shots.length + i,
-              time: "",
-              label: file.name.replace(/\.[^.]+$/, "").slice(0, 60) || `Added still ${shots.length + i + 1}`,
-              camera: "",
-              blocking: "",
-              firstFrame: "",
-              motion: "",
-              endFrame: "",
-              cameraMove: "locked" as const,
-              entry: "straight-into-action" as const,
-              settingKey: shots[0]?.settingKey || "",
-              characters: shots[0]?.characters || [],
-              objectKeys: [],
-              // Already photographed — that is the whole point.
-              url,
-              path,
-              mimeType: file.type || "image/png",
-              renderedAt: new Date().toISOString(),
-              /** So the board screen can say which stills the system did not take. */
-              uploaded: true,
-            };
-          })
-        );
-
-        const updated: SceneShotBoard = { ...entry, shots: [...shots, ...added] };
-        await updateDoc(doc(db, "projects", activeProjectId), {
-          [`shotBoard.scenes.${sceneIndex}`]: updated,
-          // The mirror the render reads, through the same helper, so the two
-          // cannot disagree about what this scene attaches.
-          [`sceneImages.${sceneIndex}`]: sceneStills({ scenes: { [sceneIndex]: updated } }, sceneIndex),
-          updatedAt: new Date().toISOString(),
-        });
-        if (rejected > 0) {
-          setError(`Added ${added.length}. Skipped ${rejected} file(s) that weren't images.`);
-        }
-      } catch (err) {
-        console.error("Could not add board shot images:", err);
-        setError(err instanceof Error ? err.message : "Could not add those stills");
-      }
-    },
-    [user, activeProjectId, boardEntryFor]
-  );
-
-  // ─── THE TWO GATES ────────────────────────────────────────────────────────
-  //
-  // What makes this film type different from every other one: it does not run
-  // start to finish. It stops after the blueprint and again after the board, and
-  // these are the two buttons that release it. Both are named for the product
-  // concept rather than the mechanism, because "Continue" is a promise about
-  // money and the workspace needs something honest to label.
-
-  /**
-   * GATE 1 → STAGE 2. The director has read the blueprint and wants the film
-   * photographed. This is the first action on this film type that spends
-   * anything but tokens.
-   *
-   * No scope: everything not already photographed gets photographed.
-   */
-  const continueToBoard = useCallback(async () => {
-    if (!isBoardFilm) return;
-    await buildShotBoard();
-  }, [isBoardFilm, buildShotBoard]);
-
-  /**
-   * GATE 2 → STAGE 3. The board is approved; shoot the film.
-   *
-   * Flipping productionMode to "auto-merge" is what does it — the auto-render
-   * effect further down then walks every idle scene and renders it. That effect
-   * already refuses to start while the board is not "ready", so this cannot
-   * accidentally shoot an unphotographed film even if it is called early.
-   */
-  const continueToFilm = useCallback(async () => {
+  const approveBlueprint = useCallback(async () => {
     if (!activeProjectId) return;
     setProductionMode("auto-merge");
     try {
       await updateDoc(doc(db, "projects", activeProjectId), {
+        pipelineStage: "ready",
         productionMode: "auto-merge",
         updatedAt: new Date().toISOString(),
       });
@@ -1672,19 +1396,20 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
 
   // ─── AUTO-RESUME OR INITIATE QUEUED GENERATIONS ON PROJECT LOAD ──────────
   //
-  // A BOARD FILM WAITS FOR ITS SHOT BOARD before it starts rendering. That
-  // ordering is the whole point of photographing a film first: a clip shot before
-  // its frames exist is the clip the board was built to prevent, and re-rendering
-  // it later costs real money.
+  // Nothing holds a render back any more except the blueprint gate itself, and
+  // that gate works by not setting `productionMode` until the director approves.
   //
-  // Unlike the reverted version, it does not go on a board that failed or came
-  // back partial: on this film type an unphotographed scene has nothing to attach
-  // and its long prompt was deliberately written NOT to describe how anything
-  // looks, so rendering it anyway buys a clip of the wrong film. The board screen
-  // asks the director to retry instead.
+  // There used to be a second condition here: a board film waited for its shot
+  // board to be "ready", because a clip shot before its frames existed was the
+  // exact failure photography was meant to prevent. There are no frames to wait
+  // for — a scene carries its whole world in its own prompt now.
   useEffect(() => {
     if (!storyboard || !activeProjectId) return;
-    const boardHolding = isBoardFilm && shotBoardStage !== "ready";
+    // A gated film that has NOT been approved yet must not render, even if a
+    // stale `productionMode` says otherwise — an old project that was already
+    // in auto-merge when it was rebuilt would otherwise shoot itself the moment
+    // the blueprint landed, which is the one thing the gate exists to stop.
+    const gateHolding = isGatedFilm && pipelineStage === "blueprint-ready";
     storyboard.scenes.forEach((scene, idx) => {
       const status = videoStatus[idx];
       const isPolling = scenePollersRef.current.has(pollerKey(activeProjectId, idx));
@@ -1693,7 +1418,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
         void resumePollingForScene(idx, status.id);
       } else if (
         productionMode === "auto-merge" &&
-        !boardHolding &&
+        !gateHolding &&
         (status.status === "idle" || (status.status === "rendering" && !status.id)) &&
         !isPolling
       ) {
@@ -1701,7 +1426,7 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storyboard, activeProjectId, productionMode, isBoardFilm, shotBoardStage]);
+  }, [storyboard, activeProjectId, productionMode, isGatedFilm, pipelineStage]);
 
   const reviseScenePrompt = useCallback(
     async (sceneIndex: number) => {
@@ -1868,10 +1593,8 @@ export function EditorFlowProvider({ children }: { children: React.ReactNode }) 
     agentRunning,
     sceneImages, projectMaterials,
     addSceneImages, attachMaterialToScene, removeSceneImage,
-    shotBoard, shotBoardStage, shotBoardProgress, shotBoardError, shotBoardBusy, buildShotBoard,
-    characterRefs,
-    removeBoardShot, addBoardShot, addBoardShotImages,
-    isBoardFilm, continueToBoard, continueToFilm, projectLink,
+    locations,
+    isGatedFilm, approveBlueprint, projectLink,
     startSpeechRecognition, stopSpeechRecognition,
     handleMaterialsUpload, handleDrop, removeBrandMaterial,
     generateStoryboard, allScenesRendered, generateVideoForScene, selectSceneTake, reviseScenePrompt,
