@@ -511,7 +511,7 @@ export default function ProjectWorkspace() {
                         mat.mimeType.startsWith("image/") &&
                         !(sceneImages[idx] || []).some((img) => img.path === mat.path)
                     )}
-                    onUpload={(files) => void addSceneImages(idx, files)}
+                    onUpload={(files) => addSceneImages(idx, files)}
                     onAttach={(mat) => attachMaterialToScene(idx, mat)}
                     onRemove={(imgIdx) => removeSceneImage(idx, imgIdx)}
                   />

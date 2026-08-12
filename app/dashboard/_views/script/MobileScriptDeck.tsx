@@ -209,7 +209,7 @@ export default function MobileScriptDeck({
                     mat.mimeType.startsWith("image/") &&
                     !(sceneImages[sceneIndex] || []).some((img) => img.path === mat.path)
                 )}
-                onUpload={(files) => void addSceneImages(sceneIndex, files)}
+                onUpload={(files) => addSceneImages(sceneIndex, files)}
                 onAttach={(mat) => attachMaterialToScene(sceneIndex, mat)}
                 onRemove={(imgIdx) => removeSceneImage(sceneIndex, imgIdx)}
               />
