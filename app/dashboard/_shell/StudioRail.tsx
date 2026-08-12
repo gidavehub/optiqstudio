@@ -61,8 +61,8 @@ export function RailChoice({
     <div
       className={`flex w-full items-center gap-3 rounded-[22px] border p-2 transition-all ${
         selected
-          ? "border-transparent bg-foreground text-background"
-          : "border-line-2 bg-surface text-foreground hover:border-foreground hover:bg-surface-2"
+          ? "border-transparent bg-[var(--studio)] text-[var(--studio-on)]"
+          : "border-line-2 bg-surface text-foreground hover:border-[var(--studio)] hover:bg-surface-2"
       } ${disabled ? "pointer-events-none opacity-40" : ""}`}
     >
       <button
@@ -118,14 +118,14 @@ export function RailShapes({
             aria-pressed={active}
             className={`flex flex-col items-center justify-center gap-2.5 rounded-[22px] border py-4 transition-all active:scale-[0.97] ${
               active
-                ? "border-transparent bg-foreground text-background"
-                : "border-line-2 bg-surface text-foreground hover:border-foreground hover:bg-surface-2"
+                ? "border-transparent bg-[var(--studio)] text-[var(--studio-on)]"
+                : "border-line-2 bg-surface text-foreground hover:border-[var(--studio)] hover:bg-surface-2"
             }`}
           >
             <span className="flex h-[52px] items-center justify-center">
               <span
                 style={{ width: boxW, height: boxH }}
-                className={`rounded-[6px] border-[3px] ${active ? "border-background" : "border-ink-3"}`}
+                className={`rounded-[6px] border-[3px] ${active ? "border-[var(--studio-on)]" : "border-ink-3"}`}
               />
             </span>
             <span className="text-[13px] font-bold tracking-tight">{opt.label}</span>
@@ -158,7 +158,7 @@ export function RailStat({
     <div className="rounded-[22px] border border-line-2 bg-background p-4">
       <p className="text-[12px] font-bold uppercase tracking-widest text-faint">{label}</p>
       <p className="mt-1 flex items-baseline gap-1.5">
-        <span className="text-[34px] font-bold leading-none tracking-tight tabular-nums text-foreground">
+        <span className="text-[34px] font-bold leading-none tracking-tight tabular-nums text-[var(--studio-ink)]">
           {value}
         </span>
         {unit && <span className="text-[15px] font-bold text-ink-3">{unit}</span>}
@@ -183,7 +183,7 @@ export function RailChips({
           key={opt}
           type="button"
           onClick={() => onPick(opt)}
-          className="rounded-full border border-line-2 bg-surface px-4 py-2.5 text-[13px] font-bold tracking-tight text-ink-2 transition-all hover:border-foreground hover:bg-foreground hover:text-background active:scale-95"
+          className="rounded-full border border-line-2 bg-surface px-4 py-2.5 text-[13px] font-bold tracking-tight text-ink-2 transition-all hover:border-transparent hover:bg-[var(--studio)] hover:text-[var(--studio-on)] active:scale-95"
         >
           {opt}
         </button>

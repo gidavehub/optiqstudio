@@ -25,6 +25,7 @@ import React, { useRef, useState } from "react";
 import { useIsMobile } from "../_shared/useIsMobile";
 import { Icon } from "../../../components/icons";
 import StudioIsland from "./StudioIsland";
+import { studioClass } from "./studioTheme";
 import type { NavItem, ShellHelpers } from "./types";
 
 interface StudioShellProps {
@@ -43,6 +44,13 @@ interface StudioShellProps {
   onDropFiles?: (files: File[]) => void;
   /** One line shown over the drop overlay, e.g. what the files will be used as. */
   dropHint?: string;
+  /**
+   * The wall's scroll container, for surfaces that need to drive it — the agent
+   * room pins the view to the newest message. Given here rather than letting the
+   * child mount its own scroller inside this one, which would nest two of them.
+   */
+  scrollRef?: React.Ref<HTMLDivElement>;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
   /** The wall. The only region that scrolls. */
   children: React.ReactNode;
 }
@@ -56,6 +64,8 @@ export default function StudioShell({
   dock,
   onDropFiles,
   dropHint = "Drop it anywhere",
+  scrollRef,
+  onScroll,
   children,
 }: StudioShellProps) {
   // The rail is a real column from lg up and a sheet below it, so "open" only
@@ -75,13 +85,18 @@ export default function StudioShell({
   };
 
   const helpers: ShellHelpers = {
-    openRail: () => setSheetOpen(true),
+    // Guarded on railIsSheet so a studio that calls openRail() as a side effect
+    // (Music does, when the director starts) doesn't leave the flag armed on a
+    // desktop, ready to fire a sheet the moment the window is narrowed.
+    openRail: () => railIsSheet && setSheetOpen(true),
     railOpen: open,
   };
 
   return (
     <div
-      className="relative flex h-full flex-col overflow-hidden bg-background text-foreground"
+      // studioClass is what makes this screen blue / red / yellow / green.
+      // Everything below reads --studio from here; nothing hardcodes a hex.
+      className={`${studioClass(activeId)} relative flex h-full flex-col overflow-hidden bg-background text-foreground`}
       onDragEnter={
         onDropFiles
           ? (e) => {
@@ -123,11 +138,13 @@ export default function StudioShell({
           the wall passes UNDER the island as it scrolls, which is what makes
           the island read as floating rather than as a header. */}
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden px-3 pt-[84px] sm:gap-4 sm:px-5 sm:pt-[96px]">
-        <aside className="hidden w-[32%] min-w-[280px] max-w-[400px] shrink-0 overflow-y-auto rounded-[28px] border border-line-2 bg-surface p-4 lg:block">
+        <aside className="rail-scroll hidden w-[32%] min-w-[280px] max-w-[400px] shrink-0 overflow-y-auto rounded-[28px] border border-line-2 bg-surface p-4 lg:block">
           <div className="space-y-6">{rail}</div>
         </aside>
 
-        <div className="min-w-0 flex-1 overflow-y-auto pb-2">{children}</div>
+        <div ref={scrollRef} onScroll={onScroll} className="min-w-0 flex-1 overflow-y-auto pb-2">
+          {children}
+        </div>
       </div>
 
       {dock(helpers)}
@@ -147,7 +164,7 @@ export default function StudioShell({
             onClick={() => setSheetOpen(false)}
             className="absolute inset-0 bg-foreground/25 backdrop-blur-sm"
           />
-          <div className="animate-slideUp relative max-h-[76vh] overflow-y-auto rounded-t-[32px] border-t border-line-2 bg-background p-4 pb-8">
+          <div className="rail-scroll animate-slideUp relative max-h-[76vh] overflow-y-auto rounded-t-[32px] border-t border-line-2 bg-background p-4 pb-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-[18px] font-bold tracking-tight text-foreground">{railLabel}</h2>
               <button

@@ -7,8 +7,13 @@
 // Lives INSIDE EditorFlowProvider (unlike the layout shell) so it can read the
 // production mode: on /dashboard/project/[id] with the timeline editor active
 // ("auto-merge") both pills disappear — the editor's own top bar carries the
-// brand there. The agent route is the same case now that it has a real top bar of
-// its own. The script editor ("manual") and every other page keep them.
+// brand there. The script editor ("manual") and every other page keep them.
+//
+// The four studios and the agent room suppress them too, but for a different
+// reason: those routes float a full StudioIsland across the top which already
+// carries the mark, the wallet and the account menu. Leaving these pills up
+// would put three floating chromes on one edge, two of them saying the same
+// thing. See app/dashboard/_shell/StudioIsland.tsx.
 
 import React from "react";
 import Link from "next/link";
@@ -16,6 +21,7 @@ import { usePathname } from "next/navigation";
 import OptiqMark from "../../../components/OptiqMark";
 import { useAuth } from "../../../components/AuthProvider";
 import { useEditorFlow } from "../_flow/EditorFlowProvider";
+import { SHELL_ROUTES } from "../_shell/nav";
 import AccountPill from "./AccountPill";
 
 export default function FloatingChrome() {
@@ -25,14 +31,16 @@ export default function FloatingChrome() {
 
   if (!user) return null;
 
-  // Two surfaces own their own top bar and carry the brand themselves, so the
-  // pills would just collide with it: the timeline editor and the agent room.
-  // Note the timeline test is anchored — a `startsWith` would also swallow the
-  // pills on every sub-route of a project regardless of its mode.
+  // Surfaces that carry the brand themselves, so the pills would only collide
+  // with it. Note the timeline test is anchored — a `startsWith` would also
+  // swallow the pills on every sub-route of a project regardless of its mode.
   const path = pathname || "";
   const inTimelineEditor = /^\/dashboard\/project\/[^/]+$/.test(path) && productionMode === "auto-merge";
   const inAgentRoom = /^\/dashboard\/project\/[^/]+\/agent$/.test(path);
-  if (inTimelineEditor || inAgentRoom) return null;
+  // Exact match, not startsWith: the studios' DETAIL routes (/dashboard/video/[id]
+  // and friends) are ordinary pages with no island, and they still want the pills.
+  const inStudioShell = SHELL_ROUTES.includes(path);
+  if (inTimelineEditor || inAgentRoom || inStudioShell) return null;
 
   return (
     <>

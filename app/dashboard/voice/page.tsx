@@ -1,16 +1,21 @@
 "use client";
 
-// Optiq Voice Engine — rebuilt on the Image/Video studio layout: a speaker rail
-// (faces + sample playback), a wall of past takes, and a docked script console.
-// No voice cloning — the 16 prebuilt speakers are the whole engine.
+// Optiq Voice Engine — on the bold studio shell, like Video and Image. The
+// speaker list is the rail (16 faces, big enough to actually choose from), the
+// wall holds every take, and the dock carries Preview / Dictate / Polish / Clear
+// over a single script box. No voice cloning — the prebuilt speakers are the
+// whole engine.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import VoiceRail from "../_shared/audio/VoiceRail";
-import AudioConsole from "../_shared/audio/AudioConsole";
+import VoiceRail, { useSamplePlayer } from "../_shared/audio/VoiceRail";
 import AudioProjectsGrid from "../_shared/AudioProjectsGrid";
+import StudioShell from "../_shell/StudioShell";
+import StudioDock from "../_shell/StudioDock";
+import { RailStat } from "../_shell/StudioRail";
+import { STUDIO_NAV } from "../_shell/nav";
+import { useDictation } from "../_shared/useDictation";
 import { useGenerationHistory } from "../_shared/useGenerationHistory";
 import { useReusePrompt } from "../_shared/useReusePrompt";
 import { VOICE_PROFILES } from "../_shared/audio/voiceProfiles";
@@ -24,12 +29,17 @@ export default function VoiceEngineStudio() {
   const [selectedId, setSelectedId] = useState(VOICE_PROFILES[0].id);
   const [script, setScript] = useState("");
   const [busy, setBusy] = useState(false);
+  const [polishing, setPolishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
   const reusePrompt = useReusePrompt();
+  const dictation = useDictation(setScript);
+  // One player, shared by the rail's per-speaker buttons and the dock's
+  // Preview tile — otherwise two samples can play over each other.
+  const player = useSamplePlayer();
 
   const selected = VOICE_PROFILES.find((p) => p.id === selectedId) ?? VOICE_PROFILES[0];
 
@@ -56,6 +66,25 @@ export default function VoiceEngineStudio() {
   const triggerGenerate = () => {
     if (!script.trim() || busy) return;
     setConfirmOpen(true);
+  };
+
+  // Reads the script back as a narration script rather than as a shot list —
+  // same endpoint, different director behind it.
+  const polish = async () => {
+    if (!script.trim() || polishing) return;
+    setPolishing(true);
+    setError(null);
+    try {
+      const data = await apiFetch<{ prompt: string }>("/api/enhance", {
+        method: "POST",
+        body: JSON.stringify({ prompt: script, kind: "voice" }),
+      });
+      setScript(data.prompt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Polish failed");
+    } finally {
+      setPolishing(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -116,79 +145,91 @@ export default function VoiceEngineStudio() {
     }, 320);
   };
 
+  const previewing = player.playingId === selected.id;
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
-      <VoiceRail selectedId={selectedId} onSelect={setSelectedId} />
-
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
-            <div>
-              <span className="block tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
-                OPTIQ VOICE ENGINE
-              </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Voiceover Takes</h2>
-            </div>
-          </div>
-
-          <AudioProjectsGrid
-            items={history.map((h) => ({
-              id: h.id,
-              status: h.status || "succeeded",
-              prompt: h.prompt,
-              audioUrl: h.audioUrl,
-              createdAt: h.createdAt,
-            }))}
-            variant="voice"
-            openedMenuId={openedMenuId}
-            setOpenedMenuId={setOpenedMenuId}
-            deletingIds={deletingIds}
-            freshIds={freshIds}
-            onDelete={deleteTake}
-            onReuse={(id, e) => void handleReuse(id, e)}
-            emptyTitle="No voiceover takes yet"
-            emptyHint="Pick a speaker, write a script below, and your takes will appear here."
+    <StudioShell
+      navItems={STUDIO_NAV}
+      activeId="voice"
+      title="All takes"
+      railLabel="Speakers"
+      rail={
+        <>
+          <RailStat
+            label="Reading now"
+            value={selected.name}
+            note={`${selected.accent} · GMD ${cost} for this script`}
           />
-        </div>
-
-        {error && (
-          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger sm:mx-8">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        <AudioConsole
-          value={script}
+          <VoiceRail selectedId={selectedId} onSelect={setSelectedId} player={player} />
+        </>
+      }
+      dock={({ openRail }) => (
+        <StudioDock
+          tiles={[
+            {
+              id: "speaker",
+              label: "Speaker",
+              icon: "user",
+              value: selected.name,
+              onSelect: openRail,
+            },
+            {
+              id: "preview",
+              label: previewing ? "Stop" : "Preview",
+              icon: previewing ? "pause" : "play",
+              busy: player.loadingId === selected.id,
+              active: previewing,
+              onSelect: () => player.toggle(selected.id),
+            },
+            {
+              id: "dictate",
+              label: dictation.recording ? "Stop" : "Dictate",
+              icon: dictation.recording ? "micOff" : "voice",
+              danger: dictation.recording,
+              onSelect: dictation.toggle,
+            },
+            {
+              id: "polish",
+              label: "Polish",
+              icon: "enhance",
+              busy: polishing,
+              disabled: !script.trim() || polishing,
+              onSelect: () => void polish(),
+            },
+          ]}
+          value={dictation.recording && dictation.interim ? `${script} ${dictation.interim}`.trim() : script}
           setValue={setScript}
-          placeholder={`Write ${selected.name}'s narration script…`}
-          onGenerate={triggerGenerate}
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording ? "Listening…" : `Write ${selected.name}'s narration script…`
+          }
+          onSubmit={triggerGenerate}
           busy={busy}
-          generateLabel={`Synthesize · ${cost}`}
-          busyLabel="Synthesizing…"
           maxLength={MAX_CHARS}
-          hint={`${selected.name} · ${selected.accent}`}
-        >
-          {/* Mobile-only speaker strip — desktop uses the left rail */}
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 sm:hidden">
-            {VOICE_PROFILES.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 transition-colors ${
-                  selectedId === p.id ? "border-accent bg-surface" : "border-line bg-background"
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/media/voice-faces/${p.id}.jpg`} alt="" className="h-6 w-6 rounded-full object-cover" />
-                <span className="text-[11px] font-semibold text-foreground">{p.name}</span>
-              </button>
-            ))}
-          </div>
-        </AudioConsole>
-      </main>
+          hint={`GMD ${cost} · ${selected.name}`}
+          error={error}
+          onDismissError={() => setError(null)}
+        />
+      )}
+    >
+      <AudioProjectsGrid
+        items={history.map((h) => ({
+          id: h.id,
+          status: h.status || "succeeded",
+          prompt: h.prompt,
+          audioUrl: h.audioUrl,
+          createdAt: h.createdAt,
+        }))}
+        variant="voice"
+        openedMenuId={openedMenuId}
+        setOpenedMenuId={setOpenedMenuId}
+        deletingIds={deletingIds}
+        freshIds={freshIds}
+        onDelete={deleteTake}
+        onReuse={(id, e) => void handleReuse(id, e)}
+        emptyTitle="No takes yet"
+        emptyHint="Pick a speaker, write a script below, and your takes land here."
+      />
 
       <ConfirmGenerationModal
         isOpen={confirmOpen}
@@ -200,6 +241,6 @@ export default function VoiceEngineStudio() {
         description={`Voiceover with ${selected.name} (${selected.accent})`}
         actionLabel="Synthesize Voice"
       />
-    </div>
+    </StudioShell>
   );
 }

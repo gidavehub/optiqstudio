@@ -23,15 +23,23 @@ export interface IconProps {
   className?: string;
   /** Give this ONLY when the icon is the whole control and carries the meaning. */
   title?: string;
+  /**
+   * A CSS colour — usually one of the four, e.g. "var(--g-red)". Sets `color`
+   * on the svg, which every glyph paints from, so a studio's mark can carry its
+   * own colour without a second copy of the artwork. Leave it off and the glyph
+   * is the colour of the text around it, which is what utility glyphs want.
+   */
+  tint?: string;
 }
 
-export default function Icon({ name, size = 20, className = "", title }: IconProps) {
+export default function Icon({ name, size = 20, className = "", title, tint }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
+      style={tint ? { color: tint } : undefined}
       fill="currentColor"
       stroke="currentColor"
       strokeWidth={0}

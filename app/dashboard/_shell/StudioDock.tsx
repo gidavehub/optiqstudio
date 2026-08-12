@@ -16,6 +16,17 @@ import React, { useEffect, useRef } from "react";
 import { Icon } from "../../../components/icons";
 import type { DockTile } from "./types";
 
+// The console's own width, shared by every row of it so they stack as one
+// object rather than three bars of different lengths.
+//
+// Capped and centred rather than full-bleed. A prompt box stretched across a
+// 27" display is a worse target than a short one: the eye starts at the left
+// edge, the send button is a foot away at the right, and the line length is
+// past anything readable. 760px is about half the dock on a laptop, and it
+// simply stops growing after that — which is the actual fix, since the
+// complaint was that it got worse the wider the window went.
+const CONSOLE = "mx-auto w-full max-w-[760px]";
+
 interface StudioDockProps {
   tiles: readonly DockTile[];
   value: string;
@@ -28,6 +39,12 @@ interface StudioDockProps {
   disabled?: boolean;
   /** Typing is blocked but sending isn't — the mic owns the box right now. */
   readOnly?: boolean;
+  /**
+   * Lets an empty box send. The agent room needs this: attaching a still and
+   * saying nothing is a real turn ("look at this"), and the default rule —
+   * words or nothing — would grey out the send button on it.
+   */
+  allowEmptySubmit?: boolean;
   /** Enter sends, Shift+Enter breaks the line. Off for long-form scripts. */
   submitOnEnter?: boolean;
   /** Hard cap, mirrored in the counter under the bar. */
@@ -50,13 +67,16 @@ function TileButton({ tile }: { tile: DockTile }) {
     else tile.onSelect?.();
   };
 
-  // Inked when it's doing something, outlined when it isn't. Danger swaps the
-  // ink for red rather than adding a fifth visual state.
+  // Filled in the studio's colour when it's doing something, outlined when it
+  // isn't. Danger swaps to red rather than adding a fifth visual state — and on
+  // the red studio that still reads, because a pulsing filled tile is the
+  // signal, not the hue.
+  const filled = tile.danger || tile.active;
   const skin = tile.danger
     ? "border-transparent bg-danger text-white"
     : tile.active
-      ? "border-transparent bg-foreground text-background"
-      : "border-line-2 bg-surface text-ink-2 hover:border-foreground hover:bg-surface-2 hover:text-foreground";
+      ? "border-transparent bg-[var(--studio)] text-[var(--studio-on)]"
+      : "border-line-2 bg-surface text-ink-2 hover:border-[var(--studio)] hover:bg-surface-2 hover:text-foreground";
 
   return (
     <button
@@ -68,10 +88,23 @@ function TileButton({ tile }: { tile: DockTile }) {
         tile.danger ? "animate-pulse" : ""
       }`}
     >
+      {/* The glyph carries the studio's colour while the tile is at rest — it is
+          the only colour in the row, so four of them read as a set rather than
+          as decoration. Once the tile fills, it inherits the fill's ink. */}
       {tile.busy ? (
-        <Icon name="spinner" size={22} className="animate-spin sm:h-[26px] sm:w-[26px]" />
+        <Icon
+          name="spinner"
+          size={22}
+          tint={filled ? undefined : "var(--studio)"}
+          className="animate-spin sm:h-[26px] sm:w-[26px]"
+        />
       ) : (
-        <Icon name={tile.icon} size={22} className="sm:h-[26px] sm:w-[26px]" />
+        <Icon
+          name={tile.icon}
+          size={22}
+          tint={filled ? undefined : "var(--studio)"}
+          className="sm:h-[26px] sm:w-[26px]"
+        />
       )}
       <span className="max-w-full truncate px-2 text-[11px] font-bold tracking-tight sm:text-[13px]">
         {tile.label}
@@ -82,7 +115,13 @@ function TileButton({ tile }: { tile: DockTile }) {
         </span>
       )}
       {!!tile.badge && tile.badge > 0 && (
-        <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold tabular-nums text-white">
+        <span
+          className={`absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums ${
+            filled
+              ? "bg-[var(--studio-on)] text-[var(--studio)]"
+              : "bg-[var(--studio)] text-[var(--studio-on)]"
+          }`}
+        >
           {tile.badge}
         </span>
       )}
@@ -114,6 +153,7 @@ export default function StudioDock({
   busy = false,
   disabled = false,
   readOnly = false,
+  allowEmptySubmit = false,
   submitOnEnter = false,
   maxLength,
   hint,
@@ -132,12 +172,14 @@ export default function StudioDock({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [value]);
 
-  const canSend = !busy && !disabled && !!value.trim();
+  const canSend = !busy && !disabled && (allowEmptySubmit || !!value.trim());
 
   return (
-    <div className="shrink-0 px-3 pb-3 sm:px-5 sm:pb-5">
+    // pt matches the gap BETWEEN the two layers, so the console sits in its own
+    // breathing room instead of butting straight up against the wall above it.
+    <div className="shrink-0 px-3 pb-3 pt-2.5 sm:px-5 sm:pb-5 sm:pt-3">
       {error && (
-        <div className="mb-2.5 flex animate-rise items-center justify-between gap-3 rounded-[20px] border border-danger bg-danger-soft px-4 py-3 text-[13px] font-semibold text-danger">
+        <div className={`${CONSOLE} mb-2.5 flex animate-rise items-center justify-between gap-3 rounded-[20px] border border-danger bg-danger-soft px-4 py-3 text-[13px] font-semibold text-danger`}>
           <span className="min-w-0 flex-1 truncate">{error}</span>
           <button onClick={onDismissError} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
             <Icon name="close" size={14} />
@@ -145,18 +187,21 @@ export default function StudioDock({
         </div>
       )}
 
-      {attachments}
+      {attachments && <div className={CONSOLE}>{attachments}</div>}
 
       {/* ── LAYER 1 ── */}
-      <div className="mb-2.5 grid grid-cols-4 gap-2 sm:mb-3 sm:gap-3">
+      <div className={`${CONSOLE} mb-2.5 grid grid-cols-4 gap-2 sm:mb-3 sm:gap-3`}>
         {tiles.map((tile) => (
           <TileButton key={tile.id} tile={tile} />
         ))}
       </div>
 
-      {/* ── LAYER 2 ── */}
-      <div className="flex items-end gap-2.5 sm:gap-3">
-        <div className="flex min-w-0 flex-1 flex-col rounded-[26px] border border-line-2 bg-surface px-4 py-3 transition-colors focus-within:border-foreground sm:rounded-[30px] sm:px-5 sm:py-4">
+      {/* ── LAYER 2 ──
+          items-center, not items-end: the send button is a circle and a circle
+          resting on the same baseline as a rounded box reads as having fallen
+          to the floor. It stays centred against the box at every height. */}
+      <div className={`${CONSOLE} flex items-center gap-2.5 sm:gap-3`}>
+        <div className="flex min-w-0 flex-1 flex-col rounded-[26px] border border-line-2 bg-surface px-4 py-3 transition-colors focus-within:border-[var(--studio)] sm:rounded-[30px] sm:px-5 sm:py-4">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -188,7 +233,7 @@ export default function StudioDock({
           disabled={!canSend}
           aria-label="Generate"
           title="Generate"
-          className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full bg-foreground text-background transition-all hover:bg-ink-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25 sm:h-[68px] sm:w-[68px]"
+          className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full bg-[var(--studio)] text-[var(--studio-on)] transition-all hover:brightness-95 active:scale-95 disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-faint sm:h-[68px] sm:w-[68px]"
         >
           <Icon name={busy ? "spinner" : "send"} size={26} className={busy ? "animate-spin" : ""} />
         </button>

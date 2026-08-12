@@ -1,14 +1,25 @@
 "use client";
 
-// Optiq Music — the score studio. A mood-preset rail, a wall of generated
-// tracks, and a docked brief console. Backed by Lyria via /api/music/generate.
+// Optiq Music — the score studio, on the bold studio shell.
+//
+// The thing that makes this studio different from the other three is the
+// DIRECTOR. Everywhere else the user knows what they want and is describing it;
+// here they usually know the scene and not the score. So Music gets an agent:
+// write the scene, press Direct, and three fully-formed directions come back —
+// genre, tempo, key, instrumentation, and a Lyria-ready brief each. Picking one
+// loads its brief; Compose generates it. The director is free; only the
+// generation charges, same as everywhere else.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { useAuth } from "../../../components/AuthProvider";
 import ConfirmGenerationModal from "../../../components/ConfirmGenerationModal";
-import AudioConsole from "../_shared/audio/AudioConsole";
 import AudioProjectsGrid from "../_shared/AudioProjectsGrid";
+import StudioShell from "../_shell/StudioShell";
+import StudioDock from "../_shell/StudioDock";
+import { RailGroup, RailChips } from "../_shell/StudioRail";
+import { STUDIO_NAV } from "../_shell/nav";
+import MusicDirections, { MusicDirection } from "./_components/MusicDirections";
+import { useDictation } from "../_shared/useDictation";
 import { useGenerationHistory } from "../_shared/useGenerationHistory";
 import { useReusePrompt } from "../_shared/useReusePrompt";
 import { AudioItem } from "../_shared/audio/types";
@@ -39,7 +50,14 @@ export default function MusicStudio() {
   const [openedMenuId, setOpenedMenuId] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
+  // The director's state. `activeDirection` is which one is loaded in the box,
+  // so the rail can show which card the current brief came from.
+  const [directions, setDirections] = useState<MusicDirection[]>([]);
+  const [directing, setDirecting] = useState(false);
+  const [activeDirection, setActiveDirection] = useState<string | null>(null);
+
   const reusePrompt = useReusePrompt();
+  const dictation = useDictation(setPrompt);
   const balance = profile?.credits ?? 0;
 
   // Music is billed per generated second — Lyria returns a single ~30s clip.
@@ -59,7 +77,32 @@ export default function MusicStudio() {
     return () => window.removeEventListener("click", close);
   }, []);
 
-  const addMood = (mood: string) => setPrompt((prev) => (prev.trim() ? `${prev.trim()}, ${mood.toLowerCase()}` : mood));
+  const addMood = (mood: string) =>
+    setPrompt((prev) => (prev.trim() ? `${prev.trim()}, ${mood.toLowerCase()}` : mood));
+
+  // ── The director ────────────────────────────────────────────────────────
+  const direct = async () => {
+    if (!prompt.trim() || directing) return;
+    setDirecting(true);
+    setError(null);
+    try {
+      const data = await apiFetch<{ directions: MusicDirection[] }>("/api/music/direct", {
+        method: "POST",
+        body: JSON.stringify({ idea: prompt }),
+      });
+      setDirections(data.directions || []);
+      setActiveDirection(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The director couldn't answer that");
+    } finally {
+      setDirecting(false);
+    }
+  };
+
+  const useDirection = (d: MusicDirection) => {
+    setPrompt(d.brief);
+    setActiveDirection(d.name);
+  };
 
   const handleEnhance = async () => {
     if (!prompt.trim() || enhancing) return;
@@ -68,7 +111,7 @@ export default function MusicStudio() {
     try {
       const data = await apiFetch<{ prompt: string }>("/api/enhance", {
         method: "POST",
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, kind: "music" }),
       });
       setPrompt(data.prompt);
     } catch (err) {
@@ -98,6 +141,7 @@ export default function MusicStudio() {
       createdAt: new Date().toISOString(),
     } as AudioItem);
     setPrompt("");
+    setActiveDirection(null);
 
     try {
       const data = await apiFetch<{ id: string; url: string }>("/api/music/generate", {
@@ -142,93 +186,103 @@ export default function MusicStudio() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground sm:flex-row">
-      {/* Mood rail (desktop) */}
-      <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-64 sm:border-b-0 sm:border-r sm:pt-24">
-        <div>
-          <p className="eyebrow mb-3">Mood &amp; genre</p>
-          <div className="flex flex-wrap gap-1.5">
-            {MOODS.map((m) => (
-              <button
-                key={m}
-                onClick={() => addMood(m)}
-                className="rounded-full border border-line bg-background px-3 py-1.5 text-[11px] font-semibold text-ink-2 transition-colors hover:border-success hover:bg-success-soft hover:text-success"
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
+    <StudioShell
+      navItems={STUDIO_NAV}
+      activeId="music"
+      title="All tracks"
+      railLabel="Direction"
+      rail={
+        <>
+          <RailGroup title="Directions" hint="Free · pick one">
+            <MusicDirections
+              directions={directions}
+              busy={directing}
+              activeName={activeDirection}
+              onUse={useDirection}
+            />
+          </RailGroup>
 
-      <main className="relative flex flex-1 flex-col overflow-hidden bg-background">
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-20 sm:p-6 sm:pt-24 md:p-8">
-          <div className="mb-8 flex items-center justify-between border-b border-line pb-4">
-            <div>
-              <span className="block tabular-nums text-[10px] font-bold uppercase tracking-widest text-muted">
-                OPTIQ MUSIC
-              </span>
-              <h2 className="mt-1 text-[18px] font-bold tracking-tight text-foreground">All Tracks</h2>
-            </div>
-          </div>
-
-          <AudioProjectsGrid
-            items={history.map((h) => ({
-              id: h.id,
-              status: h.status || "succeeded",
-              prompt: h.prompt,
-              audioUrl: h.audioUrl,
-              createdAt: h.createdAt,
-            }))}
-            variant="music"
-            openedMenuId={openedMenuId}
-            setOpenedMenuId={setOpenedMenuId}
-            deletingIds={deletingIds}
-            freshIds={freshIds}
-            onDelete={deleteTrack}
-            onReuse={(id, e) => void handleReuse(id, e)}
-            emptyTitle="No tracks yet"
-            emptyHint="Describe a mood or scene below and generate your first score."
-          />
-        </div>
-
-        {error && (
-          <div className="mx-4 mb-3 flex animate-rise items-center justify-between rounded-2xl border border-danger bg-danger-soft p-4 text-xs text-danger sm:mx-8">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-muted hover:text-foreground">
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        <AudioConsole
-          value={prompt}
-          setValue={setPrompt}
-          placeholder="A warm, uplifting afrobeat bed with gentle percussion for a brand advert…"
-          onGenerate={triggerGenerate}
+          <RailGroup title="Mood & genre" hint="Tap to add">
+            <RailChips options={MOODS} onPick={addMood} />
+          </RailGroup>
+        </>
+      }
+      dock={({ openRail }) => (
+        <StudioDock
+          tiles={[
+            {
+              id: "direct",
+              label: "Direct",
+              icon: "agent",
+              busy: directing,
+              disabled: !prompt.trim() || directing,
+              onSelect: () => {
+                openRail();
+                void direct();
+              },
+            },
+            {
+              id: "dictate",
+              label: dictation.recording ? "Stop" : "Dictate",
+              icon: dictation.recording ? "micOff" : "voice",
+              danger: dictation.recording,
+              onSelect: dictation.toggle,
+            },
+            {
+              id: "enhance",
+              label: "Enhance",
+              icon: "enhance",
+              busy: enhancing,
+              disabled: !prompt.trim() || enhancing,
+              onSelect: () => void handleEnhance(),
+            },
+            {
+              id: "moods",
+              label: "Moods",
+              icon: "waveform",
+              badge: directions.length,
+              onSelect: openRail,
+            },
+          ]}
+          value={dictation.recording && dictation.interim ? `${prompt} ${dictation.interim}`.trim() : prompt}
+          setValue={(v) => {
+            setPrompt(v);
+            // Once it's been edited it's no longer the director's brief.
+            if (activeDirection) setActiveDirection(null);
+          }}
+          readOnly={dictation.recording}
+          placeholder={
+            dictation.recording
+              ? "Listening…"
+              : "A bank advert in Banjul — hopeful, families, morning light…"
+          }
+          onSubmit={triggerGenerate}
           busy={busy}
-          generateLabel={`Compose · ${musicCost}`}
-          busyLabel="Composing…"
           maxLength={MAX_CHARS}
-          hint={`~${trackSeconds}s instrumental`}
-          showEnhance
-          onEnhance={() => void handleEnhance()}
-          enhancing={enhancing}
-        >
-          {/* Mobile-only mood strip */}
-          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 sm:hidden">
-            {MOODS.map((m) => (
-              <button
-                key={m}
-                onClick={() => addMood(m)}
-                className="shrink-0 rounded-full border border-line bg-background px-3 py-1.5 text-[11px] font-semibold text-ink-2"
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </AudioConsole>
-      </main>
+          hint={`GMD ${musicCost} · ~${trackSeconds}s instrumental`}
+          error={error}
+          onDismissError={() => setError(null)}
+        />
+      )}
+    >
+      <AudioProjectsGrid
+        items={history.map((h) => ({
+          id: h.id,
+          status: h.status || "succeeded",
+          prompt: h.prompt,
+          audioUrl: h.audioUrl,
+          createdAt: h.createdAt,
+        }))}
+        variant="music"
+        openedMenuId={openedMenuId}
+        setOpenedMenuId={setOpenedMenuId}
+        deletingIds={deletingIds}
+        freshIds={freshIds}
+        onDelete={deleteTrack}
+        onReuse={(id, e) => void handleReuse(id, e)}
+        emptyTitle="No tracks yet"
+        emptyHint="Describe the scene below, then press Direct and pick a sound."
+      />
 
       <ConfirmGenerationModal
         isOpen={confirmOpen}
@@ -240,6 +294,6 @@ export default function MusicStudio() {
         description={`Original instrumental score (~${trackSeconds}s)`}
         actionLabel="Compose Track"
       />
-    </div>
+    </StudioShell>
   );
 }

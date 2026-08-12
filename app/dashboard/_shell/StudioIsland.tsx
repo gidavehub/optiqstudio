@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import OptiqMark from "../../../components/OptiqMark";
 import { Icon } from "../../../components/icons";
 import { useAuth } from "../../../components/AuthProvider";
+import { studioOn, studioTint } from "./studioTheme";
 import type { NavItem } from "./types";
 
 interface StudioIslandProps {
@@ -77,79 +78,91 @@ export default function StudioIsland({
 
   return (
     <div className="pointer-events-none absolute inset-x-3 top-3 z-40 sm:inset-x-5 sm:top-4">
-      <div className="glass-strong pointer-events-auto flex items-center gap-2 rounded-[26px] p-2 sm:gap-3 sm:rounded-[30px] sm:p-2.5">
-        {/* Brand — and the way home. */}
-        <Link
-          href="/dashboard"
-          aria-label="Portal"
-          title="Portal"
-          className="flex h-11 shrink-0 items-center gap-2.5 rounded-[20px] px-3 transition-colors hover:bg-surface-2 active:scale-95 sm:h-12 sm:px-3.5"
-        >
-          <OptiqMark size={24} />
-          <span className="hidden text-[15px] font-bold lowercase tracking-tight text-foreground xl:inline">
-            optiq
+      {/* Three tracks, not a flex row. The middle column is `auto` between two
+          equal `1fr`s, so the nav sits on the island's TRUE centre line — the
+          same line the console below is centred on — no matter how wide the
+          brand gets on the left or how long the balance runs on the right. A
+          flex row can't do that: it centres the leftovers, not the element. */}
+      <div className="glass-strong pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-[26px] p-2 sm:gap-3 sm:rounded-[30px] sm:p-2.5">
+        {/* ── LEFT ── brand, and the screen's own name beside it. The title is
+            orientation rather than navigation, so it's the first thing to go. */}
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href="/dashboard"
+            aria-label="Portal"
+            title="Portal"
+            className="flex h-11 shrink-0 items-center gap-2.5 rounded-[20px] px-2.5 transition-colors hover:bg-surface-2 active:scale-95 sm:h-12 sm:px-3"
+          >
+            <OptiqMark size={24} />
+            <span className="hidden text-[15px] font-bold lowercase tracking-tight text-foreground xl:inline">
+              optiq
+            </span>
+          </Link>
+          <span className="hidden min-w-0 truncate border-l border-line-2 pl-3 text-[13px] font-bold tracking-tight text-ink-3 2xl:block">
+            {title}
           </span>
-        </Link>
+        </div>
 
-        {/* ── NAV ── The four studios (or, in the agent room, the three faces of
-            a film). Big enough to hit without looking, labelled from md up and
-            icon-only below it — never collapsed into a menu. */}
-        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-none sm:gap-2">
+        {/* ── CENTRE ── The four studios (or, in the agent room, the three faces
+            of a film). Big enough to hit without looking, labelled from md up
+            and icon-only below it — never collapsed into a menu.
+
+            Each destination keeps its OWN colour, on and off: the Video mark is
+            blue on the Music screen too. That's what makes the nav a set of
+            four products rather than four grey words, and it's why the active
+            fill is read from the item, not from the shell's --studio. */}
+        <nav className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-none sm:gap-2">
           {items.map((item) => {
             const active = item.id === activeId;
+            const tint = studioTint(item.id);
             return (
               <button
                 key={item.id}
                 onClick={() => go(item)}
                 aria-current={active ? "page" : undefined}
                 title={item.label}
+                style={active ? { background: tint, color: studioOn(item.id) } : undefined}
                 className={`flex h-11 shrink-0 items-center gap-2 rounded-[18px] px-3 text-[14px] font-bold tracking-tight transition-all active:scale-95 sm:h-12 sm:rounded-[20px] sm:px-4 ${
-                  active
-                    ? "bg-foreground text-background"
-                    : "text-ink-3 hover:bg-surface-2 hover:text-foreground"
+                  active ? "" : "text-ink-3 hover:bg-surface-2 hover:text-foreground"
                 }`}
               >
-                <Icon name={item.icon} size={19} />
+                <Icon name={item.icon} size={19} tint={active ? undefined : tint} />
                 <span className="hidden md:inline">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* The screen's own name. Sits between nav and wallet, and is the first
-            thing to give way — it's orientation, not navigation. */}
-        <span className="hidden min-w-0 shrink truncate border-l border-line-2 pl-3 text-[13px] font-bold tracking-tight text-ink-3 2xl:block">
-          {title}
-        </span>
+        {/* ── RIGHT ── */}
+        <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
+          {/* Settings, on the sizes where the rail isn't a visible column. */}
+          <button
+            onClick={onOpenRail}
+            aria-expanded={railOpen}
+            title={railLabel}
+            className={`flex h-11 shrink-0 items-center gap-2 rounded-[18px] border px-3 text-[13px] font-bold transition-all active:scale-95 lg:hidden ${
+              railOpen
+                ? "border-transparent bg-[var(--studio)] text-[var(--studio-on)]"
+                : "border-line-2 text-ink-2 hover:bg-surface-2 hover:text-foreground"
+            }`}
+          >
+            <Icon name="sliders" size={18} />
+            <span className="hidden sm:inline">{railLabel}</span>
+          </button>
 
-        {/* Settings, on the sizes where the rail isn't a visible column. */}
-        <button
-          onClick={onOpenRail}
-          aria-expanded={railOpen}
-          title={railLabel}
-          className={`flex h-11 shrink-0 items-center gap-2 rounded-[18px] border px-3 text-[13px] font-bold transition-all active:scale-95 lg:hidden ${
-            railOpen
-              ? "border-transparent bg-foreground text-background"
-              : "border-line-2 text-ink-2 hover:bg-surface-2 hover:text-foreground"
-          }`}
-        >
-          <Icon name="sliders" size={18} />
-          <span className="hidden sm:inline">{railLabel}</span>
-        </button>
+          {/* Wallet — the number that decides whether you press the big button. */}
+          <Link
+            href="/dashboard/billing"
+            title="Billing & credits"
+            className="hidden h-11 shrink-0 items-center gap-2 rounded-[18px] border border-line-2 px-3.5 transition-colors hover:bg-surface-2 active:scale-95 sm:flex sm:h-12 sm:rounded-[20px]"
+          >
+            <Icon name="wallet" size={18} tint="var(--g-green)" />
+            <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-[var(--g-green-ink)]">
+              {balance}
+            </span>
+          </Link>
 
-        {/* Wallet — the number that decides whether you press the big button. */}
-        <Link
-          href="/dashboard/billing"
-          title="Billing & credits"
-          className="hidden h-11 shrink-0 items-center gap-2 rounded-[18px] border border-line-2 px-3.5 transition-colors hover:bg-surface-2 active:scale-95 sm:flex sm:h-12 sm:rounded-[20px]"
-        >
-          <Icon name="wallet" size={18} className="text-success" />
-          <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-success">
-            {balance}
-          </span>
-        </Link>
-
-        {/* Account */}
+          {/* Account */}
         <div ref={menuRef} className="relative shrink-0">
           <button
             onClick={() => setMenuOpen((v) => !v)}
@@ -206,6 +219,7 @@ export default function StudioIsland({
               <Icon name="logout" size={17} className="text-ink-3" />
               Sign out
             </button>
+          </div>
           </div>
         </div>
       </div>

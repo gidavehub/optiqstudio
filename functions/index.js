@@ -620,6 +620,7 @@ async function vertexFetch(path, body) {
   let url;
   if (
     path.includes("gemini-3.1-flash-image") ||
+    path.includes("gemini-3-pro-image") || // Image Studio's Pro still — global only, 404s at us-east4
     path.includes("gemini-omni-flash-preview") ||
     path.includes("gemini-3.5-flash") ||
     path.includes("gemini-3.1-flash-tts-preview") // Gemini 3.1 Flash TTS: serves at global, 404s at us-east4
@@ -983,6 +984,38 @@ exports.transcribeAudio = onRequest(
   }
 );
 
+// Enhance is one director per studio, not one director for everything.
+//
+// It used to answer every studio with cinematography notes, so the Voice
+// Engine's "polish my script" came back carrying lens choices and colour
+// grades. `kind` picks the right desk; anything unrecognised falls back to
+// video, which is what every caller before this was implicitly asking for.
+const ENHANCE_DIRECTORS = {
+  video:
+    "You are a cinematography prompt director for a text-to-video model. " +
+    "Rewrite the user's idea as one vivid generation prompt under 120 words: " +
+    "subject, action, setting, camera movement, lens, lighting, mood, and " +
+    "color grade. Output only the prompt text — no preamble, no quotes.",
+  image:
+    "You are an art director writing prompts for a text-to-image model. " +
+    "Rewrite the user's idea as one vivid generation prompt under 120 words: " +
+    "subject, composition and framing, setting, lighting, lens or medium, " +
+    "texture, and colour palette. Never describe camera MOVEMENT — a still " +
+    "does not move. Output only the prompt text — no preamble, no quotes.",
+  voice:
+    "You are a voiceover script editor. Rewrite the user's script so it reads " +
+    "well ALOUD: natural spoken rhythm, short sentences, no tongue-twisters, " +
+    "numbers and abbreviations written the way they are said. Keep the meaning, " +
+    "the language and roughly the length. Never add stage directions, speaker " +
+    "labels or production notes. Output only the script itself.",
+  music:
+    "You are a music supervisor writing briefs for a text-to-music model. " +
+    "Rewrite the user's idea as one brief under 100 words: genre, tempo in BPM, " +
+    "key or tonality, the instruments actually playing, the groove, and how the " +
+    "energy moves across the clip. Instrumental only — never mention vocals or " +
+    "lyrics. Output only the brief — no preamble, no quotes.",
+};
+
 exports.enhancePrompt = onRequest(
   // Longer timeout so a per-minute quota wait (in vertexFetch) can finish inside the request.
   { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
@@ -990,7 +1023,7 @@ exports.enhancePrompt = onRequest(
     try {
       if (req.method !== "POST") return res.status(405).send("Method not allowed");
       await requireAuth(req);
-      const { prompt } = req.body;
+      const { prompt, kind } = req.body;
       if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
       const textModel = "gemini-3.5-flash";
@@ -999,12 +1032,7 @@ exports.enhancePrompt = onRequest(
         {
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           systemInstruction: {
-            parts: [{
-              text: "You are a cinematography prompt director for a text-to-video model. " +
-                    "Rewrite the user's idea as one vivid generation prompt under 120 words: " +
-                    "subject, action, setting, camera movement, lens, lighting, mood, and " +
-                    "color grade. Output only the prompt text — no preamble, no quotes."
-            }]
+            parts: [{ text: ENHANCE_DIRECTORS[kind] || ENHANCE_DIRECTORS.video }]
           },
           generationConfig: { temperature: 0.8 }
         }
@@ -1017,6 +1045,115 @@ exports.enhancePrompt = onRequest(
       return res.status(200).json({ prompt: text.trim() });
     } catch (err) {
       console.error("enhancePrompt error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── The score director ─────────────────────────────────────────────────────
+//
+// Optiq Music's agent. Enhance rewrites the one line you already wrote; this
+// answers a different question — "I don't know what this should sound like."
+//
+// It takes a fragment ("something for a Gambian bank advert") and comes back
+// with THREE fully-formed directions, each with its own genre, tempo, key and
+// instrumentation, plus a Lyria-ready brief. The director's whole job is to
+// make the three genuinely different from one another, because three variations
+// on the same idea is a worse answer than one.
+//
+// Free, like enhancePrompt: it's one short text call, and charging for the
+// question would push people back to guessing. The generation itself is what
+// costs money, and that is still the only thing that charges.
+//
+// The no-vocals rule is not a style preference — Lyria is instrumental, and a
+// brief that asks for a topline produces a worse instrumental.
+exports.musicDirect = onRequest(
+  { region: "us-east4", cors: true, maxInstances: 3, timeoutSeconds: 240 },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).send("Method not allowed");
+      await requireAuth(req);
+      const { idea } = req.body;
+      if (!idea || typeof idea !== "string") {
+        return res.status(400).json({ error: "Missing idea" });
+      }
+      if (idea.length > 2000) {
+        return res.status(400).json({ error: "Idea too long (2000 character max)" });
+      }
+
+      const response = await vertexFetch(
+        `/publishers/google/models/gemini-3.5-flash:generateContent`,
+        {
+          contents: [{ role: "user", parts: [{ text: idea }] }],
+          systemInstruction: {
+            parts: [{
+              text:
+                "You are a score director. The user gives you a fragment of an idea for a " +
+                "piece of music — sometimes a whole scene, sometimes four words. Answer with " +
+                "THREE genuinely different directions it could take.\n\n" +
+                "Different means different: not three tempos of the same groove. Change the " +
+                "genre, the instrumentation and the emotional argument between them. If the " +
+                "brief is African, at least one direction should come from the actual musical " +
+                "tradition it belongs to rather than a Western pastiche of it.\n\n" +
+                "For each direction:\n" +
+                "- name: two or three words. A title, not a sentence.\n" +
+                "- pitch: one short line on why this direction works for what they described.\n" +
+                "- tempo: e.g. \"96 BPM\".\n" +
+                "- key: e.g. \"F minor\".\n" +
+                "- instruments: three to five, named specifically.\n" +
+                "- brief: the generation prompt itself, under 90 words — genre, tempo, key, " +
+                "the instruments actually playing, the groove, and how the energy moves " +
+                "across the clip.\n\n" +
+                "The music is INSTRUMENTAL. Never write vocals, lyrics, a topline or a singer " +
+                "into any brief."
+            }]
+          },
+          generationConfig: {
+            temperature: 0.95,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                directions: {
+                  type: "array",
+                  minItems: 3,
+                  maxItems: 3,
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      pitch: { type: "string" },
+                      tempo: { type: "string" },
+                      key: { type: "string" },
+                      instruments: { type: "array", items: { type: "string" } },
+                      brief: { type: "string" },
+                    },
+                    required: ["name", "pitch", "tempo", "key", "instruments", "brief"],
+                  },
+                },
+              },
+              required: ["directions"],
+            },
+          },
+        }
+      );
+
+      const text = response.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      if (!text) throw new Error("Empty response from Vertex");
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error(`Score director returned invalid JSON: ${parseErr.message}`);
+      }
+
+      const directions = Array.isArray(parsed.directions) ? parsed.directions.slice(0, 3) : [];
+      if (directions.length === 0) throw new Error("Score director returned no directions");
+
+      return res.status(200).json({ directions });
+    } catch (err) {
+      console.error("musicDirect error:", err);
       return res.status(500).json({ error: err.message });
     }
   }
@@ -1043,7 +1180,11 @@ exports.imageGenerate = onRequest(
         }
         parts.push({ text: prompt });
 
-        const model = "gemini-3.1-flash-image";
+        // Image Studio is the one still the user sits and looks at, so it gets
+        // the Pro model rather than Flash. It takes ~20s instead of ~5s and
+        // returns a much larger PNG — the 240s timeout above covers it.
+        // There is no `gemini-3.1-pro-image`; Gemini 3 Pro Image is the Pro tier.
+        const model = "gemini-3-pro-image";
         const response = await vertexFetch(
           `/publishers/google/models/${model}:generateContent`,
           {

@@ -10,6 +10,76 @@
   --surface-2: #1e293b;  /* Slate-800 second level card/input surface */
   --line: rgba(255, 255, 255, 0.08); /* Premium subtle borders */
   --muted: #94a3b8;      /* Slate-400 muted text */
+
+  /* ── THE FOUR ────────────────────────────────────────────────────────────
+     Blue, red, yellow, green. Declared on :root rather than inside
+     `.optiq-app` because the mark is four-colour on the marketing site and the
+     login screen too, which sit outside the app's theme scope.
+
+     `-on` is the type colour that survives on top of that fill, and it is not
+     always white: yellow at 4.5:1 against white text is unreadable, so yellow
+     carries near-black instead. Anything painting a brand fill must use its
+     paired `-on`, never assume white.
+
+     `-ink` is the opposite case — the colour drawn AS type, on a white or soft
+     background. Yellow again needs its own value; #f9ab00 text on white is a
+     smear. */
+  --g-blue: #1a73e8;
+  --g-blue-on: #ffffff;
+  --g-blue-soft: #e8f0fe;
+  --g-blue-ink: #0b57d0;
+
+  --g-red: #ea4335;
+  --g-red-on: #ffffff;
+  --g-red-soft: #fce8e6;
+  --g-red-ink: #c5221f;
+
+  --g-yellow: #f9ab00;
+  --g-yellow-on: #201400;
+  --g-yellow-soft: #fef7e0;
+  --g-yellow-ink: #a36200;
+
+  --g-green: #1e8e3e;
+  --g-green-on: #ffffff;
+  --g-green-soft: #e6f4ea;
+  --g-green-ink: #137333;
+}
+
+/* ── Studio identity ───────────────────────────────────────────────────────
+   Each studio owns ONE of the four. That is the whole colour system: not a
+   rainbow on every screen, but a screen that is unmistakably blue or red or
+   yellow or green the moment it loads, the way a Google product is.
+
+   StudioShell puts one of these classes on its root and everything underneath
+   paints from --studio / --studio-on / --studio-soft / --studio-ink. So
+   retinting a studio is one line here, and a new studio picks a colour rather
+   than inventing one.
+
+      Video   blue     Image   red     Voice   yellow     Music   green
+      Agent   blue — it is the film's own room, and film is Video's colour. */
+.studio-blue {
+  --studio: var(--g-blue);
+  --studio-on: var(--g-blue-on);
+  --studio-soft: var(--g-blue-soft);
+  --studio-ink: var(--g-blue-ink);
+}
+.studio-red {
+  --studio: var(--g-red);
+  --studio-on: var(--g-red-on);
+  --studio-soft: var(--g-red-soft);
+  --studio-ink: var(--g-red-ink);
+}
+.studio-yellow {
+  --studio: var(--g-yellow);
+  --studio-on: var(--g-yellow-on);
+  --studio-soft: var(--g-yellow-soft);
+  --studio-ink: var(--g-yellow-ink);
+}
+.studio-green {
+  --studio: var(--g-green);
+  --studio-on: var(--g-green-on);
+  --studio-soft: var(--g-green-soft);
+  --studio-ink: var(--g-green-ink);
 }
 
 @theme inline {
@@ -214,6 +284,37 @@ body {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* ── Rail scrollbar ───────────────────────────────────────────────────────
+   The studio rail is a rounded card sitting on white, and the default bar cuts
+   a hard grey channel straight down its right edge — right through the corner
+   radius. This is the same trick as .paywall-scroll: a thin neutral thumb on an
+   invisible track, inset from the edge by a transparent border so it floats
+   inside the card's padding instead of hugging its border. */
+.rail-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(23, 26, 31, 0.18) transparent;
+}
+.rail-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+.rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rail-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(23, 26, 31, 0.18);
+  background-clip: content-box;
+  border: 4px solid transparent;
+  border-radius: 999px;
+}
+.rail-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(23, 26, 31, 0.34);
+  background-clip: content-box;
+}
+/* The rail only ever scrolls vertically. */
+.rail-scroll::-webkit-scrollbar:horizontal {
+  height: 0;
 }
 
 input:focus,

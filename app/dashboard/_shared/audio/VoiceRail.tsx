@@ -1,12 +1,19 @@
 "use client";
 
-// VoiceRail — the Optiq Voice Engine speaker picker. A face + name + accent per
-// profile, grouped by region, each with a sample-play button that plays the
-// pre-generated clip from /media/voice-samples/<id>.wav. Desktop rail; the
-// voice page renders its own compact face strip on mobile.
+// VoiceRail — the speaker picker, rebuilt for the bold rail.
+//
+// This is now the CONTENT of the rail, not the rail itself: the studio shell
+// owns the column (and the sheet it turns into on a phone), so this component
+// just draws groups of speakers into whatever it's given. That's why there's no
+// <aside> here any more.
+//
+// Each speaker is a full-width row with a real face, the name at 15px bold, the
+// accent under it, and its own play button for the pre-generated sample from
+// /media/voice-samples/<id>.wav. Selected is inked, not tinted.
 
 import React, { useRef, useState } from "react";
-import { Loader2, Pause, Play } from "lucide-react";
+import { Icon } from "../../../../components/icons";
+import { RailChoice, RailGroup } from "../../_shell/StudioRail";
 import { VOICE_PROFILES, VOICE_REGIONS, VoiceProfile } from "./voiceProfiles";
 
 // /media/* is served with an immutable 1-year cache (see next.config.ts), so a
@@ -14,13 +21,13 @@ import { VOICE_PROFILES, VOICE_REGIONS, VoiceProfile } from "./voiceProfiles";
 // Bump this whenever the sample clips are regenerated.
 const SAMPLE_VERSION = 2;
 
-function useSamplePlayer() {
+export function useSamplePlayer() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const toggle = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggle = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -52,96 +59,87 @@ function useSamplePlayer() {
   return { playingId, loadingId, toggle };
 }
 
-function SpeakerRow({
-  p,
-  selected,
-  onSelect,
+function SampleButton({
   playing,
   loading,
-  onToggleSample,
+  selected,
+  onClick,
 }: {
-  p: VoiceProfile;
-  selected: boolean;
-  onSelect: () => void;
   playing: boolean;
   loading: boolean;
-  onToggleSample: (e: React.MouseEvent) => void;
+  selected: boolean;
+  onClick: (e: React.MouseEvent) => void;
 }) {
   return (
-    <div
-      className={`flex w-full items-center gap-2 rounded-2xl border p-1.5 transition-all duration-300 ${
-        selected ? "border-accent bg-surface" : "border-transparent hover:border-line hover:bg-surface-2"
+    <button
+      onClick={onClick}
+      aria-label={playing ? "Stop sample" : "Play sample"}
+      title={playing ? "Stop sample" : "Play sample"}
+      className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all active:scale-95 ${
+        selected
+          ? "border-background/30 text-background hover:bg-background/15"
+          : "border-line-2 text-ink-2 hover:border-foreground hover:bg-surface-2 hover:text-foreground"
       }`}
     >
-      <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-        <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-line bg-surface">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/media/voice-faces/${p.id}.jpg`} alt={p.name} className="h-full w-full object-cover" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-bold text-foreground">{p.name}</span>
-          <span className="block truncate text-[10px] text-muted">{p.accent}</span>
-        </span>
-      </button>
-      <button
-        onClick={onToggleSample}
-        title="Play sample"
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors ${
-          playing
-            ? "border-accent bg-accent-soft text-accent-ink"
-            : "border-line bg-surface text-ink-3 hover:bg-surface-2 hover:text-foreground"
-        }`}
-      >
-        {loading ? (
-          <Loader2 size={11} className="animate-spin" />
-        ) : playing ? (
-          <Pause size={11} />
-        ) : (
-          <Play size={11} className="translate-x-[1px]" />
-        )}
-      </button>
-    </div>
+      <Icon
+        name={loading ? "spinner" : playing ? "pause" : "play"}
+        size={15}
+        className={loading ? "animate-spin" : ""}
+      />
+    </button>
   );
 }
 
 interface VoiceRailProps {
   selectedId: string;
   onSelect: (id: string) => void;
+  /** Shared with the studio so the dock's Preview tile drives the same audio. */
+  player: ReturnType<typeof useSamplePlayer>;
 }
 
-export default function VoiceRail({ selectedId, onSelect }: VoiceRailProps) {
-  const { playingId, loadingId, toggle } = useSamplePlayer();
-
+export default function VoiceRail({ selectedId, onSelect, player }: VoiceRailProps) {
   return (
-    <aside className="hidden w-full shrink-0 space-y-6 overflow-y-auto border-b border-line bg-background p-5 sm:block sm:w-72 sm:border-b-0 sm:border-r sm:pt-24">
-
-      <div>
-        <p className="eyebrow mb-3">Speaker</p>
-        <div className="space-y-4">
-          {VOICE_REGIONS.map((region) => {
-            const group = VOICE_PROFILES.filter((p) => p.region === region);
-            if (group.length === 0) return null;
-            return (
-              <div key={region}>
-                <p className="mb-1.5 px-1 tabular-nums text-[9px] uppercase tracking-widest text-faint">{region}</p>
-                <div className="space-y-1">
-                  {group.map((p) => (
-                    <SpeakerRow
-                      key={p.id}
-                      p={p}
-                      selected={selectedId === p.id}
-                      onSelect={() => onSelect(p.id)}
-                      playing={playingId === p.id}
-                      loading={loadingId === p.id}
-                      onToggleSample={(e) => toggle(p.id, e)}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </aside>
+    <>
+      {VOICE_REGIONS.map((region) => {
+        const group = VOICE_PROFILES.filter((p: VoiceProfile) => p.region === region);
+        if (group.length === 0) return null;
+        return (
+          <RailGroup key={region} title={region} hint={`${group.length} voices`}>
+            <div className="space-y-2">
+              {group.map((p) => {
+                const selected = selectedId === p.id;
+                return (
+                  <RailChoice
+                    key={p.id}
+                    label={p.name}
+                    sub={p.accent}
+                    selected={selected}
+                    onSelect={() => onSelect(p.id)}
+                    media={
+                      <span className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-line-2 bg-surface-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/media/voice-faces/${p.id}.jpg`}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      </span>
+                    }
+                    trailing={
+                      <SampleButton
+                        selected={!!selected}
+                        playing={player.playingId === p.id}
+                        loading={player.loadingId === p.id}
+                        onClick={(e) => player.toggle(p.id, e)}
+                      />
+                    }
+                  />
+                );
+              })}
+            </div>
+          </RailGroup>
+        );
+      })}
+    </>
   );
 }

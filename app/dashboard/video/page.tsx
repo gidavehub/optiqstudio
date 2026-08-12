@@ -188,20 +188,9 @@ function VideoWorkspace() {
     reader.readAsDataURL(file);
   };
 
-  // Shared routing for image/video file-input attachments (video wins; image clears video)
-  const handleAttachMediaFiles = (files: File[]) => {
-    const video = files.find((f) => f.type.startsWith("video/"));
-    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-    if (video) {
-      attachVideo(video);
-      setImages([]);
-    } else if (imageFiles.length > 0) {
-      imageFiles.forEach((img) => attachImage(img));
-      setVideoFile(null);
-    }
-  };
-
-  // Shared routing for drag-and-drop payloads (also accepts audio)
+  // The ONE router for attachments, whether they arrive from the Attach tile's
+  // picker or from a drop anywhere on the studio. Video wins over stills and
+  // clears them; a still clears a video; audio is orthogonal and rides along.
   const handleDropFiles = (files: File[]) => {
     if (files.length === 0) return;
     const video = files.find((f) => f.type.startsWith("video/"));
@@ -392,22 +381,26 @@ function VideoWorkspace() {
       dock={() => (
         <StudioDock
           tiles={[
+            // One Attach tile, not two. Splitting "media" from "voice ref" gave
+            // a whole quarter of the dock to a control most shots never touch,
+            // and the picker can route by MIME type on its own — the same
+            // routing the studio-wide drop target already does.
             {
-              id: "media",
-              label: "Add media",
+              id: "attach",
+              label: "Attach",
               icon: "addMedia",
-              badge: images.length + (videoFile ? 1 : 0),
-              file: { accept: "image/*,video/*", multiple: true, onFiles: handleAttachMediaFiles },
+              badge: images.length + (videoFile ? 1 : 0) + (audioFile ? 1 : 0),
+              file: { accept: "image/*,video/*,audio/*", multiple: true, onFiles: handleDropFiles },
             },
+            // The slot that bought back: length is the decision that changes
+            // most often and costs the most, so it belongs where a thumb lands.
             {
-              id: "voice",
-              label: "Voice ref",
-              icon: "waveform",
-              badge: audioFile ? 1 : 0,
-              file: {
-                accept: "audio/*",
-                onFiles: (files) => files[0] && attachAudio(files[0]),
-              },
+              id: "length",
+              label: "Length",
+              icon: "clock",
+              value: `${duration}s · ${(perSecondCost * duration).toFixed(0)}`,
+              onSelect: () =>
+                setDuration(DURATIONS[(DURATIONS.indexOf(duration) + 1) % DURATIONS.length]),
             },
             {
               id: "dictate",
